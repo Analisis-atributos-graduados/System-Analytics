@@ -1,27 +1,29 @@
 import { DOMUtils } from '../utils/dom.utils.js';
 import { StepIndicatorComponent } from '../components/step-indicator.component.js';
-import CourseService from '../services/course.service.js';
 import { StorageUtils } from '../utils/storage.utils.js';
+import CourseService from '../services/course.service.js';
 
 export class ConfigurationView {
     constructor(router) {
         this.router = router;
-        this.courseData = StorageUtils.load('currentCourse') || this.getMockData();
-    }
-
-    getMockData() {
-        return {
-            courseName: 'Metodología de la investigación',
-            courseCode: '1048',
-            instructor: 'Juan Perez',
-            period: '2025-20',
-            topic: 'Investigación',
-            topicDescription: 'Examen de investigación semestral...',
-            rubric: {
-                name: 'ACTA DE CONSTITUCIÓN DEL PROYECTO (1).docx',
-                size: 1.81 * 1024 * 1024
-            }
+        this.currentStep = 0; // 0-3 para los 4 pasos
+        this.configData = StorageUtils.load('configData') || {
+            courseName: '',
+            courseCode: '',
+            instructor: '',
+            period: '',
+            topic: '',
+            topicDescription: '',
+            rubricFile: null
         };
+        
+        // Lista de cursos disponibles (puede venir del API)
+        this.availableCourses = [
+            { id: 1, name: 'Metodología de la Investigación', code: 'MET-101' },
+            { id: 2, name: 'Análisis de Datos', code: 'DAT-201' },
+            { id: 3, name: 'Inteligencia Artificial', code: 'IA-301' },
+            { id: 4, name: 'Desarrollo Web', code: 'WEB-102' }
+        ];
     }
 
     render() {
@@ -32,7 +34,7 @@ export class ConfigurationView {
             { icon: '✓', title: 'Listo para análisis' }
         ];
 
-        const stepIndicator = new StepIndicatorComponent(steps, 3);
+        const stepIndicator = new StepIndicatorComponent(steps, this.currentStep);
 
         const html = `
             <div class="page-title">
@@ -43,20 +45,7 @@ export class ConfigurationView {
             ${stepIndicator.render()}
 
             <div class="main-card">
-                <div class="card-icon green-icon">✓</div>
-                <h3 class="card-title">Configuración completada</h3>
-                <p class="card-subtitle">Revisa la información antes de proceder al análisis de documentos</p>
-
-                <div class="summary-grid">
-                    ${this.renderCourseInfo()}
-                    ${this.renderTopicInfo()}
-                    ${this.renderRubricInfo()}
-                </div>
-
-                <div class="nav-buttons">
-                    <button class="btn btn-secondary" id="btn-previous">← Anterior</button>
-                    <button class="btn btn-primary" id="btn-next">Comenzar análisis →</button>
-                </div>
+                ${this.renderCurrentStep()}
             </div>
         `;
 
@@ -64,72 +53,398 @@ export class ConfigurationView {
         this.attachEvents();
     }
 
-    renderCourseInfo() {
-        return `
-            <div class="summary-card">
-                <div class="summary-header">
-                    <div class="summary-header-icon blue-icon">📚</div>
-                    <h4 class="summary-title">Información del curso</h4>
-                </div>
-                <div class="summary-item">
-                    <div class="summary-label">Curso:</div>
-                    <div class="summary-value">${this.courseData.courseName}</div>
-                </div>
-                <div class="summary-item">
-                    <div class="summary-label">Código:</div>
-                    <div class="summary-value">${this.courseData.courseCode}</div>
-                </div>
-                <div class="summary-item">
-                    <div class="summary-label">Instructor:</div>
-                    <div class="summary-value">${this.courseData.instructor}</div>
-                </div>
-                <div class="summary-item">
-                    <div class="summary-label">Período:</div>
-                    <div class="summary-value">${this.courseData.period}</div>
-                </div>
-            </div>
-        `;
+    renderCurrentStep() {
+        switch(this.currentStep) {
+            case 0: return this.renderStep1();
+            case 1: return this.renderStep2();
+            case 2: return this.renderStep3();
+            case 3: return this.renderStep4();
+            default: return this.renderStep1();
+        }
     }
 
-    renderTopicInfo() {
+    // PASO 1: Registro del curso con SPINNER
+    renderStep1() {
         return `
-            <div class="summary-card">
-                <div class="summary-header">
-                    <div class="summary-header-icon teal-icon">🎯</div>
-                    <h4 class="summary-title">Tópico de evaluación</h4>
-                </div>
-                <div class="summary-item">
-                    <div class="summary-label">Tema:</div>
-                    <div class="summary-value">${this.courseData.topic}</div>
-                </div>
-                <div class="summary-item">
-                    <div class="summary-label" style="margin-top: 10px;">${this.courseData.topicDescription}</div>
-                </div>
-            </div>
-        `;
-    }
+            <div class="card-icon blue-icon">📚</div>
+            <h3 class="card-title">Registro del curso</h3>
+            <p class="card-subtitle">Ingresa la información básica del curso académico</p>
 
-    renderRubricInfo() {
-        return `
-            <div class="summary-card" style="grid-column: span 2;">
-                <div class="summary-header">
-                    <div class="summary-header-icon orange-icon">📋</div>
-                    <h4 class="summary-title">Rúbrica de evaluación</h4>
+            <form id="step1-form" class="config-form">
+                <div class="form-group">
+                    <label class="form-label">Nombre del curso</label>
+                    <select class="form-input form-select" id="course-select" required>
+                        <option value="">Selecciona un curso...</option>
+                        ${this.availableCourses.map(course => `
+                            <option value="${course.id}" 
+                                    data-name="${course.name}" 
+                                    data-code="${course.code}"
+                                    ${this.configData.courseName === course.name ? 'selected' : ''}>
+                                ${course.name}
+                            </option>
+                        `).join('')}
+                    </select>
                 </div>
-                <div class="file-display">
-                    <div class="file-icon">📄</div>
-                    <div class="file-info">
-                        <div class="file-name">${this.courseData.rubric.name}</div>
-                        <div class="file-size">${(this.courseData.rubric.size / (1024 * 1024)).toFixed(2)} MB</div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Código del curso</label>
+                        <input type="text" 
+                               class="form-input" 
+                               id="course-code" 
+                               value="${this.configData.courseCode}"
+                               placeholder="ej. MET-101"
+                               readonly>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Período</label>
+                        <input type="text" 
+                               class="form-input" 
+                               id="period" 
+                               value="${this.configData.period}"
+                               placeholder="ej. 2025-1"
+                               required>
                     </div>
                 </div>
+
+                <div class="form-group">
+                    <label class="form-label">Instructor</label>
+                    <input type="text" 
+                           class="form-input" 
+                           id="instructor" 
+                           value="${this.configData.instructor}"
+                           placeholder="ej. Dr. Juan Pérez"
+                           required>
+                </div>
+
+                <div class="nav-buttons">
+                    <button type="button" class="btn btn-secondary" disabled>
+                        ← Anterior
+                    </button>
+                    <button type="submit" class="btn btn-primary">
+                        Siguiente →
+                    </button>
+                </div>
+            </form>
+        `;
+    }
+
+    // PASO 2: Registro del tópico
+    renderStep2() {
+        return `
+            <div class="card-icon teal-icon">🎯</div>
+            <h3 class="card-title">Registro del tópico</h3>
+            <p class="card-subtitle">Define el tema específico que será evaluado en los trabajos</p>
+
+            <form id="step2-form" class="config-form">
+                <div class="form-group">
+                    <label class="form-label">Tópico/Tema</label>
+                    <input type="text" 
+                           class="form-input" 
+                           id="topic" 
+                           value="${this.configData.topic}"
+                           placeholder="ej. Cambio Climático y Sostenibilidad"
+                           required>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Descripción del tópico</label>
+                    <textarea class="form-input textarea" 
+                              id="topic-description" 
+                              placeholder="Describe los aspectos específicos que deben abordar los trabajos, objetivos de aprendizaje, y criterios temáticos importantes..."
+                              rows="6"
+                              required>${this.configData.topicDescription}</textarea>
+                </div>
+
+                <div class="nav-buttons">
+                    <button type="button" class="btn btn-secondary" id="btn-back">
+                        ← Anterior
+                    </button>
+                    <button type="submit" class="btn btn-primary">
+                        Siguiente →
+                    </button>
+                </div>
+            </form>
+        `;
+    }
+
+    // PASO 3: Subir rúbrica
+renderStep3() {
+    return `
+        <div class="card-icon orange-icon">📋</div>
+        <h3 class="card-title">Subir rúbrica de evaluación</h3>
+        <p class="card-subtitle">Carga el documento con los criterios de evaluación específicos</p>
+
+        <form id="step3-form" class="config-form" novalidate>
+            <div class="upload-area" id="rubric-upload-area" role="button" tabindex="0">
+                <div class="upload-icon">⬆️</div>
+                <div class="upload-text">Seleccionar archivo de rúbrica</div>
+                <div class="upload-hint">PDF, DOC, DOCX (máx. 10MB)</div>
+                <input type="file" 
+                       id="rubric-input" 
+                       name="rubric"
+                       accept=".pdf,.doc,.docx" 
+                       style="display: none;">
+            </div>
+
+            ${this.configData.rubricFile ? `
+                <div class="file-display" style="margin-top: 20px;">
+                    <div class="file-icon">📄</div>
+                    <div class="file-info">
+                        <div class="file-name">${this.configData.rubricFile.name}</div>
+                        <div class="file-size">${this.formatFileSize(this.configData.rubricFile.size)}</div>
+                    </div>
+                    <button type="button" class="btn btn-secondary" id="btn-remove-rubric" style="padding: 8px 16px;">
+                        🗑️ Eliminar
+                    </button>
+                </div>
+            ` : ''}
+
+            <div class="nav-buttons">
+                <button type="button" class="btn btn-secondary" id="btn-back">
+                    ← Anterior
+                </button>
+                <button type="submit" class="btn btn-primary" ${!this.configData.rubricFile ? 'disabled' : ''}>
+                    Siguiente →
+                </button>
+            </div>
+        </form>
+    `;
+}
+
+
+    // PASO 4: Resumen y confirmación
+    renderStep4() {
+        return `
+            <div class="card-icon green-icon">✓</div>
+            <h3 class="card-title">Configuración completada</h3>
+            <p class="card-subtitle">Revisa la información antes de proceder al análisis de documentos</p>
+
+            <div class="summary-grid">
+                <div class="summary-card">
+                    <div class="summary-header">
+                        <div class="summary-header-icon blue-icon">📚</div>
+                        <h4 class="summary-title">Información del curso</h4>
+                    </div>
+                    <div class="summary-item">
+                        <div class="summary-label">Curso:</div>
+                        <div class="summary-value">${this.configData.courseName}</div>
+                    </div>
+                    <div class="summary-item">
+                        <div class="summary-label">Código:</div>
+                        <div class="summary-value">${this.configData.courseCode}</div>
+                    </div>
+                    <div class="summary-item">
+                        <div class="summary-label">Instructor:</div>
+                        <div class="summary-value">${this.configData.instructor}</div>
+                    </div>
+                    <div class="summary-item">
+                        <div class="summary-label">Período:</div>
+                        <div class="summary-value">${this.configData.period}</div>
+                    </div>
+                </div>
+
+                <div class="summary-card">
+                    <div class="summary-header">
+                        <div class="summary-header-icon teal-icon">🎯</div>
+                        <h4 class="summary-title">Tópico de evaluación</h4>
+                    </div>
+                    <div class="summary-item">
+                        <div class="summary-label">Tema:</div>
+                        <div class="summary-value">${this.configData.topic}</div>
+                    </div>
+                    <div class="summary-item">
+                        <div class="summary-label" style="margin-top: 10px;">${this.configData.topicDescription}</div>
+                    </div>
+                </div>
+
+                <div class="summary-card" style="grid-column: span 2;">
+                    <div class="summary-header">
+                        <div class="summary-header-icon orange-icon">📋</div>
+                        <h4 class="summary-title">Rúbrica de evaluación</h4>
+                    </div>
+                    <div class="file-display">
+                        <div class="file-icon">📄</div>
+                        <div class="file-info">
+                            <div class="file-name">${this.configData.rubricFile?.name || 'Sin archivo'}</div>
+                            <div class="file-size">${this.configData.rubricFile ? this.formatFileSize(this.configData.rubricFile.size) : ''}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="nav-buttons">
+                <button type="button" class="btn btn-secondary" id="btn-back">
+                    ← Anterior
+                </button>
+                <button type="button" class="btn btn-primary" id="btn-finish">
+                    Comenzar análisis →
+                </button>
             </div>
         `;
     }
 
     attachEvents() {
-        document.getElementById('btn-next')?.addEventListener('click', () => {
-            this.router.navigate('upload');
+        // Eventos según el paso actual
+        switch(this.currentStep) {
+            case 0: this.attachStep1Events(); break;
+            case 1: this.attachStep2Events(); break;
+            case 2: this.attachStep3Events(); break;
+            case 3: this.attachStep4Events(); break;
+        }
+    }
+
+    attachStep1Events() {
+        const form = document.getElementById('step1-form');
+        const courseSelect = document.getElementById('course-select');
+        const courseCodeInput = document.getElementById('course-code');
+
+        // Actualizar código cuando se selecciona curso
+        courseSelect?.addEventListener('change', (e) => {
+            const selectedOption = e.target.options[e.target.selectedIndex];
+            const courseName = selectedOption.dataset.name;
+            const courseCode = selectedOption.dataset.code;
+            
+            if (courseCodeInput) {
+                courseCodeInput.value = courseCode || '';
+            }
         });
+
+        form?.addEventListener('submit', (e) => {
+            e.preventDefault();
+            this.saveStep1Data();
+        });
+    }
+
+    attachStep2Events() {
+        const form = document.getElementById('step2-form');
+        
+        form?.addEventListener('submit', (e) => {
+            e.preventDefault();
+            this.saveStep2Data();
+        });
+
+        document.getElementById('btn-back')?.addEventListener('click', () => {
+            this.goToPreviousStep();
+        });
+    }
+
+    attachStep3Events() {
+        const uploadArea = document.getElementById('rubric-upload-area');
+        const fileInput = document.getElementById('rubric-input');
+        const form = document.getElementById('step3-form');
+
+        uploadArea?.addEventListener('click', () => {
+            fileInput?.click();
+        });
+
+        fileInput?.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                this.handleRubricFile(e.target.files[0]);
+            }
+        });
+
+        document.getElementById('btn-remove-rubric')?.addEventListener('click', () => {
+            this.configData.rubricFile = null;
+            StorageUtils.save('configData', this.configData);
+            this.render();
+        });
+
+        form?.addEventListener('submit', (e) => {
+            e.preventDefault();
+            this.saveStep3Data();
+        });
+
+        document.getElementById('btn-back')?.addEventListener('click', () => {
+            this.goToPreviousStep();
+        });
+    }
+
+    attachStep4Events() {
+        document.getElementById('btn-back')?.addEventListener('click', () => {
+            this.goToPreviousStep();
+        });
+
+        document.getElementById('btn-finish')?.addEventListener('click', () => {
+            this.finishConfiguration();
+        });
+    }
+
+    // Guardar datos de cada paso
+    saveStep1Data() {
+        const courseSelect = document.getElementById('course-select');
+        const selectedOption = courseSelect.options[courseSelect.selectedIndex];
+        
+        this.configData.courseName = selectedOption.dataset.name;
+        this.configData.courseCode = selectedOption.dataset.code;
+        this.configData.instructor = document.getElementById('instructor').value;
+        this.configData.period = document.getElementById('period').value;
+
+        StorageUtils.save('configData', this.configData);
+        this.goToNextStep();
+    }
+
+    saveStep2Data() {
+        this.configData.topic = document.getElementById('topic').value;
+        this.configData.topicDescription = document.getElementById('topic-description').value;
+
+        StorageUtils.save('configData', this.configData);
+        this.goToNextStep();
+    }
+
+    saveStep3Data() {
+        // Ya guardado en handleRubricFile
+        this.goToNextStep();
+    }
+
+    handleRubricFile(file) {
+        // Validar archivo
+        const maxSize = 10 * 1024 * 1024;
+        if (file.size > maxSize) {
+            alert('El archivo excede el tamaño máximo de 10MB');
+            return;
+        }
+
+        this.configData.rubricFile = {
+            name: file.name,
+            size: file.size,
+            type: file.type,
+            lastModified: file.lastModified
+        };
+
+        StorageUtils.save('configData', this.configData);
+        this.render();
+    }
+
+    goToNextStep() {
+        if (this.currentStep < 3) {
+            this.currentStep++;
+            this.render();
+        }
+    }
+
+    goToPreviousStep() {
+        if (this.currentStep > 0) {
+            this.currentStep--;
+            this.render();
+        }
+    }
+
+    finishConfiguration() {
+        // Marcar configuración como completada
+        StorageUtils.save('configurationComplete', true);
+        StorageUtils.save('currentCourse', this.configData);
+        
+        // Habilitar navegación a upload
+        this.router.navigate('upload');
+    }
+
+    formatFileSize(bytes) {
+        if (bytes === 0) return '0 Bytes';
+        const k = 1024;
+        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
     }
 }

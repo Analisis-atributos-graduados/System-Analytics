@@ -1,3 +1,4 @@
+// js/views/analysis.view.js
 import { DOMUtils } from '../utils/dom.utils.js';
 
 export class AnalysisView {

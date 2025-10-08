@@ -320,6 +320,9 @@ export class UploadView {
             }));
 
             StorageUtils.save('uploadedDocuments', uploadedDocs);
+            
+            // Marcar upload como completado para habilitar análisis
+            StorageUtils.save('uploadComplete', true);
 
             // Navigate to analysis
             this.router.navigate('analysis');

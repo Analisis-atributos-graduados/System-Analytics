@@ -1,3 +1,4 @@
+// js/views/settings.view.js
 import { DOMUtils } from '../utils/dom.utils.js';
 
 export class SettingsView {

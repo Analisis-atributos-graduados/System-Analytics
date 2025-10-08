@@ -1,3 +1,8 @@
+/* ============================================
+   EVALIA - ESTILOS GLOBALES
+   ============================================ */
+
+/* Reset y Variables */
 * {
     margin: 0;
     padding: 0;
@@ -51,7 +56,9 @@ body {
     line-height: 1.6;
 }
 
-/* HEADER */
+/* ============================================
+   HEADER
+   ============================================ */
 
 .header {
     display: flex;
@@ -175,7 +182,9 @@ body {
     transform: rotate(15deg);
 }
 
-/* NAVIGATION */
+/* ============================================
+   NAVIGATION
+   ============================================ */
 
 .nav-tabs {
     display: flex;
@@ -211,6 +220,12 @@ body {
     color: var(--color-primary);
 }
 
+.nav-tab.disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
 .nav-tab.active::after {
     content: '';
     position: absolute;
@@ -234,7 +249,9 @@ body {
     font-weight: bold;
 }
 
-/* CONTAINER Y LAYOUT */
+/* ============================================
+   CONTAINER Y LAYOUT
+   ============================================ */
 
 .container {
     max-width: 1400px;
@@ -264,7 +281,9 @@ body {
     line-height: 1.6;
 }
 
-/* STEPS INDICATOR */
+/* ============================================
+   STEPS INDICATOR
+   ============================================ */
 
 .steps {
     display: flex;
@@ -345,7 +364,9 @@ body {
     color: var(--color-secondary);
 }
 
-/* CARDS */
+/* ============================================
+   CARDS
+   ============================================ */
 
 .main-card {
     background: var(--color-bg-card);
@@ -401,7 +422,9 @@ body {
     line-height: 1.6;
 }
 
-/* SUMMARY GRID */
+/* ============================================
+   SUMMARY GRID
+   ============================================ */
 
 .summary-grid {
     display: grid;
@@ -457,7 +480,9 @@ body {
     font-weight: 500;
 }
 
-/* FILE DISPLAY */
+/* ============================================
+   FILE DISPLAY
+   ============================================ */
 
 .file-display {
     display: flex;
@@ -495,7 +520,9 @@ body {
     color: var(--color-text-secondary);
 }
 
-/* FORMS */
+/* ============================================
+   FORMS
+   ============================================ */
 
 .form-group {
     margin-bottom: 25px;
@@ -539,7 +566,9 @@ body {
     font-family: inherit;
 }
 
-/* UPLOAD AREA */
+/* ============================================
+   UPLOAD AREA
+   ============================================ */
 
 .upload-area {
     border: 2px dashed rgba(255, 255, 255, 0.2);
@@ -574,7 +603,9 @@ body {
     color: var(--color-text-muted);
 }
 
-/* BUTTONS */
+/* ============================================
+   BUTTONS
+   ============================================ */
 
 .nav-buttons {
     display: flex;
@@ -618,7 +649,9 @@ body {
     box-shadow: var(--shadow-lg);
 }
 
-/* STATS GRID */
+/* ============================================
+   STATS GRID
+   ============================================ */
 
 .stats-grid {
     display: grid;
@@ -666,7 +699,9 @@ body {
     font-weight: 700;
 }
 
-/* SEARCH AND FILTERS */
+/* ============================================
+   SEARCH AND FILTERS
+   ============================================ */
 
 .search-filters {
     display: flex;
@@ -704,7 +739,9 @@ body {
     background: rgba(255, 255, 255, 0.1);
 }
 
-/* ANALYSIS ITEMS */
+/* ============================================
+   ANALYSIS ITEMS
+   ============================================ */
 
 .analysis-item {
     background: var(--color-bg-card);
@@ -795,7 +832,9 @@ body {
     color: var(--color-warning);
 }
 
-/* PROGRESS BAR */
+/* ============================================
+   PROGRESS BAR
+   ============================================ */
 
 .progress-bar {
     width: 100%;
@@ -813,7 +852,9 @@ body {
     transition: width 1s ease;
 }
 
-/* CONFIG SECTIONS */
+/* ============================================
+   CONFIG SECTIONS
+   ============================================ */
 
 .config-section {
     background: var(--color-bg-card);
@@ -868,7 +909,9 @@ body {
     font-weight: 500;
 }
 
-/* HELP BUTTON */
+/* ============================================
+   HELP BUTTON
+   ============================================ */
 
 .help-btn {
     position: fixed;
@@ -894,7 +937,9 @@ body {
     box-shadow: 0 15px 40px rgba(102, 126, 234, 0.5);
 }
 
-/* RESPONSIVE */
+/* ============================================
+   RESPONSIVE
+   ============================================ */
 
 @media (max-width: 1024px) {
     .stats-grid {
@@ -966,7 +1011,9 @@ body {
     }
 }
 
-/* UTILITIES */
+/* ============================================
+   UTILITIES
+   ============================================ */
 
 .text-center {
     text-align: center;
