@@ -19,10 +19,9 @@ export class ConfigurationView {
         
         // Lista de cursos disponibles (puede venir del API)
         this.availableCourses = [
-            { id: 1, name: 'Metodología de la Investigación', code: 'MET-101' },
-            { id: 2, name: 'Análisis de Datos', code: 'DAT-201' },
-            { id: 3, name: 'Inteligencia Artificial', code: 'IA-301' },
-            { id: 4, name: 'Desarrollo Web', code: 'WEB-102' }
+            { id: 1, name: 'Customer Development', code: '1025' },
+            { id: 2, name: 'Internet de las Cosas', code: '2465' },
+            { id: 3, name: 'Prácticas Pre Profesionales', code: '3798' }
         ];
     }
 
@@ -169,50 +168,48 @@ export class ConfigurationView {
         `;
     }
 
-    // PASO 3: Subir rúbrica
-renderStep3() {
-    return `
-        <div class="card-icon orange-icon">📋</div>
-        <h3 class="card-title">Subir rúbrica de evaluación</h3>
-        <p class="card-subtitle">Carga el documento con los criterios de evaluación específicos</p>
+    // PASO 3: Subir rúbrica (OPCIONAL)
+    renderStep3() {
+        return `
+            <div class="card-icon orange-icon">📋</div>
+            <h3 class="card-title">Subir rúbrica de evaluación</h3>
+            <p class="card-subtitle">Carga el documento con los criterios de evaluación específicos (opcional)</p>
 
-        <form id="step3-form" class="config-form" novalidate>
-            <div class="upload-area" id="rubric-upload-area" role="button" tabindex="0">
-                <div class="upload-icon">⬆️</div>
-                <div class="upload-text">Seleccionar archivo de rúbrica</div>
-                <div class="upload-hint">PDF, DOC, DOCX (máx. 10MB)</div>
-                <input type="file" 
-                       id="rubric-input" 
-                       name="rubric"
-                       accept=".pdf,.doc,.docx" 
-                       style="display: none;">
-            </div>
+            <form id="step3-form" class="config-form">
+                <div class="upload-area" id="rubric-upload-area">
+                    <div class="upload-icon">⬆️</div>
+                    <div class="upload-text">Seleccionar archivo de rúbrica</div>
+                    <div class="upload-hint">PDF, DOC, DOCX (máx. 10MB) - Opcional</div>
+                    <input type="file" 
+                           id="rubric-input" 
+                           accept=".pdf,.doc,.docx" 
+                           style="display: none;">
+                </div>
 
-            ${this.configData.rubricFile ? `
-                <div class="file-display" style="margin-top: 20px;">
-                    <div class="file-icon">📄</div>
-                    <div class="file-info">
-                        <div class="file-name">${this.configData.rubricFile.name}</div>
-                        <div class="file-size">${this.formatFileSize(this.configData.rubricFile.size)}</div>
+                ${this.configData.rubricFile ? `
+                    <div class="file-display" style="margin-top: 20px;">
+                        <div class="file-icon">📄</div>
+                        <div class="file-info">
+                            <div class="file-name">${this.configData.rubricFile.name}</div>
+                            <div class="file-size">${this.formatFileSize(this.configData.rubricFile.size)}</div>
+                        </div>
+                        <button type="button" class="btn btn-secondary" id="btn-remove-rubric" style="padding: 8px 16px;">
+                            🗑️ Eliminar
+                        </button>
                     </div>
-                    <button type="button" class="btn btn-secondary" id="btn-remove-rubric" style="padding: 8px 16px;">
-                        🗑️ Eliminar
+                ` : ''}
+
+                <div class="nav-buttons">
+                    <button type="button" class="btn btn-secondary" id="btn-back">
+                        ← Anterior
+                    </button>
+                    <button type="submit" class="btn btn-primary">
+                        Siguiente →
                     </button>
                 </div>
-            ` : ''}
-
-            <div class="nav-buttons">
-                <button type="button" class="btn btn-secondary" id="btn-back">
-                    ← Anterior
-                </button>
-                <button type="submit" class="btn btn-primary" ${!this.configData.rubricFile ? 'disabled' : ''}>
-                    Siguiente →
-                </button>
-            </div>
-        </form>
-    `;
-}
-
+            </form>
+        `;
+    }
 
     // PASO 4: Resumen y confirmación
     renderStep4() {

@@ -1,16 +1,11 @@
 export const API_CONFIG = {
-    BASE_URL: 'http://localhost:8080/api',
+    BASE_URL: 'http://127.0.0.1:8000',
     ENDPOINTS: {
-        COURSES: '/courses',
-        TOPICS: '/topics',
-        RUBRICS: '/rubrics',
-        DOCUMENTS: '/documents',
-        ANALYSIS: '/analysis',
-        SETTINGS: '/settings'
+        ANALIZAR: '/analizar/',
+        CRITERIOS: '/criterios/'
     },
     TIMEOUT: 30000,
     HEADERS: {
-        'Content-Type': 'application/json',
         'Accept': 'application/json'
     }
 };

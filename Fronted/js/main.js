@@ -39,7 +39,7 @@ class App {
 
     setupHelpButton() {
         document.getElementById('help-button')?.addEventListener('click', () => {
-            alert('Sistema de ayuda\\n\\nEvalIA es un sistema de evaluación académica inteligente.');
+            alert('Sistema de ayuda\n\nEvalIA es un sistema de evaluación académica inteligente que te permite:\n\n• Configurar cursos y criterios\n• Subir documentos académicos\n• Obtener evaluaciones automatizadas\n• Analizar resultados detallados');
         });
     }
 }
@@ -48,13 +48,3 @@ class App {
 document.addEventListener('DOMContentLoaded', () => {
     new App();
 });
-
-console.log('Estructura del proyecto EvalIA creada exitosamente');
-console.log('Archivos principales generados:');
-console.log('- index.html');
-console.log('- Configuración API');
-console.log('- Servicios (API, Course, Document, Analysis)');
-console.log('- Componentes (Header, Navigation, Steps, etc.)');
-console.log('- Vistas (Configuration, Upload, Analysis, Settings)');
-console.log('- Utilidades (DOM, Format, Storage)');
-console.log('- Router');
