@@ -9,6 +9,8 @@ class MetadataArchivo(Base):
     codigo_curso = Column(String, nullable=False)
     instructor = Column(String, nullable=False)
     semestre = Column(String, nullable=False)
+    tema = Column(String, nullable=False)
+    descripcion_tema = Column(Text, nullable=True)
 
     # Relación uno a muchos
     resultados = relationship("ResultadoOCR", back_populates="archivo_metadata")
