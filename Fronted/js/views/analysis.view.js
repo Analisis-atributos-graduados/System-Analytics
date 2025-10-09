@@ -50,7 +50,7 @@ export class AnalysisView {
     }
 
     renderStats() {
-        const puntajeGlobal = this.analysisData.puntaje_global * 100;
+        const puntajeGlobal = (this.analysisData.nota_final);
         const analisis = this.analysisData.analisis;
 
         return `
@@ -58,8 +58,8 @@ export class AnalysisView {
                 <div class="stat-card">
                     <div class="stat-icon green-icon">📊</div>
                     <div class="stat-content">
-                        <h3>Puntuación Global</h3>
-                        <p style="color: #10b981;">${puntajeGlobal.toFixed(1)}%</p>
+                        <h3>Nota</h3>
+                        <p style="color: #10b981;">${puntajeGlobal.toFixed(1)}</p>
                     </div>
                 </div>
                 <div class="stat-card">
@@ -89,7 +89,7 @@ export class AnalysisView {
 
     renderAnalysisDetails() {
         const analisis = this.analysisData.analisis;
-        const puntajeGlobal = this.analysisData.puntaje_global * 100;
+        const puntajeGlobal = (this.analysisData.nota_final);
 
         return `
             <div style="margin-top: 40px;">
@@ -99,12 +99,12 @@ export class AnalysisView {
                     <div style="margin-bottom: 30px;">
                         <div style="text-align: center; margin-bottom: 20px;">
                             <div style="font-size: 48px; color: #10b981; font-weight: 700;">
-                                ${puntajeGlobal.toFixed(1)}%
+                                ${puntajeGlobal.toFixed(1)}
                             </div>
-                            <div style="font-size: 14px; color: #888;">Puntuación General</div>
+                            <div style="font-size: 14px; color: #888;">Nota</div>
                         </div>
                         <div class="progress-bar" style="height: 12px;">
-                            <div class="progress-fill" style="width: ${puntajeGlobal}%;"></div>
+                            <div class="progress-fill" style="width: ${(puntajeGlobal / 20) * 100}%;"></div>
                         </div>
                     </div>
 
