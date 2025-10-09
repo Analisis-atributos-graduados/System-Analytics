@@ -2,7 +2,7 @@ from sqlalchemy import create_engine, Column, Integer, String
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
-DATABASE_URL = "postgresql://postgres:963852741.@localhost:5432/Analitica_Datos?client_encoding=utf8"
+DATABASE_URL = "postgresql://postgres:Sam12345|@34.151.224.150:5432/analisis_texto?client_encoding=utf8"
 
 # Crear el motor de conexión (sin connect_args)
 engine = create_engine(DATABASE_URL)

@@ -36,7 +36,7 @@ export class UploadView {
                 <div class="upload-area" id="upload-area">
                     <div class="upload-icon">⬆️</div>
                     <div class="upload-text">Seleccionar archivos</div>
-                    <div class="upload-hint">Formatos soportados: PDF, DOC, DOCX, TXT (máx. 10MB)</div>
+                    <div class="upload-hint">Formatos soportados: PDF, DOC, DOCX, TXT, JPG, JPEG, PNG (máx. 10MB)</div>
                     <input type="file" id="file-input" accept=".pdf,.doc,.docx,.txt" style="display: none;">
                 </div>
 
@@ -205,7 +205,7 @@ export class UploadView {
 
     handleFileSelect(files) {
         const file = files[0]; // Solo el primer archivo
-        const validExtensions = ['.pdf', '.doc', '.docx', '.txt'];
+        const validExtensions = ['.pdf', '.doc', '.docx', '.txt', '.jpg', '.jpeg', '.png'];
         const extension = '.' + file.name.split('.').pop().toLowerCase();
         const maxSize = 10 * 1024 * 1024;
 

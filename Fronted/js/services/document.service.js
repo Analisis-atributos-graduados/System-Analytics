@@ -1,10 +1,7 @@
 import { API_CONFIG } from '../config/api.config.js';
 
 class DocumentService {
-    /**
-     * Subir documento con información del curso
-     * POST /upload/
-     */
+
     async uploadDocument(file, courseData) {
         try {
             const formData = new FormData();

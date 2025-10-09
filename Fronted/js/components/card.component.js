@@ -1,8 +1,3 @@
-/**
- * Componente reutilizable para tarjetas
- * Proporciona diferentes tipos de tarjetas usadas en la aplicación
- */
-
 export class CardComponent {
     /**
      * Crear una tarjeta principal con icono

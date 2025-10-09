@@ -1,7 +1,6 @@
 import { DOMUtils } from '../utils/dom.utils.js';
 import { StepIndicatorComponent } from '../components/step-indicator.component.js';
 import { StorageUtils } from '../utils/storage.utils.js';
-import CourseService from '../services/course.service.js';
 
 export class ConfigurationView {
     constructor(router) {
