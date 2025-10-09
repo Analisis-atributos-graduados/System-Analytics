@@ -13,3 +13,13 @@ class CriterioConfigUpdate(BaseModel):
                 "coherencia_logica": 0.3
             }
         }
+
+class AnalisisTextoRequest(BaseModel):
+    texto: str
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "texto": "El estudiante demuestra una comprensión profunda de los conceptos analizados."
+            }
+        }
