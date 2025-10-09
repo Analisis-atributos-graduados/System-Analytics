@@ -1,6 +1,6 @@
 from sqlalchemy import Column, Integer, String, ForeignKey, Text, Float
 from sqlalchemy.orm import relationship
-from database import Base
+from database import Base, engine
 
 class MetadataArchivo(Base):
     __tablename__ = "metadata_archivos"
@@ -31,3 +31,20 @@ class CriterioConfig(Base):
     id = Column(Integer, primary_key=True, index=True)
     nombre = Column(String, unique=True, nullable=False)
     peso = Column(Float, nullable=False)
+
+class ResultadoAnalisis(Base):
+    __tablename__ = "resultados_analisis"
+
+    id = Column(Integer, primary_key=True, index=True)
+    metadata_id = Column(Integer, ForeignKey("metadata_archivos.id", ondelete="CASCADE"))
+    aplicacion_conceptos = Column(Float, nullable=False)
+    relacion_contextual = Column(Float, nullable=False)
+    coherencia_logica = Column(Float, nullable=False)
+    nota_final = Column(Float, nullable=False)
+
+    # Relación con metadata
+    metadata_archivo = relationship("MetadataArchivo", backref="analisis_resultados")
+
+
+# Crear todas las tablas si no existen
+Base.metadata.create_all(bind=engine)

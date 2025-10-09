@@ -2,7 +2,7 @@ from fastapi import FastAPI, File, UploadFile, HTTPException, Form, Body, Depend
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from database import SessionLocal, get_db
-from models import MetadataArchivo, ResultadoOCR, CriterioConfig
+from models import MetadataArchivo, ResultadoOCR, CriterioConfig, ResultadoAnalisis
 from schemas import CriterioConfigUpdate
 import os
 import requests
@@ -223,21 +223,20 @@ async def analizar_archivo(
     criterios_db = db.query(CriterioConfig).all()
     pesos = {c.nombre: c.peso for c in criterios_db}
 
-    # Normalización por si los nombres no coinciden
+    # Normalización por si faltan criterios
     pesos_usados = {
-        mapping[label]: pesos.get(mapping[label], 0)
-        for label in etiquetas
-        if mapping[label] in resultados
+        k: pesos.get(k, 0)
+        for k in resultados.keys()
     }
 
     total_peso = sum(pesos_usados.values()) or 1.0
     pesos_normalizados = {k: v / total_peso for k, v in pesos_usados.items()}
 
     # ---------- Calcular nota (0–20) ----------
-    puntaje = sum(resultados[k] * pesos_normalizados[k] for k in resultados if k in pesos_normalizados)
+    puntaje = sum(resultados[k] * pesos_normalizados.get(k, 0) for k in resultados)
     nota_final = round(puntaje * 20, 2)
 
-    # ---------- Guardar en BD ----------
+    # ---------- Guardar Metadata ----------
     new_metadata = MetadataArchivo(
         nombre_curso=nombre_curso,
         codigo_curso=codigo_curso,
@@ -250,13 +249,26 @@ async def analizar_archivo(
     db.commit()
     db.refresh(new_metadata)
 
+    # ---------- Guardar Resultado OCR ----------
     resultado_ocr = ResultadoOCR(
         tipo_archivo=ALLOWED_TYPES[file.content_type],
         texto_extraido=texto_extraido,
-        metadata=new_metadata
+        metadata_id=new_metadata.id  # ← nombre de columna correcto
     )
     db.add(resultado_ocr)
     db.commit()
+
+    # ---------- Guardar Resultado de Análisis ----------
+    resultado_analisis = ResultadoAnalisis(
+        metadata_id=new_metadata.id,
+        aplicacion_conceptos=resultados.get("aplicacion_conceptos", 0),
+        relacion_contextual=resultados.get("relacion_contextual", 0),
+        coherencia_logica=resultados.get("coherencia_logica", 0),
+        nota_final=nota_final
+    )
+    db.add(resultado_analisis)
+    db.commit()
+    db.refresh(resultado_analisis)
 
     return {
         "mensaje": "Archivo subido, analizado y evaluado correctamente",
