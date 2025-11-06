@@ -23,8 +23,7 @@ export class NavigationComponent {
                               ${!isEnabled ? 'disabled' : ''}
                               ${tab.badge ? 'has-badge' : ''}"
                         data-route="${tab.id}"
-                        ${tab.badge ? `data-badge="${tab.badge}"` : ''}
-                        ${!isEnabled ? 'disabled' : ''}>
+                        ${tab.badge ? `data-badge="${tab.badge}"` : ''}>
                     ${tab.icon} ${tab.label}
                 </button>
             `;
@@ -39,7 +38,7 @@ export class NavigationComponent {
 
     isTabEnabled(tab) {
         // Ajustes siempre está habilitado
-        if (tab.alwaysEnabled) return true;
+        if (tab.alwaysEnabled || tab.id === 'settings') return true;
 
         // Configuración siempre está habilitada (es el inicio)
         if (tab.id === 'configuration') return true;
@@ -59,10 +58,12 @@ export class NavigationComponent {
     }
 
     attachEvents() {
-        document.querySelectorAll('.nav-tab:not(.disabled)').forEach(tab => {
+        document.querySelectorAll('.nav-tab').forEach(tab => {
             tab.addEventListener('click', (e) => {
                 const route = e.currentTarget.dataset.route;
-                if (this.isTabEnabled({ id: route })) {
+                const tabData = this.tabs.find(t => t.id === route);
+                
+                if (tabData && this.isTabEnabled(tabData)) {
                     this.router.navigate(route);
                 }
             });

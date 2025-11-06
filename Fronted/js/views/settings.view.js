@@ -20,6 +20,7 @@ export class SettingsView {
 
             ${this.renderCourseConfig()}
             ${this.renderCriteriaConfig()}
+            ${this.renderThemeToggle()}
         `;
 
         DOMUtils.render('#main-content', html);
@@ -28,11 +29,93 @@ export class SettingsView {
 
     async loadCriterios() {
         try {
-            this.criterios = await CriteriaService.getCriterios();
+            this.criterios = await CriterioService.getCriterios();
         } catch (error) {
             console.error('Error al cargar criterios:', error);
             this.criterios = [];
         }
+    }
+
+    renderThemeToggle() {
+        const currentTheme = StorageUtils.load('theme') || 'dark-theme';
+        const isLight = (currentTheme === 'light-theme');
+        return `
+            <div class="config-section">
+                <div class="section-header">
+                    <div class="section-icon purple-icon">🎨</div>
+                    <h3 class="section-title">Tema de la interfaz</h3>
+                </div>
+                <div class="config-item" style="border-bottom: none;">
+                    <span class="config-label">Modo Claro/Oscuro</span>
+                    <label class="switch">
+                        <input type="checkbox" id="theme-toggle" ${isLight ? 'checked' : ''}>
+                        <span class="slider round"></span>
+                    </label>
+                </div>
+            </div>
+            <style>
+                /* Basic Toggle Switch CSS */
+                .switch {
+                    position: relative;
+                    display: inline-block;
+                    width: 60px;
+                    height: 34px;
+                }
+
+                .switch input { 
+                    opacity: 0;
+                    width: 0;
+                    height: 0;
+                }
+
+                .slider {
+                    position: absolute;
+                    cursor: pointer;
+                    top: 0;
+                    left: 0;
+                    right: 0;
+                    bottom: 0;
+                    background-color: #ccc;
+                    -webkit-transition: .4s;
+                    transition: .4s;
+                }
+
+                .slider:before {
+                    position: absolute;
+                    content: "";
+                    height: 26px;
+                    width: 26px;
+                    left: 4px;
+                    bottom: 4px;
+                    background-color: white;
+                    -webkit-transition: .4s;
+                    transition: .4s;
+                }
+
+                input:checked + .slider {
+                    background-color: #667eea;
+                }
+
+                input:focus + .slider {
+                    box-shadow: 0 0 1px #667eea;
+                }
+
+                input:checked + .slider:before {
+                    -webkit-transform: translateX(26px);
+                    -ms-transform: translateX(26px);
+                    transform: translateX(26px);
+                }
+
+                /* Rounded sliders */
+                .slider.round {
+                    border-radius: 34px;
+                }
+
+                .slider.round:before {
+                    border-radius: 50%;
+                }
+            </style>
+        `;
     }
 
     renderCourseConfig() {
@@ -51,12 +134,12 @@ export class SettingsView {
                     <span class="config-value">${this.courseData.courseCode || 'N/A'}</span>
                 </div>
                 <div class="config-item">
-                    <span class="config-label">Instructor</span>
+                    <span class="config-label">Profesor</span>
                     <span class="config-value">${this.courseData.instructor || 'N/A'}</span>
                 </div>
                 <div class="config-item">
-                    <span class="config-label">Período</span>
-                    <span class="config-value">${this.courseData.period || 'N/A'}</span>
+                    <span class="config-label">Ciclo</span>
+                    <span class="config-value">${this.courseData.semestre || 'N/A'}</span>
                 </div>
                 <div class="config-item">
                     <span class="config-label">Tema de evaluación</span>
@@ -98,11 +181,11 @@ export class SettingsView {
                 ${this.criterios.map((criterio, index) => `
                     <div class="config-item" ${index === this.criterios.length - 1 ? 'style="border-bottom: none;"' : ''}>
                         <div>
-                            <div style="font-size: 14px; color: #e0e0e0; margin-bottom: 5px; font-weight: 500;">
-                                ${CriteriaService.getNombreAmigable(criterio.nombre)}
+                            <div style="font-size: 14px; color: var(--text-color); margin-bottom: 5px; font-weight: 500;">
+                                ${CriterioService.getNombreAmigable(criterio.nombre)}
                             </div>
-                            <div style="font-size: 12px; color: #888;">
-                                ${CriteriaService.getDescripcion(criterio.nombre)}
+                            <div style="font-size: 12px; color: var(--secondary-text);">
+                                ${CriterioService.getDescripcion(criterio.nombre)}
                             </div>
                         </div>
                         <div style="display: flex; align-items: center; gap: 15px;">
@@ -113,16 +196,16 @@ export class SettingsView {
                                    min="0" 
                                    max="100"
                                    step="1"
-                                   style="width: 70px; padding: 8px; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: #e0e0e0; text-align: center;">
-                            <span style="color: #888;">%</span>
+                                   style="width: 70px; padding: 8px; background: var(--input-bg); border: 1px solid var(--input-border); border-radius: 8px; color: var(--input-text); text-align: center;">
+                            <span style="color: var(--secondary-text);">%</span>
                         </div>
                     </div>
                 `).join('')}
 
-                <div style="margin-top: 20px; padding: 15px; background: rgba(102, 126, 234, 0.1); border-radius: 10px; border: 1px solid rgba(102, 126, 234, 0.3);">
+                <div style="margin-top: 20px; padding: 15px; background: var(--primary-light); border-radius: 10px; border: 1px solid var(--primary-border);">
                     <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <span style="color: #667eea; font-weight: 500;">Total:</span>
-                        <span id="total-percentage" style="color: #667eea; font-weight: 700; font-size: 18px;">100%</span>
+                        <span style="color: var(--primary-color); font-weight: 500;">Total:</span>
+                        <span id="total-percentage" style="color: var(--primary-color); font-weight: 700; font-size: 18px;">100%</span>
                     </div>
                 </div>
 
@@ -136,6 +219,12 @@ export class SettingsView {
     attachEvents() {
         document.getElementById('btn-modify-config')?.addEventListener('click', () => {
             this.router.navigate('configuration');
+        });
+
+        document.getElementById('theme-toggle')?.addEventListener('change', (e) => {
+            const newTheme = e.target.checked ? 'light-theme' : 'dark-theme';
+            document.body.className = newTheme;
+            StorageUtils.save('theme', newTheme);
         });
 
         // Actualizar total cuando cambian los inputs
@@ -196,7 +285,7 @@ export class SettingsView {
                 btn.textContent = '⏳ Guardando...';
             }
 
-            const response = await CriteriaService.updateCriterios(newCriterios);
+            const response = await CriterioService.updateCriterios(newCriterios);
             
             alert('Criterios actualizados correctamente');
             

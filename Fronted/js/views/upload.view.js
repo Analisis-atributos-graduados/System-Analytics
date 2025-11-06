@@ -5,8 +5,9 @@ import DocumentService from '../services/document.service.js';
 export class UploadView {
     constructor(router) {
         this.router = router;
-        this.courseData = StorageUtils.load('configData') || {};
+        this.courseData = StorageUtils.load('configData') || {}; // Load from localStorage
         this.selectedFiles = [];
+        this.studentList = '';
     }
 
     render() {
@@ -16,8 +17,8 @@ export class UploadView {
                     <div class="banner-title">${this.courseData.courseName || 'Sin curso'} (${this.courseData.courseCode || 'N/A'})</div>
                     <div class="banner-info">
                         <span>Tema: ${this.courseData.topic || 'N/A'} •</span>
-                        <span>Instructor: ${this.courseData.instructor || 'N/A'} •</span>
-                        <span>Período: ${this.courseData.period || 'N/A'}</span>
+                        <span>Profesor: ${this.courseData.instructor || 'N/A'} •</span>
+                        <span>Ciclo: ${this.courseData.semestre || 'N/A'}</span>
                     </div>
                 </div>
                 <div class="banner-badge">Configurado</div>
@@ -37,10 +38,15 @@ export class UploadView {
                     <div class="upload-icon">⬆️</div>
                     <div class="upload-text">Seleccionar archivos</div>
                     <div class="upload-hint">Formatos soportados: PDF, DOC, DOCX, TXT, JPG, JPEG, PNG (máx. 10MB)</div>
-                    <input type="file" id="file-input" accept=".pdf,.doc,.docx,.txt" style="display: none;">
+                    <input type="file" id="file-input" accept=".pdf,.doc,.docx,.txt" style="display: none;" multiple>
                 </div>
 
                 <div id="files-list" class="files-list"></div>
+
+                <div class="form-group" style="margin-top: 20px;">
+                    <label class="form-label">Lista de Alumnos</label>
+                    <textarea class="form-input textarea" id="student-list" placeholder="Escribe los nombres de los alumnos, uno por línea..." rows="6">${this.studentList}</textarea>
+                </div>
 
                 <div class="nav-buttons">
                     <button class="btn btn-secondary" id="btn-previous">← Anterior</button>
@@ -61,8 +67,8 @@ export class UploadView {
         style.id = 'upload-view-styles';
         style.textContent = `
             .course-banner {
-                background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
-                border: 1px solid rgba(102, 126, 234, 0.2);
+                background: var(--primary-light);
+                border: 1px solid var(--primary-border);
                 border-radius: 15px;
                 padding: 25px;
                 margin-bottom: 40px;
@@ -71,7 +77,7 @@ export class UploadView {
 
             .banner-title {
                 font-size: 18px;
-                color: #e0e0e0;
+                color: var(--text-color);
                 font-weight: 600;
                 margin-bottom: 8px;
             }
@@ -80,7 +86,7 @@ export class UploadView {
                 display: flex;
                 gap: 20px;
                 font-size: 13px;
-                color: #888;
+                color: var(--secondary-text);
                 flex-wrap: wrap;
             }
 
@@ -164,6 +170,8 @@ export class UploadView {
     attachEvents() {
         const uploadArea = document.getElementById('upload-area');
         const fileInput = document.getElementById('file-input');
+        this.studentListInput = document.getElementById('student-list');
+        this.uploadedPdfs = []; // Initialize uploadedPdfs
 
         uploadArea?.addEventListener('click', () => fileInput?.click());
 
@@ -194,6 +202,11 @@ export class UploadView {
             }
         });
 
+        this.studentListInput?.addEventListener('input', (e) => {
+            this.studentList = e.target.value;
+            this.updateUploadButton();
+        });
+
         document.getElementById('btn-previous')?.addEventListener('click', () => {
             this.router.navigate('configuration');
         });
@@ -204,22 +217,26 @@ export class UploadView {
     }
 
     handleFileSelect(files) {
-        const file = files[0]; // Solo el primer archivo
         const validExtensions = ['.pdf', '.doc', '.docx', '.txt', '.jpg', '.jpeg', '.png'];
-        const extension = '.' + file.name.split('.').pop().toLowerCase();
         const maxSize = 10 * 1024 * 1024;
 
-        if (!validExtensions.includes(extension)) {
-            alert(`Archivo ${file.name} no tiene un formato válido.`);
-            return;
+        for (const file of files) {
+            const extension = '.' + file.name.split('.').pop().toLowerCase();
+            if (!validExtensions.includes(extension)) {
+                alert(`Archivo ${file.name} no tiene un formato válido.`);
+                continue;
+            }
+
+            if (file.size > maxSize) {
+                alert(`Archivo ${file.name} excede el tamaño máximo de 10MB.`);
+                continue;
+            }
+
+            if (!this.selectedFiles.find(f => f.name === file.name)) {
+                this.selectedFiles.push(file);
+            }
         }
 
-        if (file.size > maxSize) {
-            alert(`Archivo ${file.name} excede el tamaño máximo de 10MB.`);
-            return;
-        }
-
-        this.selectedFiles = [file];
         this.renderFilesList();
         this.updateUploadButton();
     }
@@ -233,8 +250,7 @@ export class UploadView {
             return;
         }
 
-        const file = this.selectedFiles[0];
-        filesList.innerHTML = `
+        filesList.innerHTML = this.selectedFiles.map(file => `
             <div class="file-item">
                 <div class="file-item-info">
                     <div class="file-item-icon">📄</div>
@@ -243,47 +259,121 @@ export class UploadView {
                         <div class="file-item-size">${this.formatFileSize(file.size)}</div>
                     </div>
                 </div>
-                <button class="file-item-remove" id="btn-remove-file">🗑️ Eliminar</button>
+                <button class="file-item-remove" data-filename="${file.name}">🗑️ Eliminar</button>
             </div>
-        `;
+        `).join('');
 
-        document.getElementById('btn-remove-file')?.addEventListener('click', () => {
-            this.selectedFiles = [];
-            this.renderFilesList();
-            this.updateUploadButton();
+        document.querySelectorAll('.file-item-remove').forEach(button => {
+            button.addEventListener('click', (e) => {
+                const filename = e.target.dataset.filename;
+                this.selectedFiles = this.selectedFiles.filter(f => f.name !== filename);
+                this.renderFilesList();
+                this.updateUploadButton();
+            });
         });
     }
 
     updateUploadButton() {
         const btnUpload = document.getElementById('btn-upload');
         if (btnUpload) {
-            btnUpload.disabled = this.selectedFiles.length === 0;
+            btnUpload.disabled = this.selectedFiles.length === 0 || this.studentList.trim() === '';
         }
     }
 
     async uploadFiles() {
-        if (this.selectedFiles.length === 0) return;
+        if (this.selectedFiles.length === 0 || !this.studentListInput.value.trim()) {
+            alert('Por favor, selecciona al menos un archivo PDF y proporciona la lista de alumnos.');
+            return;
+        }
+        this.showProcessing(true);
 
         try {
-            const btnUpload = document.getElementById('btn-upload');
-            if (btnUpload) {
-                btnUpload.disabled = true;
-                btnUpload.innerHTML = '⏳ Subiendo...';
+            // 1. Subir todos los archivos a GCS
+            const uploadedFilesInfo = await Promise.all(
+                this.selectedFiles.map(async (file) => {
+                    const { signed_url, gcs_filename, request_timestamp } = await DocumentService.getSignedUrl(file);
+                    await DocumentService.uploadFileToGCS(signed_url, file, request_timestamp);
+                    return { gcs_filename, original_filename: file.name };
+                })
+            );
+
+            // Load courseData just before use to ensure it's up-to-date
+            const currentCourseData = StorageUtils.load('configData') || {};
+
+            // 2. Empaquetar TODOS los datos en un solo objeto
+            const evaluationData = {
+                pdf_files: uploadedFilesInfo,
+                student_list: this.studentListInput.value,
+                nombre_curso: currentCourseData.courseName,
+                codigo_curso: currentCourseData.courseCode,
+                instructor: currentCourseData.instructor,
+                semestre: currentCourseData.semestre,
+                tema: currentCourseData.topic,
+                descripcion_tema: currentCourseData.descripcion_tema || "" // Use loaded description or default
+            };
+
+            // 3. Encolar el lote de exámenes con el objeto unificado
+            console.log('Sending evaluationData to backend:', evaluationData);
+            const response = await DocumentService.enqueueExamBatch(evaluationData);
+
+            console.log('Batch enqueued successfully:', response);
+            alert('¡El lote de exámenes ha sido enviado para su análisis! Serás redirigido a la página de resultados.');
+
+            if (response.evaluacion_ids && response.evaluacion_ids.length > 0) {
+                await this.pollForResults(response.evaluacion_ids);
+            } else {
+                alert(response.message || "No se iniciaron evaluaciones.");
+                this.showProcessing(false);
             }
-
-            const result = await DocumentService.uploadDocument(this.selectedFiles[0], this.courseData);
-            
-            StorageUtils.save('analysisResults', result);
-            StorageUtils.save('uploadComplete', true);
-
-            this.router.navigate('analysis');
 
         } catch (error) {
             console.error('Error uploading files:', error);
             alert('Error al subir archivos. Por favor intenta nuevamente.');
-            
-            const btnUpload = document.getElementById('btn-upload');
-            if (btnUpload) {
+            this.showProcessing(false);
+        }
+    }
+
+    async pollForResults(evaluacionIds) {
+        const interval = 5000; // 5 seconds
+        const maxAttempts = 60; // 5 minutes
+        let attempts = 0;
+
+        const poll = async (resolve, reject) => {
+            if (attempts >= maxAttempts) {
+                return reject(new Error("El análisis está tardando demasiado. Por favor, revisa los resultados más tarde."));
+            }
+
+            try {
+                const results = await Promise.all(evaluacionIds.map(id => DocumentService.getEvaluacion(id)));
+                
+                const allDone = results.every(r => r.resultado_analisis);
+
+                if (allDone) {
+                    console.log('Results before saving to localStorage:', results);
+                    StorageUtils.save('analysisResults', { evaluaciones: results });
+                    console.log('Saved analysisResults to localStorage:', { evaluaciones: results });
+                    StorageUtils.save('uploadComplete', true);
+                    this.router.navigate('analysis');
+                    resolve();
+                } else {
+                    attempts++;
+                    setTimeout(() => poll(resolve, reject), interval);
+                }
+            } catch (error) {
+                reject(error);
+            }
+        };
+
+        return new Promise(poll);
+    }
+
+    showProcessing(isProcessing) {
+        const btnUpload = document.getElementById('btn-upload');
+        if (btnUpload) {
+            if (isProcessing) {
+                btnUpload.disabled = true;
+                btnUpload.innerHTML = '⏳ Procesando análisis... (esto puede tardar)';
+            } else {
                 btnUpload.disabled = false;
                 btnUpload.innerHTML = 'Subir y analizar →';
             }
@@ -297,4 +387,6 @@ export class UploadView {
         const i = Math.floor(Math.log(bytes) / Math.log(k));
         return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
     }
+
+
 }

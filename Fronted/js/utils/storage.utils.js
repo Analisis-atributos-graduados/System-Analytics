@@ -2,7 +2,7 @@ export class StorageUtils {
     static save(key, data) {
         try {
             const serialized = JSON.stringify(data);
-            sessionStorage.setItem(key, serialized);
+            localStorage.setItem(key, serialized);
         } catch (error) {
             console.error('Error saving to storage:', error);
         }
@@ -10,7 +10,7 @@ export class StorageUtils {
 
     static load(key) {
         try {
-            const serialized = sessionStorage.getItem(key);
+            const serialized = localStorage.getItem(key);
             return serialized ? JSON.parse(serialized) : null;
         } catch (error) {
             console.error('Error loading from storage:', error);
@@ -19,10 +19,10 @@ export class StorageUtils {
     }
 
     static remove(key) {
-        sessionStorage.removeItem(key);
+        localStorage.removeItem(key);
     }
 
     static clear() {
-        sessionStorage.clear();
+        localStorage.clear();
     }
 }

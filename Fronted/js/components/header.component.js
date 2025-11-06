@@ -18,20 +18,12 @@ export class HeaderComponent {
                     <button class="university-btn" id="university-btn">
                         🎓 Universidad
                     </button>
-                    <div class="theme-toggle" id="theme-toggle">🌙</div>
                 </div>
             </div>
         `;
     }
 
     attachEvents() {
-        document.getElementById('theme-toggle')?.addEventListener('click', () => {
-            this.toggleTheme();
-        });
-    }
-
-    toggleTheme() {
-        // Implementar cambio de tema
-        console.log('Theme toggle clicked');
+        // No theme-related events here anymore
     }
 }

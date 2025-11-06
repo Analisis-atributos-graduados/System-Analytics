@@ -10,17 +10,18 @@ export class ConfigurationView {
             courseName: '',
             courseCode: '',
             instructor: '',
-            period: '',
+            semestre: '',
             topic: '',
-            topicDescription: '',
+            descripcion_tema: '',
             rubricFile: null
         };
         
         // Lista de cursos disponibles (puede venir del API)
         this.availableCourses = [
-            { id: 1, name: 'Customer Development', code: '1025' },
-            { id: 2, name: 'Internet de las Cosas', code: '2465' },
-            { id: 3, name: 'Prácticas Pre Profesionales', code: '3798' }
+            { id: 1, name: 'Metodología de la Investigación', code: 'MET-101' },
+            { id: 2, name: 'Análisis de Datos', code: 'DAT-201' },
+            { id: 3, name: 'Inteligencia Artificial', code: 'IA-301' },
+            { id: 4, name: 'Desarrollo Web', code: 'WEB-102' }
         ];
     }
 
@@ -96,18 +97,18 @@ export class ConfigurationView {
                     </div>
 
                     <div class="form-group">
-                        <label class="form-label">Período</label>
+                        <label class="form-label">Ciclo</label>
                         <input type="text" 
                                class="form-input" 
                                id="period" 
-                               value="${this.configData.period}"
+                               value="${this.configData.semestre}"
                                placeholder="ej. 2025-1"
                                required>
                     </div>
                 </div>
 
                 <div class="form-group">
-                    <label class="form-label">Instructor</label>
+                    <label class="form-label">Profesor</label>
                     <input type="text" 
                            class="form-input" 
                            id="instructor" 
@@ -117,9 +118,11 @@ export class ConfigurationView {
                 </div>
 
                 <div class="nav-buttons">
-                    <button type="button" class="btn btn-secondary" disabled>
-                        ← Anterior
-                    </button>
+                    ${this.currentStep > 0 ? `
+                        <button type="button" class="btn btn-secondary" id="btn-back">
+                            ← Anterior
+                        </button>
+                    ` : '<div></div>'}
                     <button type="submit" class="btn btn-primary">
                         Siguiente →
                     </button>
@@ -152,7 +155,7 @@ export class ConfigurationView {
                               id="topic-description" 
                               placeholder="Describe los aspectos específicos que deben abordar los trabajos, objetivos de aprendizaje, y criterios temáticos importantes..."
                               rows="6"
-                              required>${this.configData.topicDescription}</textarea>
+                              required>${this.configData.descripcion_tema}</textarea>
                 </div>
 
                 <div class="nav-buttons">
@@ -232,12 +235,12 @@ export class ConfigurationView {
                         <div class="summary-value">${this.configData.courseCode}</div>
                     </div>
                     <div class="summary-item">
-                        <div class="summary-label">Instructor:</div>
+                        <div class="summary-label">Profesor:</div>
                         <div class="summary-value">${this.configData.instructor}</div>
                     </div>
                     <div class="summary-item">
-                        <div class="summary-label">Período:</div>
-                        <div class="summary-value">${this.configData.period}</div>
+                        <div class="summary-label">Ciclo:</div>
+                        <div class="summary-value">${this.configData.semestre}</div>
                     </div>
                 </div>
 
@@ -251,7 +254,7 @@ export class ConfigurationView {
                         <div class="summary-value">${this.configData.topic}</div>
                     </div>
                     <div class="summary-item">
-                        <div class="summary-label" style="margin-top: 10px;">${this.configData.topicDescription}</div>
+                        <div class="summary-label" style="margin-top: 10px;">${this.configData.descripcion_tema}</div>
                     </div>
                 </div>
 
@@ -375,17 +378,20 @@ export class ConfigurationView {
         this.configData.courseName = selectedOption.dataset.name;
         this.configData.courseCode = selectedOption.dataset.code;
         this.configData.instructor = document.getElementById('instructor').value;
-        this.configData.period = document.getElementById('period').value;
-
+        this.configData.semestre = document.getElementById('period').value;
+        console.log('Before saving Step 1 data:', this.configData);
         StorageUtils.save('configData', this.configData);
+        console.log('After saving Step 1 data:', this.configData);
         this.goToNextStep();
     }
 
     saveStep2Data() {
         this.configData.topic = document.getElementById('topic').value;
-        this.configData.topicDescription = document.getElementById('topic-description').value;
+        this.configData.descripcion_tema = document.getElementById('topic-description').value;
 
+        console.log('Before saving Step 2 data:', this.configData);
         StorageUtils.save('configData', this.configData);
+        console.log('After saving Step 2 data:', this.configData);
         this.goToNextStep();
     }
 
@@ -430,7 +436,9 @@ export class ConfigurationView {
     finishConfiguration() {
         // Marcar configuración como completada
         StorageUtils.save('configurationComplete', true);
-        StorageUtils.save('currentCourse', this.configData);
+        console.log('Before saving configData in finishConfiguration:', this.configData);
+        StorageUtils.save('configData', this.configData);
+        console.log('After saving configData in finishConfiguration:', this.configData);
         
         // Habilitar navegación a upload
         this.router.navigate('upload');

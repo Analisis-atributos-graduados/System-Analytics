@@ -5,7 +5,11 @@ class CriterioService {
     async getCriterios() {
         try {
             const response = await ApiService.get(API_CONFIG.ENDPOINTS.CRITERIOS);
-            return response;
+            // Transform the dictionary to a list of objects
+            return Object.keys(response).map(key => ({
+                nombre: key,
+                peso: response[key]
+            }));
         } catch (error) {
             console.error('Error al obtener criterios:', error);
             throw error;
@@ -14,7 +18,7 @@ class CriterioService {
 
     async updateCriterios(criterios) {
         try {
-            const response = await ApiService.put(API_CONFIG.ENDPOINTS.CRITERIOS, criterios);
+            const response = await ApiService.post(API_CONFIG.ENDPOINTS.CRITERIOS, criterios);
             return response;
         } catch (error) {
             console.error('Error al actualizar criterios:', error);
