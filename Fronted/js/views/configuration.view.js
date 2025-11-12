@@ -15,14 +15,6 @@ export class ConfigurationView {
             descripcion_tema: '',
             rubricFile: null
         };
-        
-        // Lista de cursos disponibles (puede venir del API)
-        this.availableCourses = [
-            { id: 1, name: 'Metodología de la Investigación', code: 'MET-101' },
-            { id: 2, name: 'Análisis de Datos', code: 'DAT-201' },
-            { id: 3, name: 'Inteligencia Artificial', code: 'IA-301' },
-            { id: 4, name: 'Desarrollo Web', code: 'WEB-102' }
-        ];
     }
 
     render() {
@@ -72,17 +64,12 @@ export class ConfigurationView {
             <form id="step1-form" class="config-form">
                 <div class="form-group">
                     <label class="form-label">Nombre del curso</label>
-                    <select class="form-input form-select" id="course-select" required>
-                        <option value="">Selecciona un curso...</option>
-                        ${this.availableCourses.map(course => `
-                            <option value="${course.id}" 
-                                    data-name="${course.name}" 
-                                    data-code="${course.code}"
-                                    ${this.configData.courseName === course.name ? 'selected' : ''}>
-                                ${course.name}
-                            </option>
-                        `).join('')}
-                    </select>
+                    <input type="text"
+                           class="form-input"
+                           id="course-name"
+                           value="${this.configData.courseName}"
+                           placeholder="ej. Metodología de la Investigación"
+                           required>
                 </div>
 
                 <div class="form-row">
@@ -92,8 +79,7 @@ export class ConfigurationView {
                                class="form-input" 
                                id="course-code" 
                                value="${this.configData.courseCode}"
-                               placeholder="ej. MET-101"
-                               readonly>
+                               placeholder="ej. MET-101">
                     </div>
 
                     <div class="form-group">
@@ -296,19 +282,6 @@ export class ConfigurationView {
 
     attachStep1Events() {
         const form = document.getElementById('step1-form');
-        const courseSelect = document.getElementById('course-select');
-        const courseCodeInput = document.getElementById('course-code');
-
-        // Actualizar código cuando se selecciona curso
-        courseSelect?.addEventListener('change', (e) => {
-            const selectedOption = e.target.options[e.target.selectedIndex];
-            const courseName = selectedOption.dataset.name;
-            const courseCode = selectedOption.dataset.code;
-            
-            if (courseCodeInput) {
-                courseCodeInput.value = courseCode || '';
-            }
-        });
 
         form?.addEventListener('submit', (e) => {
             e.preventDefault();
@@ -372,11 +345,8 @@ export class ConfigurationView {
 
     // Guardar datos de cada paso
     saveStep1Data() {
-        const courseSelect = document.getElementById('course-select');
-        const selectedOption = courseSelect.options[courseSelect.selectedIndex];
-        
-        this.configData.courseName = selectedOption.dataset.name;
-        this.configData.courseCode = selectedOption.dataset.code;
+        this.configData.courseName = document.getElementById('course-name').value;
+        this.configData.courseCode = document.getElementById('course-code').value;
         this.configData.instructor = document.getElementById('instructor').value;
         this.configData.semestre = document.getElementById('period').value;
         console.log('Before saving Step 1 data:', this.configData);

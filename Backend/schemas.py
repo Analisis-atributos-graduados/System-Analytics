@@ -57,6 +57,7 @@ class ExamBatchRequest(BaseModel):
     semestre: str
     tema: str
     descripcion_tema: str | None = None
+    tipo_documento: str = Field(default="examen", description="Tipo: 'examen' o 'ensayo/informe'")
 
     class Config:
         json_schema_extra = {
@@ -71,7 +72,8 @@ class ExamBatchRequest(BaseModel):
                 "instructor": "Prof. Alan Turing",
                 "semestre": "2025-2",
                 "tema": "Examen Final - Derivadas e Integrales",
-                "descripcion_tema": "Evaluación final del curso."
+                "descripcion_tema": "Evaluación final del curso.",
+                "tipo_documento": "examen"
             }
         }
 
@@ -86,6 +88,7 @@ class FileTaskPayload(BaseModel):
     original_filename: str
     evaluacion_id: int
     precomputed_ocr_text: str | None = None
+    tipo_documento: str = "examen"
 
 
 # Usado por el endpoint: POST /process-evaluation-task

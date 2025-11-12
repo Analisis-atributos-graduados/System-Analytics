@@ -8,9 +8,14 @@ export class UploadView {
         this.courseData = StorageUtils.load('configData') || {}; // Load from localStorage
         this.selectedFiles = [];
         this.studentList = '';
+        this.documentType = null; // 'examen' or 'ensayo'
     }
 
     render() {
+        this.courseData = StorageUtils.load('configData') || {}; // Load from localStorage
+        const uploadSectionVisible = this.documentType !== null;
+        const studentListVisible = this.documentType === 'examen';
+
         const html = `
             <div class="course-banner">
                 <div class="banner-content">
@@ -29,28 +34,42 @@ export class UploadView {
             </div>
             <p class="page-subtitle">Sube trabajos académicos para obtener evaluaciones automatizadas con IA.</p>
 
-            <div class="main-card">
-                <div class="card-icon purple-icon">📤</div>
-                <h3 class="card-title">Subir trabajos para análisis</h3>
-                <p class="card-subtitle">Arrastra y suelta archivos aquí o haz clic para seleccionar</p>
-
-                <div class="upload-area" id="upload-area">
-                    <div class="upload-icon">⬆️</div>
-                    <div class="upload-text">Seleccionar archivos</div>
-                    <div class="upload-hint">Formatos soportados: PDF, DOC, DOCX, TXT, JPG, JPEG, PNG (máx. 10MB)</div>
-                    <input type="file" id="file-input" accept=".pdf,.doc,.docx,.txt" style="display: none;" multiple>
+            <div class="document-type-selection">
+                <p class="section-label">Tipo de documento que se va a evaluar</p>
+                <div class="button-group">
+                    <button class="btn btn-secondary ${this.documentType === 'examen' ? 'active' : ''}" id="btn-type-exam">
+                        ✍️ Exámenes manuscritos
+                    </button>
+                    <button class="btn btn-secondary ${this.documentType === 'ensayo/informe' ? 'active' : ''}" id="btn-type-essay">
+                        📄 Informes / Ensayos
+                    </button>
                 </div>
+            </div>
 
-                <div id="files-list" class="files-list"></div>
+            <div id="upload-content" class="${uploadSectionVisible ? '' : 'hidden'}">
+                <div class="main-card">
+                    <div class="card-icon purple-icon">📤</div>
+                    <h3 class="card-title">Subir trabajos para análisis</h3>
+                    <p class="card-subtitle">Arrastra y suelta archivos aquí o haz clic para seleccionar</p>
 
-                <div class="form-group" style="margin-top: 20px;">
-                    <label class="form-label">Lista de Alumnos</label>
-                    <textarea class="form-input textarea" id="student-list" placeholder="Escribe los nombres de los alumnos, uno por línea..." rows="6">${this.studentList}</textarea>
-                </div>
+                    <div class="upload-area" id="upload-area">
+                        <div class="upload-icon">⬆️</div>
+                        <div class="upload-text">Seleccionar archivos</div>
+                        <div class="upload-hint">Formatos soportados: PDF, DOC, DOCX, TXT, JPG, JPEG, PNG (máx. 10MB)</div>
+                        <input type="file" id="file-input" accept=".pdf,.doc,.docx,.txt" style="display: none;" multiple>
+                    </div>
 
-                <div class="nav-buttons">
-                    <button class="btn btn-secondary" id="btn-previous">← Anterior</button>
-                    <button class="btn btn-primary" id="btn-upload" disabled>Subir y analizar →</button>
+                    <div id="files-list" class="files-list"></div>
+
+                    <div id="student-list-container" class="form-group ${studentListVisible ? '' : 'hidden'}" style="margin-top: 20px;">
+                        <label class="form-label">Lista de Alumnos</label>
+                        <textarea class="form-input textarea" id="student-list" placeholder="Escribe los nombres de los alumnos, uno por línea..." rows="6">${this.studentList}</textarea>
+                    </div>
+
+                    <div class="nav-buttons">
+                        <button class="btn btn-secondary" id="btn-previous">← Anterior</button>
+                        <button class="btn btn-primary" id="btn-upload" disabled>Subir y analizar →</button>
+                    </div>
                 </div>
             </div>
         `;
@@ -100,6 +119,33 @@ export class UploadView {
                 border-radius: 15px;
                 font-size: 12px;
                 font-weight: 600;
+            }
+
+            .document-type-selection {
+                text-align: center;
+                margin-bottom: 40px;
+            }
+
+            .section-label {
+                color: var(--secondary-text);
+                margin-bottom: 20px;
+                font-size: 14px;
+            }
+
+            .button-group {
+                display: flex;
+                justify-content: center;
+                gap: 20px;
+            }
+
+            .button-group .btn.active {
+                background: var(--primary-color);
+                color: white;
+                border-color: var(--primary-color);
+            }
+
+            .hidden {
+                display: none;
             }
 
             .files-list {
@@ -168,6 +214,16 @@ export class UploadView {
     }
 
     attachEvents() {
+        document.getElementById('btn-type-exam')?.addEventListener('click', () => {
+            this.documentType = 'examen';
+            this.render();
+        });
+
+        document.getElementById('btn-type-essay')?.addEventListener('click', () => {
+            this.documentType = 'ensayo/informe';
+            this.render();
+        });
+
         const uploadArea = document.getElementById('upload-area');
         const fileInput = document.getElementById('file-input');
         this.studentListInput = document.getElementById('student-list');
@@ -275,63 +331,92 @@ export class UploadView {
 
     updateUploadButton() {
         const btnUpload = document.getElementById('btn-upload');
-        if (btnUpload) {
-            btnUpload.disabled = this.selectedFiles.length === 0 || this.studentList.trim() === '';
+        if (!btnUpload) return;
+
+        let isEnabled = false;
+        if (this.documentType === 'examen') {
+            isEnabled = this.selectedFiles.length > 0 && this.studentList.trim() !== '';
+        } else if (this.documentType === 'ensayo/informe') {
+            isEnabled = this.selectedFiles.length > 0;
         }
+        btnUpload.disabled = !isEnabled;
     }
 
     async uploadFiles() {
-        if (this.selectedFiles.length === 0 || !this.studentListInput.value.trim()) {
-            alert('Por favor, selecciona al menos un archivo PDF y proporciona la lista de alumnos.');
-            return;
-        }
-        this.showProcessing(true);
+    const isExam = this.documentType === 'examen';
+    if (this.selectedFiles.length === 0 || (isExam && !this.studentListInput.value.trim())) {
+        alert('Por favor, selecciona al menos un archivo y proporciona la lista de alumnos si es un examen.');
+        return;
+    }
+    this.showProcessing(true);
 
-        try {
-            // 1. Subir todos los archivos a GCS
-            const uploadedFilesInfo = await Promise.all(
-                this.selectedFiles.map(async (file) => {
-                    const { signed_url, gcs_filename, request_timestamp } = await DocumentService.getSignedUrl(file);
-                    await DocumentService.uploadFileToGCS(signed_url, file, request_timestamp);
-                    return { gcs_filename, original_filename: file.name };
-                })
-            );
+    try {
+        // ✅ CORREGIDO: Subir archivos usando el proxy del backend
+        const uploadedFilesInfo = await Promise.all(
+            this.selectedFiles.map(async (file) => {
+                // Crear FormData para cada archivo
+                const formData = new FormData();
+                formData.append('file', file);
+                formData.append('filename', file.name);
 
-            // Load courseData just before use to ensure it's up-to-date
-            const currentCourseData = StorageUtils.load('configData') || {};
+                // Subir usando el endpoint proxy
+                const response = await fetch('https://analitica-backend-511391059179.southamerica-east1.run.app/upload-file-proxy', {
+                    method: 'POST',
+                    body: formData
+                });
 
-            // 2. Empaquetar TODOS los datos en un solo objeto
-            const evaluationData = {
-                pdf_files: uploadedFilesInfo,
-                student_list: this.studentListInput.value,
-                nombre_curso: currentCourseData.courseName,
-                codigo_curso: currentCourseData.courseCode,
-                instructor: currentCourseData.instructor,
-                semestre: currentCourseData.semestre,
-                tema: currentCourseData.topic,
-                descripcion_tema: currentCourseData.descripcion_tema || "" // Use loaded description or default
-            };
+                if (!response.ok) {
+                    throw new Error(`Error uploading ${file.name}: ${response.status}`);
+                }
 
-            // 3. Encolar el lote de exámenes con el objeto unificado
-            console.log('Sending evaluationData to backend:', evaluationData);
-            const response = await DocumentService.enqueueExamBatch(evaluationData);
+                const result = await response.json();
+                console.log(`✅ Archivo subido: ${file.name} → ${result.filename}`);
+                
+                return {
+                    gcs_filename: result.filename,
+                    original_filename: file.name
+                };
+            })
+        );
 
-            console.log('Batch enqueued successfully:', response);
-            alert('¡El lote de exámenes ha sido enviado para su análisis! Serás redirigido a la página de resultados.');
+        console.log('Todos los archivos subidos:', uploadedFilesInfo);
 
-            if (response.evaluacion_ids && response.evaluacion_ids.length > 0) {
-                await this.pollForResults(response.evaluacion_ids);
-            } else {
-                alert(response.message || "No se iniciaron evaluaciones.");
-                this.showProcessing(false);
-            }
+        // Load courseData just before use to ensure it's up-to-date
+        const currentCourseData = StorageUtils.load('configData') || {};
 
-        } catch (error) {
-            console.error('Error uploading files:', error);
-            alert('Error al subir archivos. Por favor intenta nuevamente.');
+        // Empaquetar TODOS los datos en un solo objeto
+        const evaluationData = {
+            tipo_documento: this.documentType,
+            pdf_files: uploadedFilesInfo,
+            student_list: this.studentListInput?.value || '',
+            nombre_curso: currentCourseData.courseName,
+            codigo_curso: currentCourseData.courseCode,
+            instructor: currentCourseData.instructor,
+            semestre: currentCourseData.semestre,
+            tema: currentCourseData.topic,
+            descripcion_tema: currentCourseData.descripcion_tema || ""
+        };
+
+        // Encolar el lote de exámenes
+        console.log('Sending evaluationData to backend:', evaluationData);
+        const response = await DocumentService.enqueueExamBatch(evaluationData);
+
+        console.log('Batch enqueued successfully:', response);
+        alert('¡El lote de exámenes ha sido enviado para su análisis! Serás redirigido a la página de resultados.');
+
+        if (response.evaluacion_ids && response.evaluacion_ids.length > 0) {
+            await this.pollForResults(response.evaluacion_ids);
+        } else {
+            alert(response.message || "No se iniciaron evaluaciones.");
             this.showProcessing(false);
         }
+
+    } catch (error) {
+        console.error('Error uploading files:', error);
+        alert('Error al subir archivos: ' + error.message);
+        this.showProcessing(false);
     }
+}
 
     async pollForResults(evaluacionIds) {
         const interval = 5000; // 5 seconds

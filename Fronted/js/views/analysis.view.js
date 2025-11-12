@@ -69,14 +69,22 @@ export class AnalysisView {
     }
 
     renderDownloadButton() {
-        return `
-            <div style="margin-bottom: 30px;">
-                <button class="btn btn-primary" id="btn-download-transcriptions">
-                    📥 Descargar Transcripciones
-                </button>
-            </div>
-        `;
+    const hasExams = this.analysisData?.evaluaciones?.some(e => e.tipo_documento === 'examen');
+    
+    // Solo mostrar el botón si hay exámenes
+    if (!hasExams) {
+        return ''; // No renderizar nada
     }
+    
+    return `
+        <div style="margin-bottom: 30px;">
+            <button class="btn btn-primary" id="btn-download-transcriptions">
+                Descargar Transcripciones (solo exámenes)
+            </button>
+        </div>
+    `;
+    }
+
 
     renderStatistics() {
         const students = this.students;
@@ -456,26 +464,34 @@ export class AnalysisView {
     }
 
     async downloadTranscriptions() {
-        if (!this.analysisData || !this.analysisData.evaluaciones || this.analysisData.evaluaciones.length === 0) {
-            alert('No hay análisis disponibles para descargar transcripciones.');
-            return;
-        }
-
-        const evaluacionIds = this.analysisData.evaluaciones.map(e => e.id);
-
-        try {
-            const blob = await DocumentService.downloadTranscriptionsZip(evaluacionIds);
-            const url = window.URL.createObjectURL(blob);
-            const link = document.createElement('a');
-            link.href = url;
-            link.setAttribute('download', 'transcripciones_evaluaciones.zip');
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            window.URL.revokeObjectURL(url);
-        } catch (error) {
-            console.error('Error al descargar el ZIP de transcripciones:', error);
-            alert('Error al descargar el archivo ZIP de transcripciones.');
-        }
+    if (!this.analysisData || !this.analysisData.evaluaciones || this.analysisData.evaluaciones.length === 0) {
+        alert("No hay análisis disponibles para descargar transcripciones.");
+        return;
     }
+
+    const evaluacionesExamen = this.analysisData.evaluaciones.filter(e => e.tipo_documento === 'examen');
+    
+    if (evaluacionesExamen.length === 0) {
+        alert("No hay exámenes disponibles. Las transcripciones solo están disponibles para exámenes manuscritos.");
+        return;
+    }
+
+    const evaluacionIds = evaluacionesExamen.map(e => e.id);
+    
+    try {
+        const blob = await DocumentService.downloadTranscriptionsZip(evaluacionIds);
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.setAttribute('download', 'transcripciones-evaluaciones.zip');
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+    } catch (error) {
+        console.error("Error al descargar el ZIP de transcripciones:", error);
+        alert("Error al descargar el archivo ZIP de transcripciones.");
+    }
+}
+
 }

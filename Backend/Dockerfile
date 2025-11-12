@@ -1,28 +1,38 @@
-# Usa una imagen base oficial de Python
+# Usa imagen base oficial de Python
 FROM python:3.11-slim
 
-# Establece el directorio de trabajo dentro del contenedor
+# Establece variables de entorno
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1
+
+# Instala dependencias del sistema
+RUN apt-get update && apt-get install -y \
+    gcc \
+    g++ \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Establece directorio de trabajo
 WORKDIR /app
 
-# Copia primero el archivo de requerimientos para aprovechar el caché de Docker
+# Copia e instala requerimientos
 COPY requirements.txt .
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
 
-# Instala las dependencias
-# RUN pip install --no-cache-dir -r requirements.txt
-# --- NUEVA LÍNEA ---
-RUN pip install --no-cache-dir -r requirements.txt google-cloud-iam>=2.14.1
-
-# --- PASOS PARA HORNEAR EL MODELO ---
+# Descarga modelo ML
 COPY download_model.py .
 RUN python download_model.py
 
-# Copia el resto del código de tu aplicación
-COPY . .
+# ✅ SOLO COPIA LOS ARCHIVOS NECESARIOS (sin archivos viejos)
+COPY main.py .
+COPY models.py .
+COPY schemas.py .
+COPY database.py .
+COPY logging_config.py .
 
-# Expone el puerto en el que correrá la aplicación
+# Expone puerto
 EXPOSE 8080
 
-# --- COMANDO FINAL PARA PRODUCCIÓN ---
-# Un timeout de 5 minutos (300s) es suficiente.
-CMD ["gunicorn", "-w", "1", "-k", "uvicorn.workers.UvicornWorker", "--timeout", "300", "-b", "0.0.0.0:8080", "main:app"]
-
+# Comando final con uvicorn (más estable que gunicorn para FastAPI)
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080", "--timeout-keep-alive", "300"]
