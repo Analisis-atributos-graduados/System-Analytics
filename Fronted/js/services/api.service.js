@@ -1,4 +1,5 @@
 import { API_CONFIG } from '../config/api.config.js';
+import AuthService from './auth.service.js';
 
 class ApiService {
     constructor() {
@@ -7,20 +8,41 @@ class ApiService {
     }
 
     async request(endpoint, options = {}) {
-        const url = this.baseURL + endpoint;
+        const url = (endpoint.startsWith('http') ? endpoint : this.baseURL + endpoint);
+        
+        // Obtener token de Firebase (async)
+        const token = await AuthService.getToken();
+        const authHeaders = token ? { 'Authorization': `Bearer ${token}` } : {};
+
         const config = {
             ...options,
             headers: {
                 ...this.headers,
-                ...options.headers
+                ...options.headers,
+                ...authHeaders
             }
         };
 
         try {
             const response = await fetch(url, config);
             
+            if (response.status === 401 || response.status === 403) {
+                // Token inválido o expirado
+                console.error('❌ Sesión expirada o sin permisos');
+                await AuthService.logout();
+                window.location.href = '/login.html';
+                throw new Error('Sesión expirada. Por favor, inicie sesión de nuevo.');
+            }
+
             if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
+                const errorData = await response.json().catch(() => ({ 
+                    detail: response.statusText 
+                }));
+                throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
+            }
+
+            if (response.status === 204) {
+                return null;
             }
             
             return await response.json();
@@ -47,23 +69,15 @@ class ApiService {
     put(endpoint, data) {
         return this.request(endpoint, {
             method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            },
             body: JSON.stringify(data)
         });
     }
 
     delete(endpoint) {
         return this.request(endpoint, { method: 'DELETE' });
-    }
-
-    async uploadFile(endpoint, file) {
-        const formData = new FormData();
-        formData.append('file', file);
-
-        return this.request(endpoint, {
-            method: 'POST',
-            body: formData,
-            headers: {} // Let browser set Content-Type for FormData
-        });
     }
 }
 

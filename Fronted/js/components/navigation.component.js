@@ -1,29 +1,46 @@
-import { DOMUtils } from '../utils/dom.utils.js';
-import { StorageUtils } from '../utils/storage.utils.js';
+import AuthService from '../services/auth.service.js';
 
 export class NavigationComponent {
-    constructor(router) {
-        this.router = router;
+    constructor() {
+        this.currentUser = AuthService.getCurrentUser();
+        this.userRole = this.currentUser?.rol || 'PROFESOR';
+        
         this.tabs = [
-            { id: 'configuration', label: 'Configuración', icon: '📚', badge: null, alwaysEnabled: false },
-            { id: 'upload', label: 'Subir archivos', icon: '📤', badge: null, alwaysEnabled: false },
-            { id: 'analysis', label: 'Análisis', icon: '📊', badge: null, alwaysEnabled: false },
-            { id: 'settings', label: 'Ajustes', icon: '⚙️', badge: null, alwaysEnabled: true }
+            { 
+                id: 'configuration', 
+                label: 'Configuración', 
+                icon: '⚙️', 
+                roles: ['PROFESOR'] 
+            },
+            { 
+                id: 'upload', 
+                label: 'Subir archivos', 
+                icon: '📤', 
+                roles: ['PROFESOR'] 
+            },
+            { 
+                id: 'analysis', 
+                label: 'Análisis', 
+                icon: '📊', 
+                roles: ['PROFESOR', 'AREA_CALIDAD'] 
+            },
+            { 
+                id: 'settings', 
+                label: 'Ajustes', 
+                icon: '⚙️', 
+                roles: ['PROFESOR', 'AREA_CALIDAD'] 
+            }
         ];
     }
 
     render() {
-        const tabsHTML = this.tabs.map(tab => {
-            const isEnabled = this.isTabEnabled(tab);
-            const isActive = tab.id === this.router.currentRoute;
-            
+        const visibleTabs = this.tabs.filter(tab => 
+            tab.roles.includes(this.userRole)
+        );
+
+        const tabsHTML = visibleTabs.map(tab => {
             return `
-                <button class="nav-tab 
-                              ${isActive ? 'active' : ''} 
-                              ${!isEnabled ? 'disabled' : ''}
-                              ${tab.badge ? 'has-badge' : ''}"
-                        data-route="${tab.id}"
-                        ${tab.badge ? `data-badge="${tab.badge}"` : ''}>
+                <button class="nav-tab" data-route="${tab.id}">
                     ${tab.icon} ${tab.label}
                 </button>
             `;
@@ -36,37 +53,28 @@ export class NavigationComponent {
         `;
     }
 
-    isTabEnabled(tab) {
-        // Ajustes siempre está habilitado
-        if (tab.alwaysEnabled || tab.id === 'settings') return true;
-
-        // Configuración siempre está habilitada (es el inicio)
-        if (tab.id === 'configuration') return true;
-
-        // Upload solo si configuración está completa
-        if (tab.id === 'upload') {
-            return StorageUtils.load('configurationComplete') === true;
-        }
-
-        // Analysis solo si hay archivos subidos
-        if (tab.id === 'analysis') {
-            const uploadComplete = StorageUtils.load('uploadComplete') === true;
-            return uploadComplete;
-        }
-
-        return false;
-    }
-
-    attachEvents() {
-        document.querySelectorAll('.nav-tab').forEach(tab => {
-            tab.addEventListener('click', (e) => {
-                const route = e.currentTarget.dataset.route;
-                const tabData = this.tabs.find(t => t.id === route);
+    attachEventListeners() {
+        const navTabs = document.querySelectorAll('.nav-tab');
+        
+        navTabs.forEach(tab => {
+            tab.addEventListener('click', () => {
+                const route = tab.dataset.route;
                 
-                if (tabData && this.isTabEnabled(tabData)) {
-                    this.router.navigate(route);
+                // Remover active de todos
+                navTabs.forEach(t => t.classList.remove('active'));
+                
+                // Agregar active al clickeado
+                tab.classList.add('active');
+                
+                // Navegar usando el router global
+                if (window.appRouter) {
+                    window.appRouter.navigate(route);
+                } else {
+                    console.error('❌ Router no disponible');
                 }
             });
         });
+        
+        console.log('✅ Event listeners de navegación agregados');
     }
 }

@@ -1,68 +1,67 @@
 import { Router } from './router/router.js';
 import { HeaderComponent } from './components/header.component.js';
 import { NavigationComponent } from './components/navigation.component.js';
-import { ConfigurationView } from './views/configuration.view.js';
-import { UploadView } from './views/upload.view.js';
-import { AnalysisView } from './views/analysis.view.js';
-import { SettingsView } from './views/settings.view.js';
-import { DOMUtils } from './utils/dom.utils.js';
-import { StorageUtils } from './utils/storage.utils.js'; // Import StorageUtils
+import AuthService from './services/auth.service.js';
 
-// Function to apply theme from localStorage
-function applyThemeFromLocalStorage() {
-    const savedTheme = StorageUtils.load('theme') || 'dark-theme'; // Default to dark-theme
-    document.body.className = savedTheme;
+/**
+ * Inicializa la aplicación principal
+ */
+export default function initializeApp() {
+    console.log('🚀 Inicializando componentes de la aplicación...');
+    
+    try {
+        // Verificar usuario
+        const currentUser = AuthService.getCurrentUser();
+        if (!currentUser) {
+            console.error('❌ No hay usuario autenticado en main.js');
+            window.location.href = './login.html';
+            return;
+        }
+        
+        console.log('✅ Usuario cargado en app:', currentUser.email, '- Rol:', currentUser.rol);
+        
+        // Renderizar header
+        console.log('📋 Renderizando header...');
+        const headerComponent = new HeaderComponent();
+        const headerContainer = document.getElementById('header');
+        if (headerContainer) {
+            headerContainer.innerHTML = headerComponent.render();
+            headerComponent.attachEventListeners();
+            console.log('✅ Header renderizado');
+        } else {
+            console.error('❌ Contenedor #header no encontrado');
+        }
+        
+        // Renderizar navegación
+        console.log('📋 Renderizando navegación...');
+        const navigationComponent = new NavigationComponent();
+        const navContainer = document.getElementById('navigation');
+        if (navContainer) {
+            navContainer.innerHTML = navigationComponent.render();
+            navigationComponent.attachEventListeners();
+            console.log('✅ Navegación renderizada');
+        } else {
+            console.error('❌ Contenedor #navigation no encontrado');
+        }
+        
+        // Inicializar router
+        console.log('🛣️ Inicializando router...');
+        const router = new Router();
+        
+        // Navegar a la ruta inicial
+        const initialRoute = 'configuration';
+        router.navigate(initialRoute);
+        
+        console.log('✅ Router inicializado - Ruta inicial:', initialRoute);
+        
+        // Guardar router globalmente para debugging
+        window.appRouter = router;
+        
+        console.log('🎉 Aplicación cargada exitosamente');
+        
+    } catch (error) {
+        console.error('❌ Error al inicializar app:', error);
+        alert('Error al inicializar la aplicación: ' + error.message);
+        throw error;
+    }
 }
-
-class App {
-    constructor() {
-        this.router = new Router();
-        this.init();
-    }
-
-    init() {
-        applyThemeFromLocalStorage(); // Apply theme immediately on load
-
-        console.log('App: Initializing components...');
-
-        // Render header
-        console.log('App: Rendering HeaderComponent...');
-        const header = new HeaderComponent();
-        DOMUtils.render('#header', header.render());
-        header.attachEvents();
-        console.log('App: HeaderComponent rendered.');
-
-        // Register routes
-        this.router.register('configuration', new ConfigurationView(this.router));
-        this.router.register('upload', new UploadView(this.router));
-        this.router.register('analysis', new AnalysisView(this.router));
-        this.router.register('settings', new SettingsView(this.router));
-        console.log('App: Routes registered.');
-
-        // Render navigation
-        console.log('App: Rendering NavigationComponent...');
-        const navigation = new NavigationComponent(this.router);
-        DOMUtils.render('#navigation', navigation.render());
-        navigation.attachEvents();
-        console.log('App: NavigationComponent rendered.');
-
-        // Initialize router
-        console.log('App: Initializing router...');
-        this.router.init();
-        console.log('App: Router initialized.');
-
-        // Setup help button
-        this.setupHelpButton();
-    }
-
-    setupHelpButton() {
-        document.getElementById('help-button')?.addEventListener('click', () => {
-            alert('Sistema de ayuda\n\nEvalIA es un sistema de evaluación académica inteligente que te permite:\n\n• Configurar cursos y criterios\n• Subir documentos académicos\n• Obtener evaluaciones automatizadas\n• Analizar resultados detallados');
-        });
-    }
-}
-
-// Initialize app when DOM is ready
-document.addEventListener('DOMContentLoaded', () => {
-    new App();
-});

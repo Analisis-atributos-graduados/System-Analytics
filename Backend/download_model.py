@@ -1,36 +1,56 @@
+"""
+Script para descargar el modelo DeBERTa durante el build de Docker.
+Esto evita descargar el modelo en cada arranque del contenedor.
+"""
 import os
+import logging
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
 
-# Define el directorio donde se guardará el modelo dentro de la imagen
-model_dir = "/app/model"
+logging.basicConfig(level=logging.INFO)
+log = logging.getLogger(__name__)
 
-# Modelo a descargar (puede ser BART o DeBERTa según tu elección)
-model_name = "MoritzLaurer/DeBERTa-v3-base-mnli-fever-anli"
+MODEL_DIR = "/app/model"
+MODEL_NAME = "MoritzLaurer/DeBERTa-v3-base-mnli-fever-anli"
 
 
-print(f"Descargando modelo '{model_name}' para inferencia directa...")
-print("(Este proceso puede tardar varios minutos)")
+def download_model():
+    """Descarga y guarda el modelo DeBERTa localmente."""
+    try:
+        log.info(f"📥 Descargando modelo {MODEL_NAME}...")
+        log.info("⏳ Este proceso puede tardar varios minutos (~600MB)")
 
-try:
-    # Asegúrate de que el directorio exista
-    os.makedirs(model_dir, exist_ok=True)
+        # Crear directorio si no existe
+        os.makedirs(MODEL_DIR, exist_ok=True)
 
-    # Descargar tokenizer y modelo (NO como pipeline)
-    print("Descargando tokenizer...")
-    tokenizer = AutoTokenizer.from_pretrained(model_name)
-    tokenizer.save_pretrained(model_dir)
+        # Descargar tokenizer
+        log.info("Descargando tokenizer...")
+        tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
+        tokenizer.save_pretrained(MODEL_DIR)
+        log.info("✅ Tokenizer descargado")
 
-    print("Descargando modelo...")
-    model = AutoModelForSequenceClassification.from_pretrained(
-        model_name,
-        num_labels=3  # Ajusta según tus clases
-    )
-    model.save_pretrained(model_dir)
+        # Descargar modelo
+        log.info("Descargando modelo...")
+        model = AutoModelForSequenceClassification.from_pretrained(
+            MODEL_NAME,
+            num_labels=3
+        )
+        model.save_pretrained(MODEL_DIR)
+        log.info("✅ Modelo descargado")
 
-    print(f"✓ Modelo guardado exitosamente en '{model_dir}'")
-    print(f"  Tamaño: ~600MB")
+        # Verificar tamaño
+        total_size = sum(
+            os.path.getsize(os.path.join(dirpath, filename))
+            for dirpath, _, filenames in os.walk(MODEL_DIR)
+            for filename in filenames
+        )
 
-except Exception as e:
-    print(f"\nERROR: Ocurrió un error durante la descarga del modelo: {e}")
-    # Salir con un código de error para que Cloud Build falle si la descarga no funciona
-    exit(1)
+        log.info(f"✅ Modelo guardado en {MODEL_DIR}")
+        log.info(f"📊 Tamaño total: {total_size / (1024 * 1024):.2f} MB")
+
+    except Exception as e:
+        log.error(f"❌ Error al descargar modelo: {e}")
+        exit(1)
+
+
+if __name__ == "__main__":
+    download_model()

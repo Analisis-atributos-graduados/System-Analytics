@@ -1,18 +1,25 @@
 import { DOMUtils } from '../utils/dom.utils.js';
 import { StorageUtils } from '../utils/storage.utils.js';
 import DocumentService from '../services/document.service.js';
+import { showErrorNotification, showSuccessNotification } from '../utils/api.utils.js';
 
 export class UploadView {
     constructor(router) {
         this.router = router;
-        this.courseData = StorageUtils.load('configData') || {}; // Load from localStorage
-        this.selectedFiles = [];
+        this.courseData = StorageUtils.load('configData') || {};
+        this.selectedFiles = []; // ✅ Archivos seleccionados pero NO subidos
         this.studentList = '';
-        this.documentType = null; // 'examen' or 'ensayo'
+        this.documentType = null;
     }
 
     render() {
-        this.courseData = StorageUtils.load('configData') || {}; // Load from localStorage
+        this.courseData = StorageUtils.load('configData') || {};
+        
+        // Validar que haya configuración
+        if (!this.courseData.courseName || !this.courseData.rubrica_id) {
+            return this.renderMissingConfig();
+        }
+
         const uploadSectionVisible = this.documentType !== null;
         const studentListVisible = this.documentType === 'examen';
 
@@ -25,8 +32,13 @@ export class UploadView {
                         <span>Profesor: ${this.courseData.instructor || 'N/A'} •</span>
                         <span>Ciclo: ${this.courseData.semestre || 'N/A'}</span>
                     </div>
+                    <div class="banner-rubric">
+                        📋 Rúbrica: ${this.courseData.rubrica?.nombre_rubrica || 'Configurada (ID: ' + this.courseData.rubrica_id + ')'}
+                    </div>
                 </div>
-                <div class="banner-badge">Configurado</div>
+                <button class="banner-badge" id="btnEditConfig">
+                    ⚙️ Editar configuración
+                </button>
             </div>
 
             <div class="page-title">
@@ -48,430 +60,434 @@ export class UploadView {
 
             <div id="upload-content" class="${uploadSectionVisible ? '' : 'hidden'}">
                 <div class="main-card">
-                    <div class="card-icon purple-icon">📤</div>
-                    <h3 class="card-title">Subir trabajos para análisis</h3>
-                    <p class="card-subtitle">Arrastra y suelta archivos aquí o haz clic para seleccionar</p>
-
-                    <div class="upload-area" id="upload-area">
-                        <div class="upload-icon">⬆️</div>
-                        <div class="upload-text">Seleccionar archivos</div>
-                        <div class="upload-hint">Formatos soportados: PDF, DOC, DOCX, TXT, JPG, JPEG, PNG (máx. 10MB)</div>
-                        <input type="file" id="file-input" accept=".pdf,.doc,.docx,.txt" style="display: none;" multiple>
+                    <div class="card-header">
+                        <h3>Archivos a evaluar</h3>
                     </div>
-
-                    <div id="files-list" class="files-list"></div>
-
-                    <div id="student-list-container" class="form-group ${studentListVisible ? '' : 'hidden'}" style="margin-top: 20px;">
-                        <label class="form-label">Lista de Alumnos</label>
-                        <textarea class="form-input textarea" id="student-list" placeholder="Escribe los nombres de los alumnos, uno por línea..." rows="6">${this.studentList}</textarea>
+                    <div class="card-body">
+                        ${this.renderUploadArea()}
+                        ${this.renderFilesList()}
                     </div>
+                </div>
 
-                    <div class="nav-buttons">
-                        <button class="btn btn-secondary" id="btn-previous">← Anterior</button>
-                        <button class="btn btn-primary" id="btn-upload" disabled>Subir y analizar →</button>
-                    </div>
+                ${studentListVisible ? this.renderStudentList() : ''}
+
+                <div class="action-section">
+                    <button class="btn btn-primary btn-large" id="btnStartEvaluation" 
+                            ${this.canStartEvaluation() ? '' : 'disabled'}>
+                        🚀 Iniciar evaluación
+                    </button>
+                    ${!this.canStartEvaluation() ? `
+                        <p class="warning-text">
+                            ${this.getWarningMessage()}
+                        </p>
+                    ` : ''}
                 </div>
             </div>
         `;
 
-        DOMUtils.render('#main-content', html);
-        this.addStyles();
-        this.attachEvents();
+        return html;
     }
 
-    addStyles() {
-        if (document.getElementById('upload-view-styles')) return;
-
-        const style = document.createElement('style');
-        style.id = 'upload-view-styles';
-        style.textContent = `
-            .course-banner {
-                background: var(--primary-light);
-                border: 1px solid var(--primary-border);
-                border-radius: 15px;
-                padding: 25px;
-                margin-bottom: 40px;
-                position: relative;
-            }
-
-            .banner-title {
-                font-size: 18px;
-                color: var(--text-color);
-                font-weight: 600;
-                margin-bottom: 8px;
-            }
-
-            .banner-info {
-                display: flex;
-                gap: 20px;
-                font-size: 13px;
-                color: var(--secondary-text);
-                flex-wrap: wrap;
-            }
-
-            .banner-badge {
-                position: absolute;
-                top: 25px;
-                right: 25px;
-                background: rgba(16, 185, 129, 0.1);
-                color: #10b981;
-                padding: 6px 15px;
-                border-radius: 15px;
-                font-size: 12px;
-                font-weight: 600;
-            }
-
-            .document-type-selection {
-                text-align: center;
-                margin-bottom: 40px;
-            }
-
-            .section-label {
-                color: var(--secondary-text);
-                margin-bottom: 20px;
-                font-size: 14px;
-            }
-
-            .button-group {
-                display: flex;
-                justify-content: center;
-                gap: 20px;
-            }
-
-            .button-group .btn.active {
-                background: var(--primary-color);
-                color: white;
-                border-color: var(--primary-color);
-            }
-
-            .hidden {
-                display: none;
-            }
-
-            .files-list {
-                margin-top: 30px;
-            }
-
-            .file-item {
-                display: flex;
-                align-items: center;
-                justify-content: space-between;
-                padding: 15px;
-                background: rgba(0, 0, 0, 0.3);
-                border: 1px solid rgba(255, 255, 255, 0.1);
-                border-radius: 10px;
-                margin-bottom: 10px;
-            }
-
-            .file-item-info {
-                display: flex;
-                align-items: center;
-                gap: 12px;
-                flex: 1;
-            }
-
-            .file-item-icon {
-                width: 40px;
-                height: 40px;
-                background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
-                border-radius: 8px;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                font-size: 18px;
-            }
-
-            .file-item-name {
-                font-size: 14px;
-                color: #e0e0e0;
-                margin-bottom: 3px;
-            }
-
-            .file-item-size {
-                font-size: 12px;
-                color: #888;
-            }
-
-            .file-item-remove {
-                padding: 8px 16px;
-                background: rgba(239, 68, 68, 0.1);
-                color: #ef4444;
-                border: 1px solid rgba(239, 68, 68, 0.3);
-                border-radius: 8px;
-                font-size: 12px;
-                cursor: pointer;
-            }
-
-            @media (max-width: 768px) {
-                .banner-badge {
-                    position: static;
-                    margin-top: 15px;
-                    display: inline-block;
-                }
-            }
+    renderMissingConfig() {
+        return `
+            <div class="empty-state">
+                <div class="empty-icon">⚠️</div>
+                <h2>Configuración incompleta</h2>
+                <p>Antes de subir archivos, necesitas completar la configuración del curso y seleccionar una rúbrica.</p>
+                <button class="btn btn-primary" id="btnGoToConfig">
+                    ⚙️ Ir a configuración
+                </button>
+            </div>
         `;
-        document.head.appendChild(style);
     }
 
-    attachEvents() {
-        document.getElementById('btn-type-exam')?.addEventListener('click', () => {
-            this.documentType = 'examen';
-            this.render();
-        });
-
-        document.getElementById('btn-type-essay')?.addEventListener('click', () => {
-            this.documentType = 'ensayo/informe';
-            this.render();
-        });
-
-        const uploadArea = document.getElementById('upload-area');
-        const fileInput = document.getElementById('file-input');
-        this.studentListInput = document.getElementById('student-list');
-        this.uploadedPdfs = []; // Initialize uploadedPdfs
-
-        uploadArea?.addEventListener('click', () => fileInput?.click());
-
-        fileInput?.addEventListener('change', (e) => {
-            if (e.target.files.length > 0) {
-                this.handleFileSelect(e.target.files);
-            }
-        });
-
-        uploadArea?.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            uploadArea.style.borderColor = '#667eea';
-            uploadArea.style.background = 'rgba(102, 126, 234, 0.05)';
-        });
-
-        uploadArea?.addEventListener('dragleave', (e) => {
-            e.preventDefault();
-            uploadArea.style.borderColor = 'rgba(255, 255, 255, 0.2)';
-            uploadArea.style.background = 'transparent';
-        });
-
-        uploadArea?.addEventListener('drop', (e) => {
-            e.preventDefault();
-            uploadArea.style.borderColor = 'rgba(255, 255, 255, 0.2)';
-            uploadArea.style.background = 'transparent';
-            if (e.dataTransfer.files.length > 0) {
-                this.handleFileSelect(e.dataTransfer.files);
-            }
-        });
-
-        this.studentListInput?.addEventListener('input', (e) => {
-            this.studentList = e.target.value;
-            this.updateUploadButton();
-        });
-
-        document.getElementById('btn-previous')?.addEventListener('click', () => {
-            this.router.navigate('configuration');
-        });
-
-        document.getElementById('btn-upload')?.addEventListener('click', async () => {
-            await this.uploadFiles();
-        });
-    }
-
-    handleFileSelect(files) {
-        const validExtensions = ['.pdf', '.doc', '.docx', '.txt', '.jpg', '.jpeg', '.png'];
-        const maxSize = 10 * 1024 * 1024;
-
-        for (const file of files) {
-            const extension = '.' + file.name.split('.').pop().toLowerCase();
-            if (!validExtensions.includes(extension)) {
-                alert(`Archivo ${file.name} no tiene un formato válido.`);
-                continue;
-            }
-
-            if (file.size > maxSize) {
-                alert(`Archivo ${file.name} excede el tamaño máximo de 10MB.`);
-                continue;
-            }
-
-            if (!this.selectedFiles.find(f => f.name === file.name)) {
-                this.selectedFiles.push(file);
-            }
-        }
-
-        this.renderFilesList();
-        this.updateUploadButton();
+    renderUploadArea() {
+        return `
+            <div class="upload-area" id="uploadArea">
+                <input type="file" id="fileInput" multiple 
+                    accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" 
+                    style="display: none;">
+                <div class="upload-icon">📁</div>
+                <h3>Arrastra tus archivos aquí</h3>
+                <p>Soporta PDF y Word (.pdf, .doc, .docx)</p>
+                <button class="btn btn-secondary" id="btnSelectFiles">Seleccionar archivos</button>
+            </div>
+        `;
     }
 
     renderFilesList() {
-        const filesList = document.getElementById('files-list');
-        if (!filesList) return;
-
+        // ✅ CAMBIO: Mostrar selectedFiles en lugar de uploadedFiles
         if (this.selectedFiles.length === 0) {
-            filesList.innerHTML = '';
-            return;
+            return '';
         }
 
-        filesList.innerHTML = this.selectedFiles.map(file => `
-            <div class="file-item">
-                <div class="file-item-info">
-                    <div class="file-item-icon">📄</div>
-                    <div>
-                        <div class="file-item-name">${file.name}</div>
-                        <div class="file-item-size">${this.formatFileSize(file.size)}</div>
-                    </div>
+        return `
+            <div class="files-list">
+                <h4>Archivos seleccionados (${this.selectedFiles.length})</h4>
+                <div class="files-grid">
+                    ${this.selectedFiles.map((file, index) => `
+                        <div class="file-card">
+                            <div class="file-icon">${this.getFileIcon(file.name)}</div>
+                            <div class="file-info">
+                                <div class="file-name">${file.name}</div>
+                                <div class="file-size">${this.formatFileSize(file.size)}</div>
+                            </div>
+                            <span class="file-status pending">Pendiente</span>
+                            <button class="btn-icon btn-delete" data-index="${index}">
+                                🗑️
+                            </button>
+                        </div>
+                    `).join('')}
                 </div>
-                <button class="file-item-remove" data-filename="${file.name}">🗑️ Eliminar</button>
+                <small class="text-muted">Los archivos se subirán al iniciar la evaluación</small>
             </div>
-        `).join('');
-
-        document.querySelectorAll('.file-item-remove').forEach(button => {
-            button.addEventListener('click', (e) => {
-                const filename = e.target.dataset.filename;
-                this.selectedFiles = this.selectedFiles.filter(f => f.name !== filename);
-                this.renderFilesList();
-                this.updateUploadButton();
-            });
-        });
+        `;
     }
 
-    updateUploadButton() {
-        const btnUpload = document.getElementById('btn-upload');
-        if (!btnUpload) return;
+    renderStudentList() {
+        return `
+            <div class="main-card">
+                <div class="card-header">
+                    <h3>Lista de estudiantes</h3>
+                </div>
+                <div class="card-body">
+                    <p class="info-text">
+                        Ingresa la lista de estudiantes (uno por línea) en el orden que aparecen en los exámenes.
+                    </p>
+                    <textarea id="studentListInput" rows="10" 
+                              placeholder="Juan Pérez&#10;María García&#10;Pedro Rodríguez&#10;...">${this.studentList}</textarea>
+                    <small class="text-muted">
+                        El sistema intentará emparejar automáticamente cada examen con el estudiante correspondiente.
+                    </small>
+                </div>
+            </div>
+        `;
+    }
 
-        let isEnabled = false;
-        if (this.documentType === 'examen') {
-            isEnabled = this.selectedFiles.length > 0 && this.studentList.trim() !== '';
-        } else if (this.documentType === 'ensayo/informe') {
-            isEnabled = this.selectedFiles.length > 0;
+    canStartEvaluation() {
+        if (this.selectedFiles.length === 0) return false;
+        if (this.documentType === 'examen' && !this.studentList.trim()) return false;
+        if (!this.courseData.rubrica_id) return false;
+        return true;
+    }
+
+    getWarningMessage() {
+        if (this.selectedFiles.length === 0) {
+            return '⚠️ Selecciona al menos un archivo PDF';
         }
-        btnUpload.disabled = !isEnabled;
-    }
-
-    async uploadFiles() {
-    const isExam = this.documentType === 'examen';
-    if (this.selectedFiles.length === 0 || (isExam && !this.studentListInput.value.trim())) {
-        alert('Por favor, selecciona al menos un archivo y proporciona la lista de alumnos si es un examen.');
-        return;
-    }
-    this.showProcessing(true);
-
-    try {
-        // ✅ CORREGIDO: Subir archivos usando el proxy del backend
-        const uploadedFilesInfo = await Promise.all(
-            this.selectedFiles.map(async (file) => {
-                // Crear FormData para cada archivo
-                const formData = new FormData();
-                formData.append('file', file);
-                formData.append('filename', file.name);
-
-                // Subir usando el endpoint proxy
-                const response = await fetch('https://analitica-backend-511391059179.southamerica-east1.run.app/upload-file-proxy', {
-                    method: 'POST',
-                    body: formData
-                });
-
-                if (!response.ok) {
-                    throw new Error(`Error uploading ${file.name}: ${response.status}`);
-                }
-
-                const result = await response.json();
-                console.log(`✅ Archivo subido: ${file.name} → ${result.filename}`);
-                
-                return {
-                    gcs_filename: result.filename,
-                    original_filename: file.name
-                };
-            })
-        );
-
-        console.log('Todos los archivos subidos:', uploadedFilesInfo);
-
-        // Load courseData just before use to ensure it's up-to-date
-        const currentCourseData = StorageUtils.load('configData') || {};
-
-        // Empaquetar TODOS los datos en un solo objeto
-        const evaluationData = {
-            tipo_documento: this.documentType,
-            pdf_files: uploadedFilesInfo,
-            student_list: this.studentListInput?.value || '',
-            nombre_curso: currentCourseData.courseName,
-            codigo_curso: currentCourseData.courseCode,
-            instructor: currentCourseData.instructor,
-            semestre: currentCourseData.semestre,
-            tema: currentCourseData.topic,
-            descripcion_tema: currentCourseData.descripcion_tema || ""
-        };
-
-        // Encolar el lote de exámenes
-        console.log('Sending evaluationData to backend:', evaluationData);
-        const response = await DocumentService.enqueueExamBatch(evaluationData);
-
-        console.log('Batch enqueued successfully:', response);
-        alert('¡El lote de exámenes ha sido enviado para su análisis! Serás redirigido a la página de resultados.');
-
-        if (response.evaluacion_ids && response.evaluacion_ids.length > 0) {
-            await this.pollForResults(response.evaluacion_ids);
-        } else {
-            alert(response.message || "No se iniciaron evaluaciones.");
-            this.showProcessing(false);
+        if (this.documentType === 'examen' && !this.studentList.trim()) {
+            return '⚠️ Ingresa la lista de estudiantes';
         }
-
-    } catch (error) {
-        console.error('Error uploading files:', error);
-        alert('Error al subir archivos: ' + error.message);
-        this.showProcessing(false);
-    }
-}
-
-    async pollForResults(evaluacionIds) {
-        const interval = 5000; // 5 seconds
-        const maxAttempts = 60; // 5 minutes
-        let attempts = 0;
-
-        const poll = async (resolve, reject) => {
-            if (attempts >= maxAttempts) {
-                return reject(new Error("El análisis está tardando demasiado. Por favor, revisa los resultados más tarde."));
-            }
-
-            try {
-                const results = await Promise.all(evaluacionIds.map(id => DocumentService.getEvaluacion(id)));
-                
-                const allDone = results.every(r => r.resultado_analisis);
-
-                if (allDone) {
-                    console.log('Results before saving to localStorage:', results);
-                    StorageUtils.save('analysisResults', { evaluaciones: results });
-                    console.log('Saved analysisResults to localStorage:', { evaluaciones: results });
-                    StorageUtils.save('uploadComplete', true);
-                    this.router.navigate('analysis');
-                    resolve();
-                } else {
-                    attempts++;
-                    setTimeout(() => poll(resolve, reject), interval);
-                }
-            } catch (error) {
-                reject(error);
-            }
-        };
-
-        return new Promise(poll);
-    }
-
-    showProcessing(isProcessing) {
-        const btnUpload = document.getElementById('btn-upload');
-        if (btnUpload) {
-            if (isProcessing) {
-                btnUpload.disabled = true;
-                btnUpload.innerHTML = '⏳ Procesando análisis... (esto puede tardar)';
-            } else {
-                btnUpload.disabled = false;
-                btnUpload.innerHTML = 'Subir y analizar →';
-            }
+        if (!this.courseData.rubrica_id) {
+            return '⚠️ Configura una rúbrica primero';
         }
+        return '';
     }
 
     formatFileSize(bytes) {
-        if (bytes === 0) return '0 Bytes';
+        if (!bytes) return '0 B';
         const k = 1024;
-        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+        const sizes = ['B', 'KB', 'MB', 'GB'];
         const i = Math.floor(Math.log(bytes) / Math.log(k));
         return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
     }
 
+    attachEventListeners() {
+        console.log('📎 Adjuntando event listeners de upload view...');
+        
+        // Botón editar configuración
+        const btnEditConfig = document.getElementById('btnEditConfig');
+        if (btnEditConfig) {
+            btnEditConfig.addEventListener('click', () => {
+                this.router.navigate('configuration');
+            });
+        }
 
+        // Botón ir a configuración
+        const btnGoToConfig = document.getElementById('btnGoToConfig');
+        if (btnGoToConfig) {
+            btnGoToConfig.addEventListener('click', () => {
+                this.router.navigate('configuration');
+            });
+        }
+
+        // Selección de tipo de documento
+        const btnTypeExam = document.getElementById('btn-type-exam');
+        const btnTypeEssay = document.getElementById('btn-type-essay');
+
+        if (btnTypeExam) {
+            btnTypeExam.addEventListener('click', () => {
+                console.log('📝 Tipo de documento seleccionado: examen');
+                this.selectDocumentType('examen');
+            });
+        }
+
+        if (btnTypeEssay) {
+            btnTypeEssay.addEventListener('click', () => {
+                console.log('📄 Tipo de documento seleccionado: ensayo/informe');
+                this.selectDocumentType('ensayo/informe');
+            });
+        }
+
+        // Upload de archivos
+        this.attachUploadListeners();
+
+        // Lista de estudiantes
+        const studentListInput = document.getElementById('studentListInput');
+        if (studentListInput) {
+            studentListInput.addEventListener('input', (e) => {
+                this.studentList = e.target.value;
+                this.updateStartButton();
+            });
+        }
+
+        // Botón iniciar evaluación
+        const btnStartEvaluation = document.getElementById('btnStartEvaluation');
+        if (btnStartEvaluation) {
+            btnStartEvaluation.addEventListener('click', () => this.startEvaluation());
+        }
+
+        // Botones eliminar archivo
+        document.querySelectorAll('.btn-delete').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const index = parseInt(e.target.closest('[data-index]').dataset.index);
+                this.removeFile(index);
+            });
+        });
+        
+        console.log('✅ Event listeners adjuntados');
+    }
+
+    selectDocumentType(type) {
+        console.log('🔄 Cambiando tipo de documento a:', type);
+        this.documentType = type;
+        
+        // Re-renderizar
+        const container = document.getElementById('main-content');
+        if (container) {
+            container.innerHTML = this.render();
+            this.attachEventListeners();
+            console.log('✅ Vista re-renderizada con tipo:', type);
+        }
+    }
+
+    attachUploadListeners() {
+        const uploadArea = document.getElementById('uploadArea');
+        const fileInput = document.getElementById('fileInput');
+        const btnSelectFiles = document.getElementById('btnSelectFiles');
+
+        if (!uploadArea || !fileInput) {
+            console.log('⚠️ Área de upload no disponible todavía');
+            return;
+        }
+
+        console.log('📤 Configurando listeners de upload...');
+
+        // Click en área de upload
+        uploadArea.addEventListener('click', (e) => {
+            if (e.target.id !== 'btnSelectFiles') {
+                fileInput.click();
+            }
+        });
+
+        // Click en botón
+        if (btnSelectFiles) {
+            btnSelectFiles.addEventListener('click', (e) => {
+                e.stopPropagation();
+                fileInput.click();
+            });
+        }
+
+        // Drag & Drop
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('drag-over');
+        });
+
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('drag-over');
+        });
+
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('drag-over');
+            
+            const files = Array.from(e.dataTransfer.files).filter(f => this.isValidFileType(f));
+            
+            if (files.length === 0) {
+                showErrorNotification(new Error('Solo se permiten archivos PDF o Word (.pdf, .doc, .docx)'));
+                return;
+            }
+            
+            this.handleFiles(files);
+        });
+
+        // Selección de archivos
+        fileInput.addEventListener('change', (e) => {
+            const files = Array.from(e.target.files);
+            this.handleFiles(files);
+            fileInput.value = '';
+        });
+        
+        console.log('✅ Listeners de upload configurados');
+    }
+
+    // ✅ CAMBIO PRINCIPAL: Solo guardar archivos, NO subirlos
+    handleFiles(files) {
+        if (files.length === 0) return;
+
+        const invalidFiles = files.filter(f => !this.isValidFileType(f));
+        
+        if (invalidFiles.length > 0) {
+            showErrorNotification(new Error(
+                `Los siguientes archivos no son válidos: ${invalidFiles.map(f => f.name).join(', ')}`
+            ));
+            return;
+        }
+
+        console.log(`📁 ${files.length} archivo(s) seleccionado(s)`);
+
+        // ✅ Solo agregar a la lista, NO subir
+        this.selectedFiles.push(...files);
+
+        showSuccessNotification(`✅ ${files.length} archivo(s) seleccionado(s)`);
+        
+        // Re-renderizar
+        const container = document.getElementById('main-content');
+        if (container) {
+            container.innerHTML = this.render();
+            this.attachEventListeners();
+        }
+    }
+
+    removeFile(index) {
+        this.selectedFiles.splice(index, 1);
+        
+        // Re-renderizar
+        const container = document.getElementById('main-content');
+        if (container) {
+            container.innerHTML = this.render();
+            this.attachEventListeners();
+        }
+    }
+
+    updateStartButton() {
+        const btn = document.getElementById('btnStartEvaluation');
+        if (btn) {
+            btn.disabled = !this.canStartEvaluation();
+        }
+    }
+
+    // ✅ CAMBIO: Subir archivos AQUÍ, no antes
+    async startEvaluation() {
+        try {
+            console.log('🚀 Iniciando evaluación...');
+
+            if (!this.courseData.rubrica_id) {
+                throw new Error('No se ha seleccionado una rúbrica. Ve a configuración.');
+            }
+
+            if (this.selectedFiles.length === 0) {
+                throw new Error('Debes seleccionar al menos un archivo');
+            }
+
+            this.showLoading();
+
+            // ✅ SUBIR ARCHIVOS AHORA
+            console.log(`📤 Subiendo ${this.selectedFiles.length} archivos...`);
+            const uploadedFiles = [];
+
+            for (const file of this.selectedFiles) {
+                try {
+                    console.log(`  📤 Subiendo: ${file.name}`);
+                    const result = await DocumentService.uploadFileProxy(file);
+                    
+                    uploadedFiles.push({
+                        gcs_filename: result.gcs_filename,
+                        original_filename: result.original_filename || file.name
+                    });
+                    
+                    console.log(`  ✅ Subido: ${result.gcs_filename}`);
+                } catch (error) {
+                    console.error(`  ❌ Error subiendo ${file.name}:`, error);
+                    throw new Error(`Error subiendo ${file.name}: ${error.message}`);
+                }
+            }
+
+            console.log(`✅ Todos los archivos subidos (${uploadedFiles.length})`);
+
+            // Preparar payload
+            const evaluationData = {
+                pdf_files: uploadedFiles,
+                student_list: this.studentList.trim(),
+                rubrica_id: this.courseData.rubrica_id,
+                nombre_curso: this.courseData.courseName,
+                codigo_curso: this.courseData.courseCode,
+                instructor: this.courseData.instructor,
+                semestre: this.courseData.semestre,
+                tema: this.courseData.topic,
+                descripcion_tema: this.courseData.descripcion_tema || '',
+                tipo_documento: this.documentType
+            };
+
+            console.log('📤 Enviando evaluación:', evaluationData);
+
+            const response = await DocumentService.enqueueExamBatch(evaluationData);
+
+            console.log('✅ Respuesta del servidor:', response);
+
+            showSuccessNotification(`✅ Evaluación iniciada: ${response.total || uploadedFiles.length} documento(s) en proceso`);
+
+            // Limpiar y redirigir
+            setTimeout(() => {
+                this.selectedFiles = [];
+                this.studentList = '';
+                this.documentType = null;
+                this.router.navigate('analysis');
+            }, 2000);
+
+        } catch (error) {
+            console.error('❌ Error al iniciar evaluación:', error);
+            showErrorNotification(error);
+            this.hideLoading();
+        }
+    }
+
+    showLoading() {
+        const btn = document.getElementById('btnStartEvaluation');
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = '⏳ Subiendo y procesando...';
+        }
+    }
+
+    hideLoading() {
+        const btn = document.getElementById('btnStartEvaluation');
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = '🚀 Iniciar evaluación';
+        }
+    }
+
+    isValidFileType(file) {
+        const validTypes = [
+            'application/pdf',
+            'application/msword',
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        ];
+        
+        const validExtensions = ['.pdf', '.doc', '.docx'];
+        const fileName = file.name.toLowerCase();
+        
+        return validTypes.includes(file.type) || 
+            validExtensions.some(ext => fileName.endsWith(ext));
+    }
+
+    getFileIcon(filename) {
+        const ext = filename.toLowerCase().split('.').pop();
+        
+        if (ext === 'pdf') return '📕';
+        if (ext === 'doc' || ext === 'docx') return '📘';
+        return '📄';
+    }
 }

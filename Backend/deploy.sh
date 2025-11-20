@@ -1,4 +1,5 @@
 #!/bin/bash
+
 set -e
 
 # === Configuración del Proyecto ===
@@ -10,6 +11,7 @@ SERVICE_ACCOUNT_EMAIL="511391059179-compute@developer.gserviceaccount.com"
 SERVICE_NAME="analitica-backend"
 REGION="southamerica-east1"
 IMAGE_TAG="$REGION-docker.pkg.dev/$PROJECT_ID/evalia-repo/analitica-backend"
+GEMINI_API_KEY="AIzaSyBukzNFi_p3qw6nupQrS8ZwJdp-F49qF-4"
 
 echo "Desplegando el servicio $SERVICE_NAME con base de datos Neon..."
 
@@ -23,6 +25,10 @@ gcloud run deploy $SERVICE_NAME \
   --cpu=8 \
   --cpu-boost \
   --timeout=1800 \
-  --set-env-vars="DATABASE_URL=$DATABASE_URL,RAPIDAPI_KEY=03619b84a1mshac9641448c45527p160035jsnfb70e34aabdf,GCP_PROJECT_ID=$PROJECT_ID,GCP_LOCATION=$REGION,GCS_BUCKET_NAME=$BUCKET_NAME,GCS_QUEUE_NAME=$QUEUE_NAME,SERVICE_ACCOUNT_EMAIL=$SERVICE_ACCOUNT_EMAIL,BUCKET_NAME=$BUCKET_NAME,QUEUE_NAME=$QUEUE_NAME,SERVICE_URL=https://analitica-backend-511391059179.southamerica-east1.run.app"
+  --concurrency=1 \
+  --min-instances=0 \
+  --max-instances=2 \
+  --set-env-vars="DATABASE_URL=$DATABASE_URL,RAPIDAPI_KEY=03619b84a1mshac9641448c45527p160035jsnfb70e34aabdf,GCP_PROJECT_ID=$PROJECT_ID,GCP_LOCATION=$REGION,GCS_BUCKET_NAME=$BUCKET_NAME,GCS_QUEUE_NAME=$QUEUE_NAME,SERVICE_ACCOUNT_EMAIL=$SERVICE_ACCOUNT_EMAIL,BUCKET_NAME=$BUCKET_NAME,QUEUE_NAME=$QUEUE_NAME,GEMINI_API_KEY=$GEMINI_API_KEY,SERVICE_URL=https://analitica-backend-511391059179.southamerica-east1.run.app,MODEL_PATH=/app/model" \
+  --service-account=$SERVICE_ACCOUNT_EMAIL
 
 echo "✅ Despliegue completado!"

@@ -6,23 +6,19 @@ export class StepIndicatorComponent {
 
     render() {
         const stepsHTML = this.steps.map((step, index) => {
-            let status = 'pending';
-            if (index < this.currentStep) status = 'completed';
-            if (index === this.currentStep) status = 'active';
-
+            const isCompleted = index < this.currentStep;
+            const isCurrent = index === this.currentStep;
+            
             return `
-                <div class="step ${status}">
-                    <div class="step-icon">${step.icon}</div>
-                    <div class="step-text">
-                        <span class="step-label">Paso ${index + 1}</span>
-                        <span class="step-title">${step.title}</span>
-                    </div>
+                <div class="step ${isCompleted ? 'completed' : ''} ${isCurrent ? 'active' : ''}">
+                    <div class="step-number">${index + 1}</div>
+                    <div class="step-label">${step}</div>
                 </div>
             `;
         }).join('');
 
         return `
-            <div class="steps">
+            <div class="step-indicator">
                 ${stepsHTML}
             </div>
         `;

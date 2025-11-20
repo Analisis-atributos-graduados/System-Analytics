@@ -10,9 +10,83 @@
     <div id="app">
         <div id="header"></div>
         <div id="navigation"></div>
-        <div id="main-content" class="container"></div>
+        <div id="main-content" class="container">
+            <!-- Loader mientras verifica autenticación -->
+            <div id="auth-loader" style="text-align: center; padding: 100px 20px;">
+                <div style="font-size: 48px; margin-bottom: 20px;">🔐</div>
+                <p style="color: var(--secondary-text);">Verificando autenticación...</p>
+            </div>
+        </div>
     </div>
 
-    <script type="module" src="js/main.js"></script>
+    <script type="module">
+        import { initializeFirebase } from './js/config/firebase.config.js';
+        import AuthService from './js/services/auth.service.js';
+        
+        async function initApp() {
+            try {
+                console.log('🔄 Iniciando aplicación...');
+                
+                // 1. Inicializar Firebase
+                await initializeFirebase();
+                console.log('✅ Firebase inicializado');
+                
+                // 2. Esperar a que Firebase Auth cargue el usuario
+                console.log('⏳ Esperando autenticación de Firebase...');
+                const isAuthReady = await AuthService.waitForAuth();
+                
+                if (!isAuthReady) {
+                    console.warn('⚠️ No hay sesión activa, redirigiendo a login...');
+                    window.location.href = './login.html';
+                    return;
+                }
+                
+                // 3. Verificar que tenemos usuario completo
+                const currentUser = AuthService.getCurrentUser();
+                console.log('✅ Usuario autenticado:', currentUser.email, '- Rol:', currentUser.rol);
+                
+                // 4. Ocultar loader (VERIFICAR QUE EXISTE)
+                const loader = document.getElementById('auth-loader');
+                if (loader) {
+                    loader.style.display = 'none';
+                    console.log('✅ Loader ocultado');
+                } else {
+                    console.warn('⚠️ Elemento auth-loader no encontrado');
+                }
+                
+                // 5. Cargar aplicación
+                console.log('📦 Cargando módulo main.js...');
+                const { default: mainApp } = await import('./js/main.js');
+                
+                if (typeof mainApp === 'function') {
+                    console.log('🚀 Ejecutando mainApp()...');
+                    mainApp();
+                } else {
+                    console.error('❌ main.js no exporta una función por defecto');
+                }
+                
+            } catch (error) {
+                console.error('❌ Error fatal:', error);
+                
+                const loader = document.getElementById('auth-loader');
+                if (loader) {
+                    loader.innerHTML = `
+                        <div style="color: var(--danger-color); text-align: center;">
+                            <h2>❌ Error al cargar la aplicación</h2>
+                            <p>${error.message}</p>
+                            <button onclick="location.reload()" class="btn btn-primary" style="margin-top: 20px;">
+                                Reintentar
+                            </button>
+                        </div>
+                    `;
+                } else {
+                    // Si no existe el loader, mostrar error en consola
+                    alert('Error al cargar la aplicación: ' + error.message);
+                }
+            }
+        }
+        
+        initApp();
+    </script>
 </body>
 </html>

@@ -1,11 +1,14 @@
-import { DOMUtils } from '../utils/dom.utils.js';
-import { StepIndicatorComponent } from '../components/step-indicator.component.js';
 import { StorageUtils } from '../utils/storage.utils.js';
+import RubricaService from '../services/rubrica.service.js';
+import AuthService from '../services/auth.service.js';
+import { showErrorNotification, showSuccessNotification } from '../utils/api.utils.js';
+import { StepIndicatorComponent } from '../components/step-indicator.component.js';
 
 export class ConfigurationView {
     constructor(router) {
         this.router = router;
-        this.currentStep = 0; // 0-3 para los 4 pasos
+        this.currentStep = 0;
+        this.existingRubrics = [];
         this.configData = StorageUtils.load('configData') || {
             courseName: '',
             courseCode: '',
@@ -13,412 +16,943 @@ export class ConfigurationView {
             semestre: '',
             topic: '',
             descripcion_tema: '',
-            rubricFile: null
+            rubrica_id: null,
+            rubrica: this.getEmptyRubrica()
         };
+
+        this._loadExistingRubrics();
+    }
+
+    getEmptyRubrica() {
+        return {
+            nombre_rubrica: '',
+            descripcion: '',
+            criterios: [
+                {
+                    id: Date.now(),
+                    nombre_criterio: '',
+                    descripcion_criterio: '',
+                    peso: 0.15,  // 15% por defecto
+                    orden: 1,
+                    niveles: [
+                        {
+                            id: Date.now() + '_1',
+                            nombre_nivel: 'Excelente',
+                            puntaje_min: 3,
+                            puntaje_max: 3,
+                            descriptores: [''],
+                            orden: 1
+                        },
+                        {
+                            id: Date.now() + '_2',
+                            nombre_nivel: 'Regular',
+                            puntaje_min: 1,
+                            puntaje_max: 2,
+                            descriptores: [''],
+                            orden: 2
+                        },
+                        {
+                            id: Date.now() + '_3',
+                            nombre_nivel: 'Insuficiente',
+                            puntaje_min: 0,
+                            puntaje_max: 0,
+                            descriptores: [''],
+                            orden: 3
+                        }
+                    ]
+                }
+            ]
+        };
+    }
+
+    async _loadExistingRubrics() {
+        try {
+            this.existingRubrics = await RubricaService.getAll();
+            console.log('✅ Rúbricas cargadas:', this.existingRubrics.length);
+            
+            if (this.currentStep === 2) {
+                this.render();
+                this.attachEventListeners();
+            }
+        } catch (error) {
+            console.error('Error cargando rúbricas:', error);
+        }
     }
 
     render() {
-        const steps = [
-            { icon: '📚', title: 'Registro del curso' },
-            { icon: '🎯', title: 'Registro del tópico' },
-            { icon: '📋', title: 'Subir rúbrica' },
-            { icon: '✓', title: 'Listo para análisis' }
-        ];
-
+        const steps = ['Información del curso', 'Detalles del tema', 'Configuración de rúbrica'];
         const stepIndicator = new StepIndicatorComponent(steps, this.currentStep);
-
-        const html = `
+        
+        return `
             <div class="page-title">
-                <h2>Configuración inicial</h2>
+                <h2>Configuración de evaluación</h2>
             </div>
-            <p class="page-subtitle">Configura el curso, tema y rúbrica antes de comenzar el análisis de documentos</p>
-
+            <p class="page-subtitle">Configura los parámetros necesarios para tu evaluación automatizada.</p>
+            
             ${stepIndicator.render()}
-
+            
             <div class="main-card">
-                ${this.renderCurrentStep()}
+                <div class="card-header">
+                    <h3>${steps[this.currentStep]}</h3>
+                </div>
+                <div class="card-body">
+                    ${this.renderStep()}
+                </div>
+                <div class="card-footer">
+                    ${this.renderFooter()}
+                </div>
             </div>
         `;
-
-        DOMUtils.render('#main-content', html);
-        this.attachEvents();
     }
 
-    renderCurrentStep() {
-        switch(this.currentStep) {
+    renderStep() {
+        switch (this.currentStep) {
             case 0: return this.renderStep1();
             case 1: return this.renderStep2();
             case 2: return this.renderStep3();
-            case 3: return this.renderStep4();
-            default: return this.renderStep1();
+            default: return '';
         }
     }
 
-    // PASO 1: Registro del curso con SPINNER
     renderStep1() {
+        const user = AuthService.getCurrentUser();
+        
         return `
-            <div class="card-icon blue-icon">📚</div>
-            <h3 class="card-title">Registro del curso</h3>
-            <p class="card-subtitle">Ingresa la información básica del curso académico</p>
+            <div class="form-group">
+                <label for="courseName">Nombre del curso *</label>
+                <input type="text" id="courseName" value="${this.configData.courseName || ''}" 
+                       placeholder="Ej: Cálculo Avanzado" required>
+            </div>
 
-            <form id="step1-form" class="config-form">
-                <div class="form-group">
-                    <label class="form-label">Nombre del curso</label>
-                    <input type="text"
-                           class="form-input"
-                           id="course-name"
-                           value="${this.configData.courseName}"
-                           placeholder="ej. Metodología de la Investigación"
-                           required>
-                </div>
+            <div class="form-group">
+                <label for="courseCode">Código del curso *</label>
+                <input type="text" id="courseCode" value="${this.configData.courseCode || ''}" 
+                       placeholder="Ej: CA-301" required>
+            </div>
 
-                <div class="form-row">
-                    <div class="form-group">
-                        <label class="form-label">Código del curso</label>
-                        <input type="text" 
-                               class="form-input" 
-                               id="course-code" 
-                               value="${this.configData.courseCode}"
-                               placeholder="ej. MET-101">
-                    </div>
+            <div class="form-group">
+                <label for="instructor">Instructor *</label>
+                <input type="text" id="instructor" value="${user?.nombre || this.configData.instructor || ''}" 
+                       placeholder="Nombre del instructor" required>
+            </div>
 
-                    <div class="form-group">
-                        <label class="form-label">Ciclo</label>
-                        <input type="text" 
-                               class="form-input" 
-                               id="period" 
-                               value="${this.configData.semestre}"
-                               placeholder="ej. 2025-1"
-                               required>
-                    </div>
-                </div>
-
-                <div class="form-group">
-                    <label class="form-label">Profesor</label>
-                    <input type="text" 
-                           class="form-input" 
-                           id="instructor" 
-                           value="${this.configData.instructor}"
-                           placeholder="ej. Dr. Juan Pérez"
-                           required>
-                </div>
-
-                <div class="nav-buttons">
-                    ${this.currentStep > 0 ? `
-                        <button type="button" class="btn btn-secondary" id="btn-back">
-                            ← Anterior
-                        </button>
-                    ` : '<div></div>'}
-                    <button type="submit" class="btn btn-primary">
-                        Siguiente →
-                    </button>
-                </div>
-            </form>
+            <div class="form-group">
+                <label for="semestre">Semestre *</label>
+                <input type="text" id="semestre" value="${this.configData.semestre || ''}" 
+                       placeholder="Ej: 2025-1" required>
+                <small>Formato: YYYY-N (ejemplo: 2025-1 para primer semestre de 2025)</small>
+            </div>
         `;
     }
 
-    // PASO 2: Registro del tópico
     renderStep2() {
         return `
-            <div class="card-icon teal-icon">🎯</div>
-            <h3 class="card-title">Registro del tópico</h3>
-            <p class="card-subtitle">Define el tema específico que será evaluado en los trabajos</p>
+            <div class="form-group">
+                <label for="topic">Tema de la evaluación *</label>
+                <input type="text" id="topic" value="${this.configData.topic || ''}" 
+                       placeholder="Ej: Examen Final - Derivadas e Integrales" required>
+            </div>
 
-            <form id="step2-form" class="config-form">
-                <div class="form-group">
-                    <label class="form-label">Tópico/Tema</label>
-                    <input type="text" 
-                           class="form-input" 
-                           id="topic" 
-                           value="${this.configData.topic}"
-                           placeholder="ej. Cambio Climático y Sostenibilidad"
-                           required>
-                </div>
-
-                <div class="form-group">
-                    <label class="form-label">Descripción del tópico</label>
-                    <textarea class="form-input textarea" 
-                              id="topic-description" 
-                              placeholder="Describe los aspectos específicos que deben abordar los trabajos, objetivos de aprendizaje, y criterios temáticos importantes..."
-                              rows="6"
-                              required>${this.configData.descripcion_tema}</textarea>
-                </div>
-
-                <div class="nav-buttons">
-                    <button type="button" class="btn btn-secondary" id="btn-back">
-                        ← Anterior
-                    </button>
-                    <button type="submit" class="btn btn-primary">
-                        Siguiente →
-                    </button>
-                </div>
-            </form>
+            <div class="form-group">
+                <label for="descripcion_tema">Descripción del tema</label>
+                <textarea id="descripcion_tema" rows="4" 
+                          placeholder="Describe brevemente los temas que cubre esta evaluación...">${this.configData.descripcion_tema || ''}</textarea>
+                <small>Esta descripción ayudará al sistema a contextualizar mejor la evaluación</small>
+            </div>
         `;
     }
 
-    // PASO 3: Subir rúbrica (OPCIONAL)
     renderStep3() {
         return `
-            <div class="card-icon orange-icon">📋</div>
-            <h3 class="card-title">Subir rúbrica de evaluación</h3>
-            <p class="card-subtitle">Carga el documento con los criterios de evaluación específicos (opcional)</p>
+            <div class="rubric-selector">
+                <h4>¿Qué rúbrica quieres usar?</h4>
+                
+                <div class="rubric-options">
+                    <label class="radio-card">
+                        <input type="radio" name="rubricOption" value="existing" 
+                               ${this.configData.rubrica_id ? 'checked' : ''}>
+                        <div class="radio-content">
+                            <strong>📋 Usar rúbrica existente</strong>
+                            <small>Selecciona una de tus rúbricas guardadas</small>
+                        </div>
+                    </label>
 
-            <form id="step3-form" class="config-form">
-                <div class="upload-area" id="rubric-upload-area">
-                    <div class="upload-icon">⬆️</div>
-                    <div class="upload-text">Seleccionar archivo de rúbrica</div>
-                    <div class="upload-hint">PDF, DOC, DOCX (máx. 10MB) - Opcional</div>
-                    <input type="file" 
-                           id="rubric-input" 
-                           accept=".pdf,.doc,.docx" 
-                           style="display: none;">
+                    <label class="radio-card">
+                        <input type="radio" name="rubricOption" value="new" 
+                               ${!this.configData.rubrica_id ? 'checked' : ''}>
+                        <div class="radio-content">
+                            <strong>➕ Crear nueva rúbrica</strong>
+                            <small>Define criterios y niveles personalizados</small>
+                        </div>
+                    </label>
+                </div>
+            </div>
+
+            <div id="existing-rubric-section" class="form-section" 
+                 style="display: ${this.configData.rubrica_id ? 'block' : 'none'}">
+                ${this.renderExistingRubricSelector()}
+            </div>
+
+            <div id="new-rubric-section" class="form-section" 
+                 style="display: ${!this.configData.rubrica_id ? 'block' : 'none'}">
+                ${this.renderNewRubricForm()}
+            </div>
+        `;
+    }
+
+    renderExistingRubricSelector() {
+        if (this.existingRubrics.length === 0) {
+            return `
+                <div class="empty-state">
+                    <p>📋 No tienes rúbricas guardadas aún.</p>
+                    <p>Selecciona "Crear nueva rúbrica" para comenzar.</p>
+                </div>
+            `;
+        }
+
+        return `
+            <div class="form-group">
+                <label for="selectRubric">Selecciona una rúbrica</label>
+                <select id="selectRubric" class="form-control">
+                    <option value="">-- Selecciona una rúbrica --</option>
+                    ${this.existingRubrics.map(r => `
+                        <option value="${r.id}" ${this.configData.rubrica_id === r.id ? 'selected' : ''}>
+                            ${r.nombre_rubrica} (${r.criterios?.length || 0} criterios)
+                        </option>
+                    `).join('')}
+                </select>
+            </div>
+
+            ${this.configData.rubrica_id ? this.renderRubricPreview() : ''}
+        `;
+    }
+
+    renderRubricPreview() {
+        const rubrica = this.existingRubrics.find(r => r.id === this.configData.rubrica_id);
+        if (!rubrica || !rubrica.criterios) return '';
+
+        return `
+            <div class="rubric-preview">
+                <h5>Vista previa: ${rubrica.nombre_rubrica}</h5>
+                ${rubrica.descripcion ? `<p class="text-muted">${rubrica.descripcion}</p>` : ''}
+                
+                ${rubrica.criterios.map((criterio, idx) => `
+                    <div class="criterio-preview-card">
+                        <div class="criterio-preview-header">
+                            <span class="criterio-numero">${idx + 1}</span>
+                            <strong>${criterio.nombre_criterio}</strong>
+                            <span class="criterio-peso-badge">${(criterio.peso * 100).toFixed(0)}%</span>
+                        </div>
+                        ${criterio.descripcion_criterio ? `
+                            <p class="criterio-descripcion-small">${criterio.descripcion_criterio}</p>
+                        ` : ''}
+                        
+                        ${criterio.niveles && criterio.niveles.length > 0 ? `
+                            <div class="niveles-preview">
+                                ${criterio.niveles.map(nivel => `
+                                    <div class="nivel-preview-item">
+                                        <strong>${nivel.nombre_nivel}</strong>
+                                        <span class="nivel-puntaje">
+                                            ${nivel.puntaje_min === nivel.puntaje_max 
+                                                ? `${nivel.puntaje_min} pts` 
+                                                : `${nivel.puntaje_min}-${nivel.puntaje_max} pts`}
+                                        </span>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        ` : ''}
+                    </div>
+                `).join('')}
+            </div>
+        `;
+    }
+
+    renderNewRubricForm() {
+        const rubrica = this.configData.rubrica;
+        
+        return `
+            <div class="form-group">
+                <label for="rubricName">Nombre de la rúbrica *</label>
+                <input type="text" id="rubricName" value="${rubrica.nombre_rubrica || ''}" 
+                       placeholder="Ej: Rúbrica Proyecto Final 2025-1" required>
+            </div>
+
+            <div class="form-group">
+                <label for="rubricDesc">Descripción</label>
+                <textarea id="rubricDesc" rows="2" 
+                          placeholder="Describe el propósito de esta rúbrica...">${rubrica.descripcion || ''}</textarea>
+            </div>
+
+            <div class="criterios-section">
+                <div class="section-header">
+                    <h5>Criterios de evaluación</h5>
+                    <button type="button" class="btn btn-sm btn-secondary" id="addCriterio">
+                        ➕ Agregar criterio
+                    </button>
                 </div>
 
-                ${this.configData.rubricFile ? `
-                    <div class="file-display" style="margin-top: 20px;">
-                        <div class="file-icon">📄</div>
-                        <div class="file-info">
-                            <div class="file-name">${this.configData.rubricFile.name}</div>
-                            <div class="file-size">${this.formatFileSize(this.configData.rubricFile.size)}</div>
-                        </div>
-                        <button type="button" class="btn btn-secondary" id="btn-remove-rubric" style="padding: 8px 16px;">
-                            🗑️ Eliminar
-                        </button>
-                    </div>
-                ` : ''}
+                <div id="criterios-list">
+                    ${rubrica.criterios.map((c, index) => this.renderCriterioItem(c, index)).join('')}
+                </div>
 
-                <div class="nav-buttons">
-                    <button type="button" class="btn btn-secondary" id="btn-back">
+                <div class="peso-total">
+                    <strong>Peso total:</strong> 
+                    <span id="pesoTotal">${this.calculateTotalPeso()}%</span>
+                    <span class="status-icon" id="pesoStatus">${this.calculateTotalPeso() === 100 ? '✅' : '⚠️'}</span>
+                </div>
+                <small class="text-muted">El peso total debe sumar 100%</small>
+            </div>
+
+            <div class="form-group">
+                <label>
+                    <input type="checkbox" id="saveRubric" checked>
+                    Guardar esta rúbrica para uso futuro
+                </label>
+            </div>
+        `;
+    }
+
+    renderCriterioItem(criterio, index) {
+        // ✅ ASEGURAR QUE niveles EXISTA
+        if (!criterio.niveles || criterio.niveles.length === 0) {
+            criterio.niveles = [
+                {
+                    id: Date.now() + '_1',
+                    nombre_nivel: 'Excelente',
+                    puntaje_min: 3,
+                    puntaje_max: 3,
+                    descriptores: [''],
+                    orden: 1
+                }
+            ];
+        }
+        
+        return `
+            <div class="criterio-item" data-criterio-id="${criterio.id}">
+                <div class="criterio-header">
+                    <span class="criterio-number">${index + 1}</span>
+                    <input type="text" class="criterio-nombre" data-criterio-index="${index}"
+                        value="${criterio.nombre_criterio || ''}" 
+                        placeholder="Nombre del criterio" required>
+                    <button type="button" class="btn-icon btn-delete" data-action="delete-criterio" data-index="${index}">
+                        🗑️
+                    </button>
+                </div>
+
+                <div class="criterio-body">
+                    <div class="form-group">
+                        <label>Descripción del criterio</label>
+                        <textarea class="criterio-descripcion" data-criterio-index="${index}" rows="2" 
+                                placeholder="¿Qué evalúa este criterio?">${criterio.descripcion_criterio || ''}</textarea>
+                    </div>
+
+                    <div class="form-group peso-group">
+                        <label>Peso (%)</label>
+                        <div class="peso-input-group">
+                            <input type="number" class="criterio-peso" data-criterio-index="${index}"
+                                value="${(criterio.peso * 100).toFixed(0)}" 
+                                min="0" max="100" step="5" required>
+                            <span class="input-suffix">%</span>
+                        </div>
+                        <input type="range" class="peso-slider" data-criterio-index="${index}"
+                            value="${(criterio.peso * 100).toFixed(0)}" 
+                            min="0" max="100" step="5">
+                    </div>
+
+                    <!-- NIVELES -->
+                    <div class="niveles-section">
+                        <div class="niveles-header">
+                            <label>Niveles de desempeño</label>
+                            <button type="button" class="btn btn-sm btn-secondary" 
+                                    data-action="add-nivel" data-criterio-index="${index}">
+                                ➕ Agregar nivel
+                            </button>
+                        </div>
+
+                        <div class="niveles-list">
+                            ${criterio.niveles.map((nivel, nIndex) => 
+                                this.renderNivelItem(nivel, index, nIndex)
+                            ).join('')}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+
+    renderNivelItem(nivel, criterioIndex, nivelIndex) {
+        // ✅ ASEGURAR QUE descriptores EXISTA
+        if (!nivel.descriptores || nivel.descriptores.length === 0) {
+            nivel.descriptores = [''];
+        }
+        
+        return `
+            <div class="nivel-item" data-nivel-id="${nivel.id}">
+                <div class="nivel-header">
+                    <input type="text" class="nivel-nombre" 
+                        data-criterio-index="${criterioIndex}" data-nivel-index="${nivelIndex}"
+                        value="${nivel.nombre_nivel || ''}" 
+                        placeholder="Ej: Excelente, Bueno, Regular..." required>
+                    
+                    <div class="nivel-puntaje-inputs">
+                        <input type="number" class="nivel-puntaje-min" 
+                            data-criterio-index="${criterioIndex}" data-nivel-index="${nivelIndex}"
+                            value="${nivel.puntaje_min}" min="0" step="0.5" 
+                            placeholder="Min" required>
+                        <span>-</span>
+                        <input type="number" class="nivel-puntaje-max" 
+                            data-criterio-index="${criterioIndex}" data-nivel-index="${nivelIndex}"
+                            value="${nivel.puntaje_max}" min="0" step="0.5" 
+                            placeholder="Max" required>
+                        <span class="text-muted">pts</span>
+                    </div>
+
+                    <button type="button" class="btn-icon btn-delete" 
+                            data-action="delete-nivel" 
+                            data-criterio-index="${criterioIndex}" 
+                            data-nivel-index="${nivelIndex}">
+                        🗑️
+                    </button>
+                </div>
+
+                <div class="nivel-body">
+                    <label>Descriptores (qué debe lograr el estudiante)</label>
+                    <div class="descriptores-list">
+                        ${nivel.descriptores.map((desc, dIndex) => `
+                            <div class="descriptor-item">
+                                <span class="descriptor-bullet">•</span>
+                                <input type="text" class="descriptor-input" 
+                                    data-criterio-index="${criterioIndex}" 
+                                    data-nivel-index="${nivelIndex}"
+                                    data-descriptor-index="${dIndex}"
+                                    value="${desc || ''}" 
+                                    placeholder="Descriptor ${dIndex + 1}">
+                                <button type="button" class="btn-icon btn-delete-small" 
+                                        data-action="delete-descriptor"
+                                        data-criterio-index="${criterioIndex}" 
+                                        data-nivel-index="${nivelIndex}"
+                                        data-descriptor-index="${dIndex}">
+                                    ✕
+                                </button>
+                            </div>
+                        `).join('')}
+                    </div>
+                    <button type="button" class="btn btn-sm btn-secondary" 
+                            data-action="add-descriptor" 
+                            data-criterio-index="${criterioIndex}" 
+                            data-nivel-index="${nivelIndex}">
+                        ➕ Agregar descriptor
+                    </button>
+                </div>
+            </div>
+        `;
+    }
+
+
+    renderFooter() {
+        return `
+            <div class="button-group">
+                ${this.currentStep > 0 ? `
+                    <button class="btn btn-secondary" id="btnBack">
                         ← Anterior
                     </button>
-                    <button type="submit" class="btn btn-primary">
+                ` : ''}
+                
+                ${this.currentStep < 2 ? `
+                    <button class="btn btn-primary" id="btnNext">
                         Siguiente →
                     </button>
-                </div>
-            </form>
-        `;
-    }
-
-    // PASO 4: Resumen y confirmación
-    renderStep4() {
-        return `
-            <div class="card-icon green-icon">✓</div>
-            <h3 class="card-title">Configuración completada</h3>
-            <p class="card-subtitle">Revisa la información antes de proceder al análisis de documentos</p>
-
-            <div class="summary-grid">
-                <div class="summary-card">
-                    <div class="summary-header">
-                        <div class="summary-header-icon blue-icon">📚</div>
-                        <h4 class="summary-title">Información del curso</h4>
-                    </div>
-                    <div class="summary-item">
-                        <div class="summary-label">Curso:</div>
-                        <div class="summary-value">${this.configData.courseName}</div>
-                    </div>
-                    <div class="summary-item">
-                        <div class="summary-label">Código:</div>
-                        <div class="summary-value">${this.configData.courseCode}</div>
-                    </div>
-                    <div class="summary-item">
-                        <div class="summary-label">Profesor:</div>
-                        <div class="summary-value">${this.configData.instructor}</div>
-                    </div>
-                    <div class="summary-item">
-                        <div class="summary-label">Ciclo:</div>
-                        <div class="summary-value">${this.configData.semestre}</div>
-                    </div>
-                </div>
-
-                <div class="summary-card">
-                    <div class="summary-header">
-                        <div class="summary-header-icon teal-icon">🎯</div>
-                        <h4 class="summary-title">Tópico de evaluación</h4>
-                    </div>
-                    <div class="summary-item">
-                        <div class="summary-label">Tema:</div>
-                        <div class="summary-value">${this.configData.topic}</div>
-                    </div>
-                    <div class="summary-item">
-                        <div class="summary-label" style="margin-top: 10px;">${this.configData.descripcion_tema}</div>
-                    </div>
-                </div>
-
-                <div class="summary-card" style="grid-column: span 2;">
-                    <div class="summary-header">
-                        <div class="summary-header-icon orange-icon">📋</div>
-                        <h4 class="summary-title">Rúbrica de evaluación</h4>
-                    </div>
-                    <div class="file-display">
-                        <div class="file-icon">📄</div>
-                        <div class="file-info">
-                            <div class="file-name">${this.configData.rubricFile?.name || 'Sin archivo'}</div>
-                            <div class="file-size">${this.configData.rubricFile ? this.formatFileSize(this.configData.rubricFile.size) : ''}</div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="nav-buttons">
-                <button type="button" class="btn btn-secondary" id="btn-back">
-                    ← Anterior
-                </button>
-                <button type="button" class="btn btn-primary" id="btn-finish">
-                    Comenzar análisis →
-                </button>
+                ` : `
+                    <button class="btn btn-primary" id="btnFinish">
+                        ✅ Finalizar configuración
+                    </button>
+                `}
             </div>
         `;
     }
 
-    attachEvents() {
-        // Eventos según el paso actual
-        switch(this.currentStep) {
-            case 0: this.attachStep1Events(); break;
-            case 1: this.attachStep2Events(); break;
-            case 2: this.attachStep3Events(); break;
-            case 3: this.attachStep4Events(); break;
+    calculateTotalPeso() {
+        const rubrica = this.configData.rubrica;
+        if (!rubrica || !rubrica.criterios) return 0;
+        
+        const total = rubrica.criterios.reduce((sum, c) => sum + (c.peso || 0), 0);
+        return Math.round(total * 100);
+    }
+
+    attachEventListeners() {
+        // Navegación
+        const btnBack = document.getElementById('btnBack');
+        const btnNext = document.getElementById('btnNext');
+        const btnFinish = document.getElementById('btnFinish');
+
+        if (btnBack) btnBack.addEventListener('click', () => this.previousStep());
+        if (btnNext) btnNext.addEventListener('click', () => this.nextStep());
+        if (btnFinish) btnFinish.addEventListener('click', () => this.finish());
+
+        if (this.currentStep === 2) {
+            this.attachStep3Listeners();
         }
     }
 
-    attachStep1Events() {
-        const form = document.getElementById('step1-form');
+    attachStep3Listeners() {
+        // Radio buttons
+        document.querySelectorAll('input[name="rubricOption"]').forEach(radio => {
+            radio.addEventListener('change', (e) => {
+                const value = e.target.value;
+                const existingSection = document.getElementById('existing-rubric-section');
+                const newSection = document.getElementById('new-rubric-section');
+                
+                if (existingSection) existingSection.style.display = value === 'existing' ? 'block' : 'none';
+                if (newSection) newSection.style.display = value === 'new' ? 'block' : 'none';
 
-        form?.addEventListener('submit', (e) => {
-            e.preventDefault();
-            this.saveStep1Data();
+                if (value === 'new') {
+                    this.configData.rubrica_id = null;
+                }
+            });
         });
+
+        // Selector de rúbrica existente
+        const selectRubric = document.getElementById('selectRubric');
+        if (selectRubric) {
+            selectRubric.addEventListener('change', async (e) => {
+                const rubricaId = parseInt(e.target.value);
+                if (rubricaId) {
+                    this.configData.rubrica_id = rubricaId;
+                    this.reRender();
+                } else {
+                    this.configData.rubrica_id = null;
+                }
+            });
+        }
+
+        // Formulario de nueva rúbrica
+        this.attachNewRubricListeners();
     }
 
-    attachStep2Events() {
-        const form = document.getElementById('step2-form');
-        
-        form?.addEventListener('submit', (e) => {
-            e.preventDefault();
-            this.saveStep2Data();
-        });
+    attachNewRubricListeners() {
+        const rubricName = document.getElementById('rubricName');
+        const rubricDesc = document.getElementById('rubricDesc');
 
-        document.getElementById('btn-back')?.addEventListener('click', () => {
-            this.goToPreviousStep();
-        });
-    }
+        if (rubricName) {
+            rubricName.addEventListener('input', (e) => {
+                this.configData.rubrica.nombre_rubrica = e.target.value;
+                this.saveConfig();
+            });
+        }
 
-    attachStep3Events() {
-        const uploadArea = document.getElementById('rubric-upload-area');
-        const fileInput = document.getElementById('rubric-input');
-        const form = document.getElementById('step3-form');
+        if (rubricDesc) {
+            rubricDesc.addEventListener('input', (e) => {
+                this.configData.rubrica.descripcion = e.target.value;
+                this.saveConfig();
+            });
+        }
 
-        uploadArea?.addEventListener('click', () => {
-            fileInput?.click();
-        });
+        // Botón agregar criterio
+        const addCriterio = document.getElementById('addCriterio');
+        if (addCriterio) {
+            addCriterio.addEventListener('click', () => this.addCriterio());
+        }
 
-        fileInput?.addEventListener('change', (e) => {
-            if (e.target.files.length > 0) {
-                this.handleRubricFile(e.target.files[0]);
+        // ✅ USAR EVENT DELEGATION PARA EVITAR DUPLICADOS
+        // Remover listener antiguo si existe
+        const mainContent = document.getElementById('main-content');
+        if (mainContent) {
+            // Crear una función nombrada para poder removerla
+            if (this._inputHandler) {
+                mainContent.removeEventListener('input', this._inputHandler);
             }
-        });
+            
+            this._inputHandler = (e) => {
+                const target = e.target;
+                
+                // Nombre de criterio
+                if (target.classList.contains('criterio-nombre')) {
+                    const index = parseInt(target.dataset.criterioIndex);
+                    this.configData.rubrica.criterios[index].nombre_criterio = target.value;
+                    this.saveConfig();
+                }
+                
+                // Descripción de criterio
+                if (target.classList.contains('criterio-descripcion')) {
+                    const index = parseInt(target.dataset.criterioIndex);
+                    this.configData.rubrica.criterios[index].descripcion_criterio = target.value;
+                    this.saveConfig();
+                }
+                
+                // Peso de criterio
+                if (target.classList.contains('criterio-peso') || target.classList.contains('peso-slider')) {
+                    const index = parseInt(target.dataset.criterioIndex);
+                    const peso = parseFloat(target.value) / 100;
+                    this.configData.rubrica.criterios[index].peso = peso;
+                    
+                    // Sincronizar input y slider
+                    const criterioBody = target.closest('.criterio-body');
+                    if (criterioBody) {
+                        const inputPeso = criterioBody.querySelector('.criterio-peso');
+                        const sliderPeso = criterioBody.querySelector('.peso-slider');
+                        if (inputPeso) inputPeso.value = target.value;
+                        if (sliderPeso) sliderPeso.value = target.value;
+                    }
+                    
+                    this.updatePesoTotal();
+                    this.saveConfig();
+                }
+                
+                // Nombre de nivel
+                if (target.classList.contains('nivel-nombre')) {
+                    const cIndex = parseInt(target.dataset.criterioIndex);
+                    const nIndex = parseInt(target.dataset.nivelIndex);
+                    this.configData.rubrica.criterios[cIndex].niveles[nIndex].nombre_nivel = target.value;
+                    this.saveConfig();
+                }
+                
+                // Puntajes de nivel
+                if (target.classList.contains('nivel-puntaje-min')) {
+                    const cIndex = parseInt(target.dataset.criterioIndex);
+                    const nIndex = parseInt(target.dataset.nivelIndex);
+                    this.configData.rubrica.criterios[cIndex].niveles[nIndex].puntaje_min = parseFloat(target.value) || 0;
+                    this.saveConfig();
+                }
+                
+                if (target.classList.contains('nivel-puntaje-max')) {
+                    const cIndex = parseInt(target.dataset.criterioIndex);
+                    const nIndex = parseInt(target.dataset.nivelIndex);
+                    this.configData.rubrica.criterios[cIndex].niveles[nIndex].puntaje_max = parseFloat(target.value) || 0;
+                    this.saveConfig();
+                }
+                
+                // Descriptores
+                if (target.classList.contains('descriptor-input')) {
+                    const cIndex = parseInt(target.dataset.criterioIndex);
+                    const nIndex = parseInt(target.dataset.nivelIndex);
+                    const dIndex = parseInt(target.dataset.descriptorIndex);
+                    this.configData.rubrica.criterios[cIndex].niveles[nIndex].descriptores[dIndex] = target.value;
+                    this.saveConfig();
+                }
+            };
+            
+            mainContent.addEventListener('input', this._inputHandler);
 
-        document.getElementById('btn-remove-rubric')?.addEventListener('click', () => {
-            this.configData.rubricFile = null;
-            StorageUtils.save('configData', this.configData);
-            this.render();
-        });
+            // Event delegation para clicks
+            if (this._clickHandler) {
+                mainContent.removeEventListener('click', this._clickHandler);
+            }
+            
+            this._clickHandler = (e) => {
+                const target = e.target.closest('[data-action]');
+                if (!target) return;
 
-        form?.addEventListener('submit', (e) => {
-            e.preventDefault();
-            this.saveStep3Data();
-        });
+                e.preventDefault();
+                e.stopPropagation();
 
-        document.getElementById('btn-back')?.addEventListener('click', () => {
-            this.goToPreviousStep();
-        });
+                const action = target.dataset.action;
+                const cIndex = parseInt(target.dataset.criterioIndex);
+                const nIndex = parseInt(target.dataset.nivelIndex);
+                const dIndex = parseInt(target.dataset.descriptorIndex);
+
+                console.log('🔘 Acción:', action, 'Criterio:', cIndex, 'Nivel:', nIndex);
+
+                switch (action) {
+                    case 'delete-criterio':
+                        this.deleteCriterio(cIndex);
+                        break;
+                    case 'add-nivel':
+                        this.addNivel(cIndex);
+                        break;
+                    case 'delete-nivel':
+                        this.deleteNivel(cIndex, nIndex);
+                        break;
+                    case 'add-descriptor':
+                        this.addDescriptor(cIndex, nIndex);
+                        break;
+                    case 'delete-descriptor':
+                        this.deleteDescriptor(cIndex, nIndex, dIndex);
+                        break;
+                }
+            };
+            
+            mainContent.addEventListener('click', this._clickHandler);
+        }
     }
 
-    attachStep4Events() {
-        document.getElementById('btn-back')?.addEventListener('click', () => {
-            this.goToPreviousStep();
-        });
 
-        document.getElementById('btn-finish')?.addEventListener('click', () => {
-            this.finishConfiguration();
-        });
-    }
+    addCriterio() {
+    console.log('➕ Agregando criterio');
+    
+    const newCriterio = {
+        id: Date.now() + Math.random(), // ✅ ID único
+        nombre_criterio: '',
+        descripcion_criterio: '',
+        peso: 0.1,
+        orden: this.configData.rubrica.criterios.length + 1,
+        niveles: [
+            {
+                id: Date.now() + Math.random() + '_1',
+                nombre_nivel: 'Excelente',
+                puntaje_min: 3,
+                puntaje_max: 3,
+                descriptores: [''],
+                orden: 1
+            }
+        ]
+    };
+    
+    this.configData.rubrica.criterios.push(newCriterio);
+    
+    console.log('✅ Criterio agregado. Total criterios:', this.configData.rubrica.criterios.length);
+    
+    this.saveConfig();
+    this.reRender();
+}
 
-    // Guardar datos de cada paso
-    saveStep1Data() {
-        this.configData.courseName = document.getElementById('course-name').value;
-        this.configData.courseCode = document.getElementById('course-code').value;
-        this.configData.instructor = document.getElementById('instructor').value;
-        this.configData.semestre = document.getElementById('period').value;
-        console.log('Before saving Step 1 data:', this.configData);
-        StorageUtils.save('configData', this.configData);
-        console.log('After saving Step 1 data:', this.configData);
-        this.goToNextStep();
-    }
 
-    saveStep2Data() {
-        this.configData.topic = document.getElementById('topic').value;
-        this.configData.descripcion_tema = document.getElementById('topic-description').value;
-
-        console.log('Before saving Step 2 data:', this.configData);
-        StorageUtils.save('configData', this.configData);
-        console.log('After saving Step 2 data:', this.configData);
-        this.goToNextStep();
-    }
-
-    saveStep3Data() {
-        // Ya guardado en handleRubricFile
-        this.goToNextStep();
-    }
-
-    handleRubricFile(file) {
-        // Validar archivo
-        const maxSize = 10 * 1024 * 1024;
-        if (file.size > maxSize) {
-            alert('El archivo excede el tamaño máximo de 10MB');
+    deleteCriterio(index) {
+        if (this.configData.rubrica.criterios.length <= 1) {
+            showErrorNotification(new Error('Debe haber al menos un criterio'));
             return;
         }
 
-        this.configData.rubricFile = {
-            name: file.name,
-            size: file.size,
-            type: file.type,
-            lastModified: file.lastModified
-        };
+        if (!confirm('¿Eliminar este criterio?')) return;
 
-        StorageUtils.save('configData', this.configData);
-        this.render();
+        this.configData.rubrica.criterios.splice(index, 1);
+        this.configData.rubrica.criterios.forEach((c, i) => c.orden = i + 1);
+        
+        this.reRender();
+        this.saveConfig();
     }
 
-    goToNextStep() {
-        if (this.currentStep < 3) {
-            this.currentStep++;
-            this.render();
+    addNivel(criterioIndex) {
+    console.log('➕ Agregando nivel al criterio', criterioIndex);
+    
+    const niveles = this.configData.rubrica.criterios[criterioIndex].niveles;
+    const newNivel = {
+        id: Date.now() + Math.random(), // ✅ ID único
+        nombre_nivel: '',
+        puntaje_min: 0,
+        puntaje_max: 0,
+        descriptores: [''],
+        orden: niveles.length + 1
+    };
+    
+    niveles.push(newNivel);
+    
+    console.log('✅ Nivel agregado. Total niveles:', niveles.length);
+    
+    this.saveConfig();
+    this.reRender();
+}
+
+
+    deleteNivel(criterioIndex, nivelIndex) {
+        const niveles = this.configData.rubrica.criterios[criterioIndex].niveles;
+        
+        if (niveles.length <= 1) {
+            showErrorNotification(new Error('Debe haber al menos un nivel'));
+            return;
+        }
+
+        niveles.splice(nivelIndex, 1);
+        niveles.forEach((n, i) => n.orden = i + 1);
+        
+        this.reRender();
+        this.saveConfig();
+    }
+
+    addDescriptor(criterioIndex, nivelIndex) {
+        this.configData.rubrica.criterios[criterioIndex].niveles[nivelIndex].descriptores.push('');
+        this.reRender();
+        this.saveConfig();
+    }
+
+    deleteDescriptor(criterioIndex, nivelIndex, descriptorIndex) {
+        const descriptores = this.configData.rubrica.criterios[criterioIndex].niveles[nivelIndex].descriptores;
+        
+        if (descriptores.length <= 1) {
+            showErrorNotification(new Error('Debe haber al menos un descriptor'));
+            return;
+        }
+
+        descriptores.splice(descriptorIndex, 1);
+        this.reRender();
+        this.saveConfig();
+    }
+
+    destroy() {
+    const mainContent = document.getElementById('main-content');
+    if (mainContent) {
+        if (this._inputHandler) {
+            mainContent.removeEventListener('input', this._inputHandler);
+        }
+        if (this._clickHandler) {
+            mainContent.removeEventListener('click', this._clickHandler);
+        }
+    }
+}
+
+
+    updatePesoTotal() {
+        const total = this.calculateTotalPeso();
+        const pesoTotalEl = document.getElementById('pesoTotal');
+        const pesoStatusEl = document.getElementById('pesoStatus');
+
+        if (pesoTotalEl) pesoTotalEl.textContent = `${total}%`;
+        if (pesoStatusEl) pesoStatusEl.textContent = total === 100 ? '✅' : '⚠️';
+    }
+
+    reRender() {
+        console.log('🔄 Re-renderizando vista...');
+        
+        const container = document.getElementById('main-content');
+        if (container) {
+            container.innerHTML = this.render();
+            this.attachEventListeners();
+            console.log('✅ Vista re-renderizada');
         }
     }
 
-    goToPreviousStep() {
+
+    previousStep() {
         if (this.currentStep > 0) {
             this.currentStep--;
-            this.render();
+            this.reRender();
         }
     }
 
-    finishConfiguration() {
-        // Marcar configuración como completada
-        StorageUtils.save('configurationComplete', true);
-        console.log('Before saving configData in finishConfiguration:', this.configData);
-        StorageUtils.save('configData', this.configData);
-        console.log('After saving configData in finishConfiguration:', this.configData);
-        
-        // Habilitar navegación a upload
-        this.router.navigate('upload');
+    async nextStep() {
+        if (!this.validateCurrentStep()) return;
+
+        // Guardar datos del paso actual
+        if (this.currentStep === 0) {
+            this.configData.courseName = document.getElementById('courseName')?.value;
+            this.configData.courseCode = document.getElementById('courseCode')?.value;
+            this.configData.instructor = document.getElementById('instructor')?.value;
+            this.configData.semestre = document.getElementById('semestre')?.value;
+        } else if (this.currentStep === 1) {
+            this.configData.topic = document.getElementById('topic')?.value;
+            this.configData.descripcion_tema = document.getElementById('descripcion_tema')?.value;
+        }
+
+        this.saveConfig();
+        this.currentStep++;
+        this.reRender();
     }
 
-    formatFileSize(bytes) {
-        if (bytes === 0) return '0 Bytes';
-        const k = 1024;
-        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-        const i = Math.floor(Math.log(bytes) / Math.log(k));
-        return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+    validateCurrentStep() {
+        if (this.currentStep === 0) {
+            const fields = ['courseName', 'courseCode', 'instructor', 'semestre'];
+            for (const field of fields) {
+                const element = document.getElementById(field);
+                if (!element || !element.value.trim()) {
+                    showErrorNotification(new Error(`El campo es obligatorio`));
+                    element?.focus();
+                    return false;
+                }
+            }
+        } else if (this.currentStep === 1) {
+            const topic = document.getElementById('topic');
+            if (!topic || !topic.value.trim()) {
+                showErrorNotification(new Error('El tema de la evaluación es obligatorio'));
+                topic?.focus();
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    async finish() {
+        try {
+            const rubricOption = document.querySelector('input[name="rubricOption"]:checked');
+
+            if (!rubricOption) {
+                showErrorNotification(new Error('Selecciona una opción de rúbrica'));
+                return;
+            }
+
+            if (rubricOption.value === 'existing') {
+                if (!this.configData.rubrica_id) {
+                    showErrorNotification(new Error('Selecciona una rúbrica existente'));
+                    return;
+                }
+            } else {
+                // Validar rúbrica nueva
+                const rubrica = this.configData.rubrica;
+                
+                if (!rubrica.nombre_rubrica) {
+                    showErrorNotification(new Error('El nombre de la rúbrica es obligatorio'));
+                    return;
+                }
+
+                if (!rubrica.criterios || rubrica.criterios.length === 0) {
+                    showErrorNotification(new Error('Debe haber al menos un criterio'));
+                    return;
+                }
+
+                // Validar cada criterio
+                for (let i = 0; i < rubrica.criterios.length; i++) {
+                    const criterio = rubrica.criterios[i];
+                    
+                    if (!criterio.nombre_criterio) {
+                        showErrorNotification(new Error(`El criterio ${i + 1} necesita un nombre`));
+                        return;
+                    }
+
+                    if (!criterio.niveles || criterio.niveles.length === 0) {
+                        showErrorNotification(new Error(`El criterio "${criterio.nombre_criterio}" debe tener al menos un nivel`));
+                        return;
+                    }
+
+                    // Validar niveles
+                    for (let j = 0; j < criterio.niveles.length; j++) {
+                        const nivel = criterio.niveles[j];
+                        
+                        if (!nivel.nombre_nivel) {
+                            showErrorNotification(new Error(`El nivel ${j + 1} del criterio "${criterio.nombre_criterio}" necesita un nombre`));
+                            return;
+                        }
+
+                        // Filtrar descriptores vacíos
+                        nivel.descriptores = nivel.descriptores.filter(d => d.trim() !== '');
+                    }
+                }
+
+                const total = this.calculateTotalPeso();
+                if (Math.abs(total - 100) > 1) {
+                    showErrorNotification(new Error(`El peso total debe ser 100% (actual: ${total}%)`));
+                    return;
+                }
+
+                // Guardar rúbrica si está marcado
+                const saveRubric = document.getElementById('saveRubric');
+                if (saveRubric && saveRubric.checked) {
+                    try {
+                        const savedRubrica = await RubricaService.create(rubrica);
+                        this.configData.rubrica_id = savedRubrica.id;
+                        showSuccessNotification('✅ Rúbrica guardada exitosamente');
+                    } catch (error) {
+                        console.error('Error guardando rúbrica:', error);
+                        showErrorNotification(error);
+                        return;
+                    }
+                }
+            }
+
+            this.saveConfig();
+            
+            showSuccessNotification('✅ Configuración completada exitosamente');
+            
+            setTimeout(() => {
+                this.router.navigate('upload');
+            }, 1000);
+
+        } catch (error) {
+            console.error('Error en finish:', error);
+            showErrorNotification(error);
+        }
+    }
+
+    saveConfig() {
+        StorageUtils.save('configData', this.configData);
     }
 }

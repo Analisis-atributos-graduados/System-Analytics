@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - EvalIA</title>
+    <link rel="stylesheet" href="css/login.css">
+</head>
+<body>
+    <div class="login-container">
+        <div class="login-card">
+            <div class="login-header">
+                <h1>🎓 EvalIA</h1>
+                <p>Sistema de Evaluación Académica Inteligente</p>
+            </div>
+            
+            <div id="login-content">
+                <!-- Loading mientras inicializa Firebase -->
+                <div id="firebase-init-loader" class="loader">
+                    <p>🔥 Inicializando Firebase...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeFirebase } from './js/config/firebase.config.js';
+        
+        // Inicializar Firebase
+        const loader = document.getElementById('firebase-init-loader');
+        
+        try {
+            await initializeFirebase();
+            console.log('✅ Firebase inicializado en login');
+            
+            // Ocultar loader y cargar vista de login
+            loader.style.display = 'none';
+            
+            // Cargar vista de login
+            const { LoginView } = await import('./js/views/login.view.js');
+            const loginView = new LoginView();
+            document.getElementById('login-content').innerHTML = loginView.render();
+            loginView.attachEventListeners();
+            
+        } catch (error) {
+            console.error('❌ Error al inicializar Firebase:', error);
+            loader.innerHTML = `
+                <div style="color: red; text-align: center;">
+                    <h3>❌ Error de conexión</h3>
+                    <p>${error.message}</p>
+                    <button onclick="location.reload()" class="btn btn-primary">
+                        Reintentar
+                    </button>
+                </div>
+            `;
+        }
+    </script>
+</body>
+</html>
