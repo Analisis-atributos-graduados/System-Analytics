@@ -12,6 +12,7 @@ class Settings:
     GCP_LOCATION: str = os.environ.get("GCP_LOCATION")
     BUCKET_NAME: str = os.environ.get("GCS_BUCKET_NAME")
     QUEUE_NAME: str = os.environ.get("GCS_QUEUE_NAME")
+    QUEUE_LOCATION: str = os.environ.get("QUEUE_LOCATION", os.environ.get("GCP_LOCATION"))
     SERVICE_ACCOUNT_EMAIL: str = os.environ.get("SERVICE_ACCOUNT_EMAIL")
 
     # Service URL

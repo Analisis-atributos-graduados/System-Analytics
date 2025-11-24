@@ -9,7 +9,7 @@ log = logging.getLogger(__name__)
 class StudentNameMatcher:
     """Encuentra nombres de estudiantes en texto usando fuzzy matching."""
 
-    def __init__(self, threshold: int = 80):
+    def __init__(self, threshold: int = 70):
         """
         Args:
             threshold: Umbral de similitud para fuzzy matching (0-100)
@@ -22,136 +22,113 @@ class StudentNameMatcher:
             student_list: list
     ) -> Optional[Tuple[str, int]]:
         """
-        Busca el nombre de un estudiante en un texto usando fuzzy matching.
-
-        Args:
-            texto: Texto donde buscar el nombre
-            student_list: Lista de nombres de estudiantes
-
-        Returns:
-            Tupla (nombre_encontrado, score) o None si no encuentra match
+        Busca el nombre de un estudiante en un texto usando heurísticas y fuzzy matching.
         """
-        try:
-            if not texto or not student_list:
-                log.warning("Texto o lista de estudiantes vacía")
-                return None
+        if not texto or not student_list:
+            log.warning("Texto o lista de estudiantes vacía")
+            return None
 
-            # Limpiar el texto
-            texto_limpio = self.clean_text_for_matching(texto)
+        # 1. Búsqueda por Patrones Regex (Prioridad Alta)
+        patterns = [
+            r"(?:nombres? y apellidos|apellidos y nombres?|alumno|estudiante)\s*[:\-\s]\s*([a-zA-Z\sÁÉÍÓÚáéíóúñÑ,'\. ]+)",
+            r"^(?:nombre|alumno|estudiante)[:\s]+([a-zA-Z\sÁÉÍÓÚáéíóúñÑ,'\. ]+)"
+        ]
+        
+        text_lines = texto.strip().split("\n")
+        potential_names = []
 
-            # Intentar fuzzy matching
+        for line in text_lines:
+            line_stripped = line.strip()
+            if not line_stripped:
+                continue
+            for pattern in patterns:
+                match = re.search(pattern, line_stripped, re.IGNORECASE)
+                if match:
+                    name_found = match.group(1).strip()
+                    # Limpiar caracteres no deseados al final
+                    name_found = re.sub(r'[^\w\sÁÉÍÓÚáéíóúñÑ]+$', '', name_found).strip()
+                    if name_found:
+                        log.info(f"Nombre potencial por patrón: '{name_found}'")
+                        potential_names.append(name_found)
+
+        # 2. Búsqueda por Palabras Clave y Líneas Siguientes
+        for i, line in enumerate(text_lines):
+            line_lower = line.strip().lower()
+            if any(line_lower.startswith(keyword) or keyword + ":" in line_lower 
+                   for keyword in ["alumno", "nombre", "estudiante"]):
+                parts = line.split(":", 1)
+                if len(parts) > 1 and parts[1].strip():
+                    name_found = parts[1].strip()
+                    log.info(f"Nombre en línea de keyword: '{name_found}'")
+                    potential_names.append(name_found)
+                elif i + 1 < len(text_lines):
+                    next_line = text_lines[i + 1].strip()
+                    if next_line and len(next_line) > 3:
+                        log.info(f"Nombre en línea siguiente: '{next_line}'")
+                        potential_names.append(next_line)
+
+        # 3. Búsqueda Directa Exacta (Case Insensitive)
+        if not potential_names:
+            log.info("No se encontraron nombres por patrones, buscando coincidencia directa...")
+            texto_lower = ' '.join(texto.lower().split())
+            found_direct = []
+            for student in student_list:
+                student_lower = student.lower()
+                # Buscar palabra completa
+                if re.search(r'\b' + re.escape(student_lower) + r'\b', texto_lower):
+                    log.info(f"Coincidencia directa: '{student}'")
+                    found_direct.append(student)
+            
+            if found_direct:
+                # Si hay varios, tomar el más largo (ej: "Juan Perez" vs "Juan")
+                best = max(found_direct, key=len)
+                log.info(f"Mejor coincidencia directa: '{best}'")
+                return (best, 100)
+
+        # 4. Fuzzy Matching sobre Candidatos
+        candidates = potential_names if potential_names else [texto[:3000]] # Fallback a texto crudo si no hay candidatos
+        
+        best_match_name = None
+        best_match_score = 0
+
+        # Limpiar candidatos
+        cleaned_candidates = []
+        for cand in candidates:
+             # Limpiar un poco el candidato
+             c = re.sub(r'[^\w\sÁÉÍÓÚáéíóúñÑ]', '', cand).strip()
+             if len(c) > 2:
+                 cleaned_candidates.append(c)
+        
+        if not cleaned_candidates and not potential_names:
+             # Si no había candidatos de patrones, usamos el texto limpio
+             cleaned_candidates = [self.clean_text_for_matching(texto)]
+
+        for candidate in cleaned_candidates:
             result = fuzzy_process.extractOne(
-                texto_limpio,
+                candidate,
                 student_list,
                 score_cutoff=self.threshold
             )
-
             if result:
-                nombre_encontrado, score = result[0], result[1]
-                log.info(f"Nombre encontrado: '{nombre_encontrado}' (score: {score})")
-                return (nombre_encontrado, score)
-            else:
-                log.warning(f"No se encontró nombre con score >= {self.threshold}")
-                return None
+                if result[1] > best_match_score:
+                    best_match_name = result[0]
+                    best_match_score = result[1]
 
-        except Exception as e:
-            log.error(f"Error en fuzzy matching: {e}")
+        if best_match_name:
+            log.info(f"Match encontrado: '{best_match_name}' (score: {best_match_score})")
+            return (best_match_name, best_match_score)
+        else:
+            log.warning(f"No se encontró nombre con score >= {self.threshold}")
             return None
 
     def clean_text_for_matching(self, texto: str) -> str:
         """
-        Limpia el texto para mejorar el fuzzy matching.
-
-        Args:
-            texto: Texto a limpiar
-
-        Returns:
-            Texto limpio
+        Limpia el texto para mejorar el fuzzy matching (versión simplificada).
         """
         if not texto:
             return ""
-
-        # Tomar solo las primeras 500 caracteres (nombres suelen estar al inicio)
-        texto = texto[:500]
-
-        # Eliminar caracteres especiales excepto letras, números y espacios
-        texto = re.sub(r'[^a-zA-ZáéíóúÁÉÍÓÚñÑ0-9\s]', ' ', texto)
-
-        # Eliminar espacios múltiples
+        
+        texto = texto[:3000].lower()
+        texto = re.sub(r'[^a-záéíóúñ0-9\s]', ' ', texto)
         texto = " ".join(texto.split())
-
         return texto
-
-    def extract_name_from_filename(self, filename: str) -> Optional[str]:
-        """
-        Intenta extraer un nombre de estudiante del nombre de archivo.
-
-        Útil para ensayos/informes donde el archivo se nombra con el nombre del alumno.
-
-        Args:
-            filename: Nombre del archivo (ej: "Juan_Perez_Informe.pdf")
-
-        Returns:
-            Nombre extraído o None
-        """
-        try:
-            # Eliminar extensión
-            nombre_sin_ext = filename.rsplit('.', 1)[0]
-
-            # Reemplazar guiones bajos y guiones por espacios
-            nombre = nombre_sin_ext.replace('_', ' ').replace('-', ' ')
-
-            # Eliminar números y palabras comunes
-            palabras_comunes = ['informe', 'ensayo', 'trabajo', 'documento', 'final', 'v1', 'v2']
-            tokens = nombre.split()
-
-            tokens_filtrados = [
-                t for t in tokens
-                if not t.isdigit() and t.lower() not in palabras_comunes
-            ]
-
-            if tokens_filtrados:
-                nombre_extraido = " ".join(tokens_filtrados)
-                log.info(f"Nombre extraído de filename: '{nombre_extraido}'")
-                return nombre_extraido
-            else:
-                return None
-
-        except Exception as e:
-            log.error(f"Error al extraer nombre de filename: {e}")
-            return None
-
-    def match_with_list(
-            self,
-            nombre_extraido: str,
-            student_list: list
-    ) -> Optional[str]:
-        """
-        Hace match de un nombre extraído con la lista oficial de estudiantes.
-
-        Args:
-            nombre_extraido: Nombre extraído (puede estar mal escrito)
-            student_list: Lista oficial de estudiantes
-
-        Returns:
-            Nombre oficial que mejor coincide o None
-        """
-        try:
-            result = fuzzy_process.extractOne(
-                nombre_extraido,
-                student_list,
-                score_cutoff=self.threshold
-            )
-
-            if result:
-                nombre_oficial = result[0]
-                score = result[1]
-                log.info(f"Match encontrado: '{nombre_extraido}' -> '{nombre_oficial}' (score: {score})")
-                return nombre_oficial
-            else:
-                log.warning(f"No se encontró match para '{nombre_extraido}'")
-                return None
-
-        except Exception as e:
-            log.error(f"Error en match_with_list: {e}")
-            return None

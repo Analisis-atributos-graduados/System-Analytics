@@ -17,11 +17,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY app/ ./app/
 
 # Copiar archivos raíz
+# Copiar archivos raíz
 COPY main.py .
-COPY download_model.py .
-
-# Descargar modelo durante build (tu script original funciona)
-RUN python download_model.py
 
 # Exponer puerto
 EXPOSE 8080

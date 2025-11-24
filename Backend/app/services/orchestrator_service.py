@@ -3,9 +3,11 @@ import os
 from typing import List, Dict
 from PyPDF2 import PdfReader, PdfWriter
 import io
+import fitz  # PyMuPDF
 
 from app.repositories import EvaluacionRepository, RubricaRepository
-from app.clients import GCSClient, TaskClient
+from app.clients import GCSClient, TaskClient, RapidAPIClient
+from app.extractors import StudentNameMatcher
 from .task_service import TaskService
 from app.models import Evaluacion
 
@@ -20,12 +22,16 @@ class OrchestratorService:
             evaluacion_repo: EvaluacionRepository,
             rubrica_repo: RubricaRepository,
             gcs_client: GCSClient,
-            task_service: TaskService
+            task_service: TaskService,
+            ocr_client: RapidAPIClient,
+            student_matcher: StudentNameMatcher
     ):
         self.evaluacion_repo = evaluacion_repo
         self.rubrica_repo = rubrica_repo
         self.gcs_client = gcs_client
         self.task_service = task_service
+        self.ocr_client = ocr_client
+        self.student_matcher = student_matcher
 
     def process_exam_batch(
             self,
@@ -111,84 +117,119 @@ class OrchestratorService:
             tema: str,
             descripcion_tema: str
     ) -> Dict:
-        """Procesa exámenes manuscritos (cara impar + cara par → examen completo)."""
+        """
+        Procesa exámenes manuscritos con lógica compleja de caras intercaladas.
+        
+        Lógica:
+        1. Recibe N archivos PDF, uno por cada 'cara' (página) del examen para TODOS los alumnos.
+           Ej: cara_1.pdf (pág 1 de todos), cara_2.pdf (pág 2 de todos).
+        2. Caras IMPARES (1, 3...) están en orden normal (Alumno A, B, C...).
+        3. Caras PARES (2, 4...) están en orden INVERSO (Alumno C, B, A...).
+        4. Identificación: Se usa OCR (RapidAPI) en las páginas de cara_1.pdf para encontrar el nombre del alumno.
+        """
         try:
-            log.info("Procesando exámenes manuscritos...")
+            log.info("Procesando exámenes manuscritos (Lógica Multi-Cara)...")
 
-            # Separar caras impares y pares
-            caras_impares = []
-            caras_pares = []
+            # 1. Ordenar archivos por número de cara (cara_1, cara_2, etc.)
+            import re
+            
+            def get_face_number(filename):
+                match = re.search(r'cara_(\d+)', filename.lower())
+                return int(match.group(1)) if match else 999
 
-            for pdf_info in pdf_files:
-                filename = pdf_info['original_filename'].lower()
-                if 'impar' in filename or 'odd' in filename:
-                    caras_impares.append(pdf_info)
-                elif 'par' in filename or 'even' in filename:
-                    caras_pares.append(pdf_info)
-                else:
-                    log.warning(f"Archivo no clasificado: {filename}")
+            sorted_files = sorted(pdf_files, key=lambda x: get_face_number(x['original_filename']))
+            
+            if not sorted_files:
+                raise ValueError("No se recibieron archivos válidos (deben llamarse 'cara_X.pdf')")
 
-            if not caras_impares or not caras_pares:
-                raise ValueError("Se requieren archivos de caras impares y pares")
+            log.info(f"Archivos ordenados: {[f['original_filename'] for f in sorted_files]}")
 
-            log.info(f"Caras impares: {len(caras_impares)}, Caras pares: {len(caras_pares)}")
+            # 2. Descargar y abrir todos los PDFs
+            face_pdfs = [] # Lista de objetos PdfReader
+            face_images = [] # Lista de documentos fitz (para OCR)
+            
+            for f in sorted_files:
+                pdf_bytes = self.gcs_client.download_blob(f['gcs_filename'])
+                face_pdfs.append(PdfReader(io.BytesIO(pdf_bytes)))
+                face_images.append(fitz.open(stream=pdf_bytes, filetype="pdf"))
 
-            # Descargar PDFs de GCS
-            impares_bytes = self.gcs_client.download_blob(caras_impares[0]['gcs_filename'])
-            pares_bytes = self.gcs_client.download_blob(caras_pares[0]['gcs_filename'])
+            # Validar que cara_1 existe
+            if get_face_number(sorted_files[0]['original_filename']) != 1:
+                raise ValueError("Falta el archivo de la primera cara (cara_1.pdf)")
 
-            # Leer PDFs
-            pdf_impares = PdfReader(io.BytesIO(impares_bytes))
-            pdf_pares = PdfReader(io.BytesIO(pares_bytes))
-
-            num_students = min(len(students), len(pdf_impares.pages))
-            log.info(f"Procesando {num_students} exámenes")
+            num_students_in_batch = len(face_pdfs[0].pages)
+            log.info(f"Detectados {num_students_in_batch} exámenes en el lote (basado en cara_1)")
 
             evaluaciones_creadas = []
 
-            # Crear un examen completo por estudiante
-            for i in range(num_students):
-                nombre_alumno = students[i]
+            # 3. Iterar sobre los índices del lote (0 a N-1)
+            # Usamos cara_1 para identificar al alumno
+            for i in range(num_students_in_batch):
+                # Extraer imagen de la página i de cara_1 para OCR
+                page_img = face_images[0].load_page(i)
+                pix = page_img.get_pixmap()
+                img_bytes = pix.tobytes("png")
+                
+                # Identificar alumno con OCR + Fuzzy Match
+                texto_ocr = self.ocr_client.ocr_image(img_bytes)
+                
+                nombre_alumno = "UNKNOWN"
+                if texto_ocr:
+                    match_result = self.student_matcher.find_student_name(texto_ocr, students)
+                    if match_result:
+                        nombre_alumno = match_result[0]
+                
+                if nombre_alumno == "UNKNOWN":
+                    nombre_alumno = f"Estudiante_Desconocido_{i+1}"
+                    log.warning(f"No se pudo identificar alumno en índice {i}. Asignando: {nombre_alumno}")
+                else:
+                    log.info(f"Alumno identificado en índice {i}: {nombre_alumno}")
 
-                # ✅ CORREGIDO: Crear instancia del modelo
+                # 4. Crear registro de Evaluación
                 evaluacion = Evaluacion(
                     profesor_id=profesor_id,
                     rubrica_id=rubrica_id,
-                    nombre_alumno=nombre_alumno,  # ✅ CORREGIDO
+                    nombre_alumno=nombre_alumno,
                     nombre_curso=nombre_curso,
                     codigo_curso=codigo_curso,
                     instructor=instructor,
                     semestre=semestre,
                     tema=tema,
                     descripcion_tema=descripcion_tema,
-                    tipo_documento="examen",  # ✅ AGREGADO
+                    tipo_documento="examen",
                     estado="pendiente"
                 )
-
-                # Guardar en base de datos
                 evaluacion = self.evaluacion_repo.create(evaluacion)
 
-                log.info(f"Evaluación creada: ID={evaluacion.id}, Alumno={nombre_alumno}")
-
-                # Combinar páginas impar y par
+                # 5. Reconstruir PDF del estudiante (Sandwich Logic)
                 writer = PdfWriter()
-                writer.add_page(pdf_impares.pages[i])
+                
+                for face_idx, pdf_reader in enumerate(face_pdfs):
+                    face_num = face_idx + 1
+                    
+                    # Lógica de inversión:
+                    # Impares (1, 3...): Orden normal -> índice i
+                    # Pares (2, 4...): Orden inverso -> índice (Total - 1 - i)
+                    
+                    if face_num % 2 != 0: # Impar
+                        target_page_idx = i
+                    else: # Par
+                        target_page_idx = num_students_in_batch - 1 - i
+                    
+                    if target_page_idx < len(pdf_reader.pages):
+                        writer.add_page(pdf_reader.pages[target_page_idx])
+                    else:
+                        log.warning(f"Índice {target_page_idx} fuera de rango para cara {face_num}")
 
-                if i < len(pdf_pares.pages):
-                    writer.add_page(pdf_pares.pages[i])
-
-                # Guardar PDF combinado
+                # 6. Guardar y subir PDF combinado
                 combined_buffer = io.BytesIO()
                 writer.write(combined_buffer)
                 combined_bytes = combined_buffer.getvalue()
 
-                # Subir a GCS
                 combined_filename = f"examen_{evaluacion.id}_{nombre_alumno.replace(' ', '_')}.pdf"
                 self.gcs_client.upload_blob(combined_bytes, combined_filename, "application/pdf")
 
-                log.info(f"PDF combinado subido: {combined_filename}")
-
-                # Crear tarea para procesar este examen
+                # 7. Encolar tarea
                 self.task_service.create_file_task(
                     gcs_filename=combined_filename,
                     original_filename=combined_filename,
@@ -202,7 +243,7 @@ class OrchestratorService:
                     'archivo': combined_filename
                 })
 
-            log.info(f"✅ Lote procesado: {len(evaluaciones_creadas)} exámenes encolados")
+            log.info(f"✅ Lote procesado: {len(evaluaciones_creadas)} exámenes reconstruidos y encolados")
 
             return {
                 'success': True,

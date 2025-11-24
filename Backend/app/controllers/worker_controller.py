@@ -87,7 +87,7 @@ async def process_evaluation_task(
         log.info(f"Worker evaluación iniciado: evaluacion_id={payload.evaluacion_id}")
 
         # Llamada SIMPLE: Solo pasamos el ID
-        result = await analysis_service.analyze_evaluation(
+        result = analysis_service.analyze_evaluation(
             evaluacion_id=payload.evaluacion_id
         )
 

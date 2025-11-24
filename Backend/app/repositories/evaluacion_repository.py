@@ -57,10 +57,34 @@ class EvaluacionRepository(BaseRepository):
             log.error(f"Error al obtener evaluación {evaluacion_id} con resultados: {e}")
             raise
 
-    # ✅ MÉTODO AGREGADO
     def get_with_details(self, evaluacion_id: int) -> Optional[Evaluacion]:
         """
         Obtiene una evaluación con todos sus detalles (archivos, resultados).
         Alias de get_with_resultados para compatibilidad.
         """
         return self.get_with_resultados(evaluacion_id)
+
+    # ✅ MÉTODO AGREGADO PARA DASHBOARD
+    def get_by_filters(self, semestre: str = None, curso: str = None, tema: str = None, profesor_id: int = None) -> List[Evaluacion]:
+        """
+        Obtiene evaluaciones filtradas con sus resultados cargados (eager loading).
+        """
+        try:
+            query = self.db.query(Evaluacion).options(
+                joinedload(Evaluacion.resultado_analisis),
+                joinedload(Evaluacion.archivos_procesados)
+            )
+
+            if profesor_id:
+                query = query.filter(Evaluacion.profesor_id == profesor_id)
+            if semestre:
+                query = query.filter(Evaluacion.semestre == semestre)
+            if curso:
+                query = query.filter(Evaluacion.codigo_curso == curso)
+            if tema:
+                query = query.filter(Evaluacion.tema == tema)
+
+            return query.order_by(Evaluacion.id.desc()).all()
+        except Exception as e:
+            log.error(f"Error al obtener evaluaciones por filtros: {e}")
+            raise

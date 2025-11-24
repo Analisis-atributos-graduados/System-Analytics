@@ -9,7 +9,7 @@ class ApiService {
 
     async request(endpoint, options = {}) {
         const url = (endpoint.startsWith('http') ? endpoint : this.baseURL + endpoint);
-        
+
         // Obtener token de Firebase (async)
         const token = await AuthService.getToken();
         const authHeaders = token ? { 'Authorization': `Bearer ${token}` } : {};
@@ -25,7 +25,7 @@ class ApiService {
 
         try {
             const response = await fetch(url, config);
-            
+
             if (response.status === 401 || response.status === 403) {
                 // Token inválido o expirado
                 console.error('❌ Sesión expirada o sin permisos');
@@ -35,16 +35,19 @@ class ApiService {
             }
 
             if (!response.ok) {
-                const errorData = await response.json().catch(() => ({ 
-                    detail: response.statusText 
+                const errorData = await response.json().catch(() => ({
+                    detail: response.statusText
                 }));
-                throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
+                const errorMessage = typeof errorData.detail === 'object'
+                    ? JSON.stringify(errorData.detail)
+                    : (errorData.detail || `HTTP error! status: ${response.status}`);
+                throw new Error(errorMessage);
             }
 
             if (response.status === 204) {
                 return null;
             }
-            
+
             return await response.json();
         } catch (error) {
             console.error('API Error:', error);

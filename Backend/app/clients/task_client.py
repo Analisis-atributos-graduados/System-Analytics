@@ -16,7 +16,7 @@ class TaskClient:
     def __init__(self):
         self.client = tasks_v2.CloudTasksClient()
         self.project_id = settings.GCP_PROJECT_ID
-        self.location = settings.GCP_LOCATION
+        self.location = settings.QUEUE_LOCATION
         self.queue_name = settings.QUEUE_NAME
         self.service_url = settings.SERVICE_URL
 

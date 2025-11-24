@@ -72,23 +72,24 @@ class ExtractionService:
             imagenes_base64 = self.image_extractor.extract_images(file_bytes, file_extension)
 
             # Análisis visual con Gemini (si hay imágenes)
+            # SE DESACTIVA para usar el análisis holístico en AnalysisService
             analisis_visual = None
-            if imagenes_base64:
-                log.info(f"Analizando {len(imagenes_base64)} imágenes con Gemini")
-                try:
-                    analisis_visual = self.gemini_client.analyze_images(
-                        images_base64=imagenes_base64,
-                        tema=tema,
-                        descripcion_tema=descripcion_tema
-                    )
-                except Exception as gemini_error:
-                    # ✅ NUEVO: Manejar errores de cuota de Gemini
-                    if "429" in str(gemini_error) or "quota" in str(gemini_error).lower():
-                        log.warning(f"⚠️ Cuota de Gemini excedida, continuando sin análisis visual")
-                        analisis_visual = None
-                    else:
-                        log.error(f"Error en Gemini: {gemini_error}")
-                        analisis_visual = None
+            # if imagenes_base64:
+            #     log.info(f"Analizando {len(imagenes_base64)} imágenes con Gemini")
+            #     try:
+            #         analisis_visual = self.gemini_client.analyze_images(
+            #             images_base64=imagenes_base64,
+            #             tema=tema,
+            #             descripcion_tema=descripcion_tema
+            #         )
+            #     except Exception as gemini_error:
+            #         # ✅ NUEVO: Manejar errores de cuota de Gemini
+            #         if "429" in str(gemini_error) or "quota" in str(gemini_error).lower():
+            #             log.warning(f"⚠️ Cuota de Gemini excedida, continuando sin análisis visual")
+            #             analisis_visual = None
+            #         else:
+            #             log.error(f"Error en Gemini: {gemini_error}")
+            #             analisis_visual = None
 
             # ✅ CORREGIDO: Guardar en BD sin gcs_filename
             archivo = self.archivo_repo.create_archivo(
@@ -137,11 +138,32 @@ class ExtractionService:
             else:
                 # Necesita OCR (exámenes manuscritos)
                 log.info("Archivo sin texto extraíble, usando OCR")
-                texto = self.ocr_client.ocr_image(file_bytes)
+                
+                if file_extension.lower() == '.pdf':
+                    # Manejo de PDF multipágina para OCR
+                    import fitz
+                    doc = fitz.open(stream=file_bytes, filetype="pdf")
+                    images_list = []
+                    
+                    log.info(f"PDF multipágina detectado: {len(doc)} páginas")
+                    
+                    for page in doc:
+                        pix = page.get_pixmap()
+                        img_bytes = pix.tobytes("png")
+                        images_list.append(img_bytes)
+                        
+                    textos_paginas = self.ocr_client.ocr_multiple_images(images_list)
+                    # Unir con saltos de línea dobles para separar páginas
+                    texto = "\n\n".join([t for t in textos_paginas if t])
+                    
+                else:
+                    # Imagen única
+                    texto = self.ocr_client.ocr_image(file_bytes)
 
             # Limpiar texto
             if texto:
-                texto = self.text_extractor.clean_text(texto)
+                # NO limpiamos tan agresivamente para mantener saltos de línea del OCR
+                # texto = self.text_extractor.clean_text(texto) 
                 log.info(f"Texto extraído: {len(texto)} caracteres")
                 return texto
             else:

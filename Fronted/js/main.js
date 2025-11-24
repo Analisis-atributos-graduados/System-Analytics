@@ -8,7 +8,7 @@ import AuthService from './services/auth.service.js';
  */
 export default function initializeApp() {
     console.log('🚀 Inicializando componentes de la aplicación...');
-    
+
     try {
         // Verificar usuario
         const currentUser = AuthService.getCurrentUser();
@@ -17,9 +17,9 @@ export default function initializeApp() {
             window.location.href = './login.html';
             return;
         }
-        
+
         console.log('✅ Usuario cargado en app:', currentUser.email, '- Rol:', currentUser.rol);
-        
+
         // Renderizar header
         console.log('📋 Renderizando header...');
         const headerComponent = new HeaderComponent();
@@ -31,7 +31,7 @@ export default function initializeApp() {
         } else {
             console.error('❌ Contenedor #header no encontrado');
         }
-        
+
         // Renderizar navegación
         console.log('📋 Renderizando navegación...');
         const navigationComponent = new NavigationComponent();
@@ -43,22 +43,27 @@ export default function initializeApp() {
         } else {
             console.error('❌ Contenedor #navigation no encontrado');
         }
-        
+
         // Inicializar router
         console.log('🛣️ Inicializando router...');
         const router = new Router();
-        
-        // Navegar a la ruta inicial
-        const initialRoute = 'configuration';
+
+        // Navegar a la ruta inicial según el rol
+        let initialRoute = 'configuration';
+
+        if (currentUser.rol === 'AREA_CALIDAD') {
+            initialRoute = 'analysis';
+        }
+
         router.navigate(initialRoute);
-        
+
         console.log('✅ Router inicializado - Ruta inicial:', initialRoute);
-        
+
         // Guardar router globalmente para debugging
         window.appRouter = router;
-        
+
         console.log('🎉 Aplicación cargada exitosamente');
-        
+
     } catch (error) {
         console.error('❌ Error al inicializar app:', error);
         alert('Error al inicializar la aplicación: ' + error.message);

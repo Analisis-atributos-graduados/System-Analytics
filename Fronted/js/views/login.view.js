@@ -1,5 +1,6 @@
 import AuthService from '../services/auth.service.js';
 import { DOMUtils } from '../utils/dom.utils.js';
+import { ValidatorUtils } from '../utils/validator.utils.js';
 
 export class LoginView {
     constructor() {
@@ -135,8 +136,14 @@ export class LoginView {
         const email = document.getElementById('login-email').value;
         const password = document.getElementById('login-password').value;
 
-        this.setLoading(true, 'login');
         this.hideError('login');
+
+        if (!ValidatorUtils.isValidEmail(email)) {
+            this.showError('login', 'Por favor ingresa un email válido');
+            return;
+        }
+
+        this.setLoading(true, 'login');
 
         try {
             await AuthService.loginWithEmail(email, password);
@@ -151,10 +158,32 @@ export class LoginView {
     }
 
     async handleRegister() {
-        const nombre = document.getElementById('register-name').value;
-        const email = document.getElementById('register-email').value;
+        const nombreInput = document.getElementById('register-name').value;
+        const emailInput = document.getElementById('register-email').value;
         const password = document.getElementById('register-password').value;
         const rol = document.getElementById('register-role').value;
+
+        // Sanitizar entradas
+        const nombre = nombreInput.trim();
+        const email = emailInput.trim();
+
+        this.hideError('register');
+
+        // Validaciones exhaustivas
+        if (!ValidatorUtils.isValidName(nombre)) {
+            this.showError('register', 'El nombre solo debe contener letras y espacios (ej: Juan Pérez)');
+            return;
+        }
+
+        if (!ValidatorUtils.isValidEmail(email)) {
+            this.showError('register', 'Por favor ingresa un email válido');
+            return;
+        }
+
+        if (!ValidatorUtils.validate(password, ValidatorUtils.PATTERNS.PASSWORD)) {
+            this.showError('register', 'La contraseña debe tener al menos 6 caracteres');
+            return;
+        }
 
         if (!rol) {
             this.showError('register', 'Por favor selecciona un rol');
@@ -162,7 +191,6 @@ export class LoginView {
         }
 
         this.setLoading(true, 'register');
-        this.hideError('register');
 
         try {
             await AuthService.register(email, password, nombre, rol);
@@ -182,7 +210,7 @@ export class LoginView {
 
         try {
             const user = await AuthService.loginWithGoogle();
-            
+
             // Si es la primera vez con Google, redirigir a completar registro
             if (!user) {
                 console.log('Usuario nuevo con Google, completar registro');
@@ -206,7 +234,7 @@ export class LoginView {
         const button = document.getElementById(`btn-${form}`);
         if (button) {
             button.disabled = loading;
-            button.textContent = loading ? 
+            button.textContent = loading ?
                 (form === 'login' ? 'Iniciando sesión...' : 'Registrando...') :
                 (form === 'login' ? 'Iniciar Sesión' : 'Crear cuenta');
         }

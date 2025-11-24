@@ -1,5 +1,5 @@
 import ApiService from './api.service.js';
-import AuthService from './auth.service.js'; // ✅ AGREGAR IMPORT
+import AuthService from './auth.service.js';
 import { getEndpoint, buildURL } from '../config/api.config.js';
 
 class DocumentService {
@@ -9,9 +9,9 @@ class DocumentService {
     async getUploadUrl(filename, contentType) {
         try {
             const endpoint = getEndpoint('GENERATE_UPLOAD_URL');
-            const response = await ApiService.post(endpoint, { 
-                filename, 
-                content_type: contentType 
+            const response = await ApiService.post(endpoint, {
+                filename,
+                content_type: contentType
             });
             return response;
         } catch (error) {
@@ -22,7 +22,6 @@ class DocumentService {
 
     /**
      * Sube un archivo usando el proxy del backend
-     * ✅ CORREGIDO: Usa AuthService.getToken()
      */
     async uploadFileProxy(file) {
         try {
@@ -30,15 +29,14 @@ class DocumentService {
             formData.append('file', file);
 
             const endpoint = getEndpoint('UPLOAD_FILE_PROXY');
-            
-            // ✅ OBTENER TOKEN DE AUTHSERVICE
+
             const token = await AuthService.getToken();
-            
+
             const response = await fetch(endpoint, {
                 method: 'POST',
                 body: formData,
                 headers: {
-                    'Authorization': `Bearer ${token}` // ✅ CORRECTO
+                    'Authorization': `Bearer ${token}`
                 }
             });
 
@@ -81,18 +79,66 @@ class DocumentService {
     }
 
     /**
+     * Obtiene estadísticas del dashboard
+     */
+    async getDashboardStats(filters) {
+        try {
+            const endpoint = buildURL(getEndpoint('DASHBOARD_STATS'), filters);
+            const stats = await ApiService.get(endpoint);
+            return stats;
+        } catch (error) {
+            console.error('Error getting dashboard stats:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Descarga transcripciones
+     */
+    async downloadTranscriptions(filters) {
+        try {
+            const endpoint = buildURL(getEndpoint('DOWNLOAD_TRANSCRIPTIONS'), filters);
+
+            const token = await AuthService.getToken();
+            const headers = {
+                'Authorization': `Bearer ${token}`
+            };
+
+            const response = await fetch(endpoint, { headers });
+
+            if (!response.ok) {
+                throw new Error('Error descargando archivo');
+            }
+
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `transcripciones_${filters.curso}_${filters.tema}.zip`;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+
+        } catch (error) {
+            console.error('Error downloading transcriptions:', error);
+            throw error;
+        }
+    }
+
+    /**
      * Encola un lote de exámenes para procesamiento
      */
     async enqueueExamBatch(evaluationData) {
         try {
             const endpoint = getEndpoint('ENQUEUE_BATCH');
-            
+
             if (!evaluationData.rubrica_id) {
                 throw new Error('rubrica_id es requerido');
             }
 
             console.log('📤 Enviando batch con rubrica_id:', evaluationData.rubrica_id);
-            
+
             const response = await ApiService.post(endpoint, evaluationData);
             return response;
         } catch (error) {

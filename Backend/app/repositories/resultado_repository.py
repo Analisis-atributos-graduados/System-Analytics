@@ -49,7 +49,8 @@ class ResultadoRepository(BaseRepository):
                     "puntaje": datos.get('score', 0.0),  # Score 0-1
                     "nivel": datos.get('nivel', 'Regular'),
                     "confidence": datos.get('confidence', 0.0),
-                    "peso": datos.get('peso', 0.0)
+                    "peso": datos.get('peso', 0.0),
+                    "comentario": datos.get('feedback', '')  # ✅ Agregado feedback por criterio
                 }
 
             # Crear resultado

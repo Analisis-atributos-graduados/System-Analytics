@@ -15,7 +15,7 @@ from app.middleware import FirebaseAuth
 
 from app.clients import GCSClient, TaskClient, GeminiClient, RapidAPIClient
 from app.extractors import TextExtractor, ImageExtractor, StudentNameMatcher
-from app.ml import DeBertaAnalyzer
+from app.services.gemini_analyzer import GeminiAnalyzer
 from app.services import (
     OrchestratorService,
     ExtractionService,
@@ -54,10 +54,10 @@ def get_image_extractor() -> ImageExtractor:
 def get_student_matcher() -> StudentNameMatcher:
     return StudentNameMatcher()
 
-# ML (singleton)
+# Analyzers (singleton)
 @lru_cache()
-def get_deberta_analyzer() -> DeBertaAnalyzer:
-    return DeBertaAnalyzer()
+def get_gemini_analyzer() -> GeminiAnalyzer:
+    return GeminiAnalyzer()
 
 # Services
 def get_task_service(
@@ -87,30 +87,27 @@ def get_extraction_service(
 
 def get_analysis_service(
     db: Session = Depends(get_db),
-    deberta_analyzer: DeBertaAnalyzer = Depends(get_deberta_analyzer),
-    gemini_client: GeminiClient = Depends(get_gemini_client)
+    gemini_analyzer: GeminiAnalyzer = Depends(get_gemini_analyzer)
 ) -> AnalysisService:
     archivo_repo = ArchivoRepository(db)
     resultado_repo = ResultadoRepository(db)
     rubrica_repo = RubricaRepository(db)
     evaluacion_repo = EvaluacionRepository(db)
 
-    scoring_service = ScoringService()
-
     return AnalysisService(
-        deberta_analyzer=deberta_analyzer,
-        gemini_client=gemini_client,
-        archivo_repo=archivo_repo,
-        resultado_repo=resultado_repo,
-        rubrica_repo=rubrica_repo,
         evaluacion_repo=evaluacion_repo,
-        scoring_service=scoring_service
+        archivo_repo=archivo_repo,
+        rubrica_repo=rubrica_repo,
+        resultado_repo=resultado_repo,
+        gemini_analyzer=gemini_analyzer
     )
 
 def get_orchestrator_service(
     db: Session = Depends(get_db),
     gcs_client: GCSClient = Depends(get_gcs_client),
-    task_service: TaskService = Depends(get_task_service)
+    task_service: TaskService = Depends(get_task_service),
+    ocr_client: RapidAPIClient = Depends(get_rapidapi_client),
+    student_matcher: StudentNameMatcher = Depends(get_student_matcher)
 ) -> OrchestratorService:
     evaluacion_repo = EvaluacionRepository(db)
     rubrica_repo = RubricaRepository(db)
@@ -118,7 +115,9 @@ def get_orchestrator_service(
         evaluacion_repo=evaluacion_repo,
         rubrica_repo=rubrica_repo,
         gcs_client=gcs_client,
-        task_service=task_service
+        task_service=task_service,
+        ocr_client=ocr_client,
+        student_matcher=student_matcher
     )
 
 
@@ -180,7 +179,6 @@ def require_role(*allowed_roles):
     async def role_checker(
             current_user: Usuario = Depends(get_current_user)
     ):
-        # ✅ CORREGIDO: rol es String, no Enum
         if current_user.rol not in allowed_roles:
             raise HTTPException(
                 status_code=403,

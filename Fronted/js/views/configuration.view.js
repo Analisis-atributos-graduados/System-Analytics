@@ -2,6 +2,7 @@ import { StorageUtils } from '../utils/storage.utils.js';
 import RubricaService from '../services/rubrica.service.js';
 import AuthService from '../services/auth.service.js';
 import { showErrorNotification, showSuccessNotification } from '../utils/api.utils.js';
+import { ValidatorUtils } from '../utils/validator.utils.js';
 import { StepIndicatorComponent } from '../components/step-indicator.component.js';
 
 export class ConfigurationView {
@@ -69,7 +70,7 @@ export class ConfigurationView {
         try {
             this.existingRubrics = await RubricaService.getAll();
             console.log('✅ Rúbricas cargadas:', this.existingRubrics.length);
-            
+
             if (this.currentStep === 2) {
                 this.render();
                 this.attachEventListeners();
@@ -82,7 +83,7 @@ export class ConfigurationView {
     render() {
         const steps = ['Información del curso', 'Detalles del tema', 'Configuración de rúbrica'];
         const stepIndicator = new StepIndicatorComponent(steps, this.currentStep);
-        
+
         return `
             <div class="page-title">
                 <h2>Configuración de evaluación</h2>
@@ -116,7 +117,7 @@ export class ConfigurationView {
 
     renderStep1() {
         const user = AuthService.getCurrentUser();
-        
+
         return `
             <div class="form-group">
                 <label for="courseName">Nombre del curso *</label>
@@ -253,9 +254,9 @@ export class ConfigurationView {
                                     <div class="nivel-preview-item">
                                         <strong>${nivel.nombre_nivel}</strong>
                                         <span class="nivel-puntaje">
-                                            ${nivel.puntaje_min === nivel.puntaje_max 
-                                                ? `${nivel.puntaje_min} pts` 
-                                                : `${nivel.puntaje_min}-${nivel.puntaje_max} pts`}
+                                            ${nivel.puntaje_min === nivel.puntaje_max
+                ? `${nivel.puntaje_min} pts`
+                : `${nivel.puntaje_min}-${nivel.puntaje_max} pts`}
                                         </span>
                                     </div>
                                 `).join('')}
@@ -269,7 +270,7 @@ export class ConfigurationView {
 
     renderNewRubricForm() {
         const rubrica = this.configData.rubrica;
-        
+
         return `
             <div class="form-group">
                 <label for="rubricName">Nombre de la rúbrica *</label>
@@ -326,7 +327,7 @@ export class ConfigurationView {
                 }
             ];
         }
-        
+
         return `
             <div class="criterio-item" data-criterio-id="${criterio.id}">
                 <div class="criterio-header">
@@ -370,9 +371,9 @@ export class ConfigurationView {
                         </div>
 
                         <div class="niveles-list">
-                            ${criterio.niveles.map((nivel, nIndex) => 
-                                this.renderNivelItem(nivel, index, nIndex)
-                            ).join('')}
+                            ${criterio.niveles.map((nivel, nIndex) =>
+            this.renderNivelItem(nivel, index, nIndex)
+        ).join('')}
                         </div>
                     </div>
                 </div>
@@ -386,7 +387,7 @@ export class ConfigurationView {
         if (!nivel.descriptores || nivel.descriptores.length === 0) {
             nivel.descriptores = [''];
         }
-        
+
         return `
             <div class="nivel-item" data-nivel-id="${nivel.id}">
                 <div class="nivel-header">
@@ -475,7 +476,7 @@ export class ConfigurationView {
     calculateTotalPeso() {
         const rubrica = this.configData.rubrica;
         if (!rubrica || !rubrica.criterios) return 0;
-        
+
         const total = rubrica.criterios.reduce((sum, c) => sum + (c.peso || 0), 0);
         return Math.round(total * 100);
     }
@@ -502,7 +503,7 @@ export class ConfigurationView {
                 const value = e.target.value;
                 const existingSection = document.getElementById('existing-rubric-section');
                 const newSection = document.getElementById('new-rubric-section');
-                
+
                 if (existingSection) existingSection.style.display = value === 'existing' ? 'block' : 'none';
                 if (newSection) newSection.style.display = value === 'new' ? 'block' : 'none';
 
@@ -562,30 +563,30 @@ export class ConfigurationView {
             if (this._inputHandler) {
                 mainContent.removeEventListener('input', this._inputHandler);
             }
-            
+
             this._inputHandler = (e) => {
                 const target = e.target;
-                
+
                 // Nombre de criterio
                 if (target.classList.contains('criterio-nombre')) {
                     const index = parseInt(target.dataset.criterioIndex);
                     this.configData.rubrica.criterios[index].nombre_criterio = target.value;
                     this.saveConfig();
                 }
-                
+
                 // Descripción de criterio
                 if (target.classList.contains('criterio-descripcion')) {
                     const index = parseInt(target.dataset.criterioIndex);
                     this.configData.rubrica.criterios[index].descripcion_criterio = target.value;
                     this.saveConfig();
                 }
-                
+
                 // Peso de criterio
                 if (target.classList.contains('criterio-peso') || target.classList.contains('peso-slider')) {
                     const index = parseInt(target.dataset.criterioIndex);
                     const peso = parseFloat(target.value) / 100;
                     this.configData.rubrica.criterios[index].peso = peso;
-                    
+
                     // Sincronizar input y slider
                     const criterioBody = target.closest('.criterio-body');
                     if (criterioBody) {
@@ -594,11 +595,11 @@ export class ConfigurationView {
                         if (inputPeso) inputPeso.value = target.value;
                         if (sliderPeso) sliderPeso.value = target.value;
                     }
-                    
+
                     this.updatePesoTotal();
                     this.saveConfig();
                 }
-                
+
                 // Nombre de nivel
                 if (target.classList.contains('nivel-nombre')) {
                     const cIndex = parseInt(target.dataset.criterioIndex);
@@ -606,7 +607,7 @@ export class ConfigurationView {
                     this.configData.rubrica.criterios[cIndex].niveles[nIndex].nombre_nivel = target.value;
                     this.saveConfig();
                 }
-                
+
                 // Puntajes de nivel
                 if (target.classList.contains('nivel-puntaje-min')) {
                     const cIndex = parseInt(target.dataset.criterioIndex);
@@ -614,14 +615,14 @@ export class ConfigurationView {
                     this.configData.rubrica.criterios[cIndex].niveles[nIndex].puntaje_min = parseFloat(target.value) || 0;
                     this.saveConfig();
                 }
-                
+
                 if (target.classList.contains('nivel-puntaje-max')) {
                     const cIndex = parseInt(target.dataset.criterioIndex);
                     const nIndex = parseInt(target.dataset.nivelIndex);
                     this.configData.rubrica.criterios[cIndex].niveles[nIndex].puntaje_max = parseFloat(target.value) || 0;
                     this.saveConfig();
                 }
-                
+
                 // Descriptores
                 if (target.classList.contains('descriptor-input')) {
                     const cIndex = parseInt(target.dataset.criterioIndex);
@@ -631,14 +632,14 @@ export class ConfigurationView {
                     this.saveConfig();
                 }
             };
-            
+
             mainContent.addEventListener('input', this._inputHandler);
 
             // Event delegation para clicks
             if (this._clickHandler) {
                 mainContent.removeEventListener('click', this._clickHandler);
             }
-            
+
             this._clickHandler = (e) => {
                 const target = e.target.closest('[data-action]');
                 if (!target) return;
@@ -671,40 +672,40 @@ export class ConfigurationView {
                         break;
                 }
             };
-            
+
             mainContent.addEventListener('click', this._clickHandler);
         }
     }
 
 
     addCriterio() {
-    console.log('➕ Agregando criterio');
-    
-    const newCriterio = {
-        id: Date.now() + Math.random(), // ✅ ID único
-        nombre_criterio: '',
-        descripcion_criterio: '',
-        peso: 0.1,
-        orden: this.configData.rubrica.criterios.length + 1,
-        niveles: [
-            {
-                id: Date.now() + Math.random() + '_1',
-                nombre_nivel: 'Excelente',
-                puntaje_min: 3,
-                puntaje_max: 3,
-                descriptores: [''],
-                orden: 1
-            }
-        ]
-    };
-    
-    this.configData.rubrica.criterios.push(newCriterio);
-    
-    console.log('✅ Criterio agregado. Total criterios:', this.configData.rubrica.criterios.length);
-    
-    this.saveConfig();
-    this.reRender();
-}
+        console.log('➕ Agregando criterio');
+
+        const newCriterio = {
+            id: Date.now() + Math.random(), // ✅ ID único
+            nombre_criterio: '',
+            descripcion_criterio: '',
+            peso: 0.1,
+            orden: this.configData.rubrica.criterios.length + 1,
+            niveles: [
+                {
+                    id: Date.now() + Math.random() + '_1',
+                    nombre_nivel: 'Excelente',
+                    puntaje_min: 3,
+                    puntaje_max: 3,
+                    descriptores: [''],
+                    orden: 1
+                }
+            ]
+        };
+
+        this.configData.rubrica.criterios.push(newCriterio);
+
+        console.log('✅ Criterio agregado. Total criterios:', this.configData.rubrica.criterios.length);
+
+        this.saveConfig();
+        this.reRender();
+    }
 
 
     deleteCriterio(index) {
@@ -717,36 +718,36 @@ export class ConfigurationView {
 
         this.configData.rubrica.criterios.splice(index, 1);
         this.configData.rubrica.criterios.forEach((c, i) => c.orden = i + 1);
-        
+
         this.reRender();
         this.saveConfig();
     }
 
     addNivel(criterioIndex) {
-    console.log('➕ Agregando nivel al criterio', criterioIndex);
-    
-    const niveles = this.configData.rubrica.criterios[criterioIndex].niveles;
-    const newNivel = {
-        id: Date.now() + Math.random(), // ✅ ID único
-        nombre_nivel: '',
-        puntaje_min: 0,
-        puntaje_max: 0,
-        descriptores: [''],
-        orden: niveles.length + 1
-    };
-    
-    niveles.push(newNivel);
-    
-    console.log('✅ Nivel agregado. Total niveles:', niveles.length);
-    
-    this.saveConfig();
-    this.reRender();
-}
+        console.log('➕ Agregando nivel al criterio', criterioIndex);
+
+        const niveles = this.configData.rubrica.criterios[criterioIndex].niveles;
+        const newNivel = {
+            id: Date.now() + Math.random(), // ✅ ID único
+            nombre_nivel: '',
+            puntaje_min: 0,
+            puntaje_max: 0,
+            descriptores: [''],
+            orden: niveles.length + 1
+        };
+
+        niveles.push(newNivel);
+
+        console.log('✅ Nivel agregado. Total niveles:', niveles.length);
+
+        this.saveConfig();
+        this.reRender();
+    }
 
 
     deleteNivel(criterioIndex, nivelIndex) {
         const niveles = this.configData.rubrica.criterios[criterioIndex].niveles;
-        
+
         if (niveles.length <= 1) {
             showErrorNotification(new Error('Debe haber al menos un nivel'));
             return;
@@ -754,7 +755,7 @@ export class ConfigurationView {
 
         niveles.splice(nivelIndex, 1);
         niveles.forEach((n, i) => n.orden = i + 1);
-        
+
         this.reRender();
         this.saveConfig();
     }
@@ -767,7 +768,7 @@ export class ConfigurationView {
 
     deleteDescriptor(criterioIndex, nivelIndex, descriptorIndex) {
         const descriptores = this.configData.rubrica.criterios[criterioIndex].niveles[nivelIndex].descriptores;
-        
+
         if (descriptores.length <= 1) {
             showErrorNotification(new Error('Debe haber al menos un descriptor'));
             return;
@@ -779,16 +780,16 @@ export class ConfigurationView {
     }
 
     destroy() {
-    const mainContent = document.getElementById('main-content');
-    if (mainContent) {
-        if (this._inputHandler) {
-            mainContent.removeEventListener('input', this._inputHandler);
-        }
-        if (this._clickHandler) {
-            mainContent.removeEventListener('click', this._clickHandler);
+        const mainContent = document.getElementById('main-content');
+        if (mainContent) {
+            if (this._inputHandler) {
+                mainContent.removeEventListener('input', this._inputHandler);
+            }
+            if (this._clickHandler) {
+                mainContent.removeEventListener('click', this._clickHandler);
+            }
         }
     }
-}
 
 
     updatePesoTotal() {
@@ -802,7 +803,7 @@ export class ConfigurationView {
 
     reRender() {
         console.log('🔄 Re-renderizando vista...');
-        
+
         const container = document.getElementById('main-content');
         if (container) {
             container.innerHTML = this.render();
@@ -840,20 +841,52 @@ export class ConfigurationView {
 
     validateCurrentStep() {
         if (this.currentStep === 0) {
-            const fields = ['courseName', 'courseCode', 'instructor', 'semestre'];
-            for (const field of fields) {
-                const element = document.getElementById(field);
-                if (!element || !element.value.trim()) {
-                    showErrorNotification(new Error(`El campo es obligatorio`));
-                    element?.focus();
-                    return false;
-                }
+            // Validar Nombre del Curso
+            const courseName = document.getElementById('courseName');
+            if (!ValidatorUtils.isValidText(courseName?.value)) {
+                showErrorNotification(new Error('Nombre del curso inválido (solo letras, números y puntuación básica)'));
+                courseName?.focus();
+                return false;
             }
+
+            // Validar Código del Curso
+            const courseCode = document.getElementById('courseCode');
+            if (!ValidatorUtils.isValidCourseCode(courseCode?.value)) {
+                showErrorNotification(new Error('Código de curso inválido (ej: CA-301)'));
+                courseCode?.focus();
+                return false;
+            }
+
+            // Validar Instructor
+            const instructor = document.getElementById('instructor');
+            if (!ValidatorUtils.isValidName(instructor?.value)) {
+                showErrorNotification(new Error('Nombre del instructor inválido (solo letras y espacios)'));
+                instructor?.focus();
+                return false;
+            }
+
+            // Validar Semestre
+            const semestre = document.getElementById('semestre');
+            if (!ValidatorUtils.isValidSemester(semestre?.value)) {
+                showErrorNotification(new Error('Semestre inválido (ej: 2025-1)'));
+                semestre?.focus();
+                return false;
+            }
+
         } else if (this.currentStep === 1) {
+            // Validar Tema
             const topic = document.getElementById('topic');
-            if (!topic || !topic.value.trim()) {
-                showErrorNotification(new Error('El tema de la evaluación es obligatorio'));
+            if (!ValidatorUtils.isValidText(topic?.value)) {
+                showErrorNotification(new Error('Tema inválido (caracteres no permitidos)'));
                 topic?.focus();
+                return false;
+            }
+
+            // Validar Descripción (Opcional pero si existe debe ser válida)
+            const descripcion = document.getElementById('descripcion_tema');
+            if (descripcion?.value && !ValidatorUtils.isValidText(descripcion.value)) {
+                showErrorNotification(new Error('Descripción inválida (caracteres no permitidos)'));
+                descripcion.focus();
                 return false;
             }
         }
@@ -878,9 +911,9 @@ export class ConfigurationView {
             } else {
                 // Validar rúbrica nueva
                 const rubrica = this.configData.rubrica;
-                
-                if (!rubrica.nombre_rubrica) {
-                    showErrorNotification(new Error('El nombre de la rúbrica es obligatorio'));
+
+                if (!ValidatorUtils.isValidText(rubrica.nombre_rubrica)) {
+                    showErrorNotification(new Error('Nombre de rúbrica inválido (caracteres no permitidos)'));
                     return;
                 }
 
@@ -892,9 +925,9 @@ export class ConfigurationView {
                 // Validar cada criterio
                 for (let i = 0; i < rubrica.criterios.length; i++) {
                     const criterio = rubrica.criterios[i];
-                    
-                    if (!criterio.nombre_criterio) {
-                        showErrorNotification(new Error(`El criterio ${i + 1} necesita un nombre`));
+
+                    if (!ValidatorUtils.isValidText(criterio.nombre_criterio)) {
+                        showErrorNotification(new Error(`Nombre del criterio ${i + 1} inválido`));
                         return;
                     }
 
@@ -906,14 +939,20 @@ export class ConfigurationView {
                     // Validar niveles
                     for (let j = 0; j < criterio.niveles.length; j++) {
                         const nivel = criterio.niveles[j];
-                        
-                        if (!nivel.nombre_nivel) {
-                            showErrorNotification(new Error(`El nivel ${j + 1} del criterio "${criterio.nombre_criterio}" necesita un nombre`));
+
+                        if (!ValidatorUtils.isValidText(nivel.nombre_nivel)) {
+                            showErrorNotification(new Error(`Nombre del nivel ${j + 1} en "${criterio.nombre_criterio}" inválido`));
                             return;
                         }
 
-                        // Filtrar descriptores vacíos
+                        // Filtrar descriptores vacíos y validar
                         nivel.descriptores = nivel.descriptores.filter(d => d.trim() !== '');
+                        for (const desc of nivel.descriptores) {
+                            if (!ValidatorUtils.isValidText(desc)) {
+                                showErrorNotification(new Error(`Descriptor inválido en nivel "${nivel.nombre_nivel}"`));
+                                return;
+                            }
+                        }
                     }
                 }
 
@@ -939,9 +978,9 @@ export class ConfigurationView {
             }
 
             this.saveConfig();
-            
+
             showSuccessNotification('✅ Configuración completada exitosamente');
-            
+
             setTimeout(() => {
                 this.router.navigate('upload');
             }, 1000);
