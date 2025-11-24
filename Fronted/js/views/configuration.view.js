@@ -352,7 +352,7 @@ export class ConfigurationView {
                         <div class="peso-input-group">
                             <input type="number" class="criterio-peso" data-criterio-index="${index}"
                                 value="${(criterio.peso * 100).toFixed(0)}" 
-                                min="0" max="100" step="5" required>
+                                min="1" max="100" step="1" required>
                             <span class="input-suffix">%</span>
                         </div>
                         <input type="range" class="peso-slider" data-criterio-index="${index}"
@@ -584,7 +584,18 @@ export class ConfigurationView {
                 // Peso de criterio
                 if (target.classList.contains('criterio-peso') || target.classList.contains('peso-slider')) {
                     const index = parseInt(target.dataset.criterioIndex);
-                    const peso = parseFloat(target.value) / 100;
+                    let val = parseFloat(target.value);
+
+                    // Validar rango 1-100
+                    if (val < 1) val = 1;
+                    if (val > 100) val = 100;
+
+                    // Actualizar valor en el input si fue corregido
+                    if (parseFloat(target.value) !== val) {
+                        target.value = val;
+                    }
+
+                    const peso = val / 100;
                     this.configData.rubrica.criterios[index].peso = peso;
 
                     // Sincronizar input y slider
@@ -592,8 +603,8 @@ export class ConfigurationView {
                     if (criterioBody) {
                         const inputPeso = criterioBody.querySelector('.criterio-peso');
                         const sliderPeso = criterioBody.querySelector('.peso-slider');
-                        if (inputPeso) inputPeso.value = target.value;
-                        if (sliderPeso) sliderPeso.value = target.value;
+                        if (inputPeso && inputPeso !== target) inputPeso.value = val;
+                        if (sliderPeso && sliderPeso !== target) sliderPeso.value = val;
                     }
 
                     this.updatePesoTotal();
@@ -957,8 +968,8 @@ export class ConfigurationView {
                 }
 
                 const total = this.calculateTotalPeso();
-                if (Math.abs(total - 100) > 1) {
-                    showErrorNotification(new Error(`El peso total debe ser 100% (actual: ${total}%)`));
+                if (total !== 100) {
+                    showErrorNotification(new Error(`El peso total debe ser exactamente 100% (actual: ${total}%)`));
                     return;
                 }
 

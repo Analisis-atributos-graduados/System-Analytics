@@ -1,7 +1,0 @@
-Router: Attempting to navigate to: analysis
-router.js:46 Router: Checking if route analysis is enabled for role AREA_DE_CALIDAD.
-router.js:32 Router: Rendering view for path: analysis
-analysis.view.js:16 Uncaught TypeError: this._applyFilters is not a function
-    at AnalysisView.render (analysis.view.js:16:14)
-    at Router.navigate (router.js:34:18)
-    at HTMLButtonElement.<anonymous> (navigation.component.js:68:33)
