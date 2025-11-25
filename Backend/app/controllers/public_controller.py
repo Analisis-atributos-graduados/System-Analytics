@@ -7,6 +7,8 @@ from app.models import get_db
 from app.schemas import GenerateUploadURLRequest
 from app.clients import GCSClient
 from app.config.dependencies import get_gcs_client
+from app.extractors.text_extractor import TextExtractor
+from fastapi import Form
 
 log = logging.getLogger(__name__)
 
@@ -59,6 +61,7 @@ async def generate_upload_url(
 @router.post("/upload-file-proxy")
 async def upload_file_proxy(
         file: UploadFile = File(...),
+        tipo_documento: str = Form(None),
         gcs_client: GCSClient = Depends(get_gcs_client)
 ):
     """
@@ -68,6 +71,27 @@ async def upload_file_proxy(
     try:
         # Leer archivo
         file_bytes = await file.read()
+        file_extension = f".{file.filename.split('.')[-1].lower()}" if '.' in file.filename else ''
+
+        # ✅ VALIDACIÓN DE CONTENIDO
+        if tipo_documento:
+            text_extractor = TextExtractor()
+            has_text = text_extractor.detect_has_extractable_text(file_bytes, file_extension)
+
+            if tipo_documento == 'examen':
+                # Exámenes manuscritos NO deben tener texto extraíble (son escaneos)
+                if has_text:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"El archivo {file.filename} parece ser un documento de texto digital. Para exámenes manuscritos, sube imágenes o escaneos sin texto seleccionable."
+                    )
+            elif tipo_documento == 'ensayo/informe':
+                # Ensayos DEBEN tener texto extraíble
+                if not has_text:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"El archivo {file.filename} no contiene texto extraíble. Para informes/ensayos, sube documentos de Word o PDF con texto digital."
+                    )
 
         # Generar nombre único
         unique_filename = f"{uuid.uuid4()}_{file.filename}"

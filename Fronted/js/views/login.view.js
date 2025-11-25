@@ -69,8 +69,8 @@ export class LoginView {
                         <div class="form-group">
                             <label for="register-password">Contraseña</label>
                             <input type="password" id="register-password" required 
-                                   placeholder="••••••••" minlength="6">
-                            <small>Mínimo 6 caracteres</small>
+                                   placeholder="••••••••" minlength="8">
+                            <small>Mínimo 8 caracteres, una mayúscula, un número y un carácter especial (@$!%*?&_.,-)</small>
                         </div>
 
                         <div class="form-group">
@@ -180,8 +180,8 @@ export class LoginView {
             return;
         }
 
-        if (!ValidatorUtils.validate(password, ValidatorUtils.PATTERNS.PASSWORD)) {
-            this.showError('register', 'La contraseña debe tener al menos 6 caracteres');
+        if (!ValidatorUtils.isValidStrongPassword(password)) {
+            this.showError('register', 'La contraseña debe tener al menos 8 caracteres, una letra mayúscula, una minúscula, un número y un carácter especial (@$!%*?&_.,-)');
             return;
         }
 

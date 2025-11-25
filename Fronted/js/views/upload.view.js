@@ -2,6 +2,7 @@ import { DOMUtils } from '../utils/dom.utils.js';
 import { StorageUtils } from '../utils/storage.utils.js';
 import DocumentService from '../services/document.service.js';
 import { showErrorNotification, showSuccessNotification } from '../utils/api.utils.js';
+import { ValidatorUtils } from '../utils/validator.utils.js';
 
 export class UploadView {
     constructor(router) {
@@ -14,7 +15,7 @@ export class UploadView {
 
     render() {
         this.courseData = StorageUtils.load('configData') || {};
-        
+
         // Validar que haya configuración
         if (!this.courseData.courseName || !this.courseData.rubrica_id) {
             return this.renderMissingConfig();
@@ -83,6 +84,7 @@ export class UploadView {
                     ` : ''}
                 </div>
             </div>
+            ${this.renderLoadingOverlay()}
         `;
 
         return html;
@@ -194,7 +196,7 @@ export class UploadView {
 
     attachEventListeners() {
         console.log('📎 Adjuntando event listeners de upload view...');
-        
+
         // Botón editar configuración
         const btnEditConfig = document.getElementById('btnEditConfig');
         if (btnEditConfig) {
@@ -236,7 +238,16 @@ export class UploadView {
         const studentListInput = document.getElementById('studentListInput');
         if (studentListInput) {
             studentListInput.addEventListener('input', (e) => {
-                this.studentList = e.target.value;
+                // ✅ Sanitizar cada línea de la lista de estudiantes
+                const lines = e.target.value.split('\n');
+                const sanitizedLines = lines.map(line => ValidatorUtils.sanitizeText(line, true));
+                const sanitized = sanitizedLines.join('\n');
+
+                if (e.target.value !== sanitized) {
+                    e.target.value = sanitized;
+                }
+
+                this.studentList = sanitized;
                 this.updateStartButton();
             });
         }
@@ -254,14 +265,14 @@ export class UploadView {
                 this.removeFile(index);
             });
         });
-        
+
         console.log('✅ Event listeners adjuntados');
     }
 
     selectDocumentType(type) {
         console.log('🔄 Cambiando tipo de documento a:', type);
         this.documentType = type;
-        
+
         // Re-renderizar
         const container = document.getElementById('main-content');
         if (container) {
@@ -311,14 +322,14 @@ export class UploadView {
         uploadArea.addEventListener('drop', (e) => {
             e.preventDefault();
             uploadArea.classList.remove('drag-over');
-            
+
             const files = Array.from(e.dataTransfer.files).filter(f => this.isValidFileType(f));
-            
+
             if (files.length === 0) {
                 showErrorNotification(new Error('Solo se permiten archivos PDF o Word (.pdf, .doc, .docx)'));
                 return;
             }
-            
+
             this.handleFiles(files);
         });
 
@@ -328,7 +339,7 @@ export class UploadView {
             this.handleFiles(files);
             fileInput.value = '';
         });
-        
+
         console.log('✅ Listeners de upload configurados');
     }
 
@@ -337,12 +348,44 @@ export class UploadView {
         if (files.length === 0) return;
 
         const invalidFiles = files.filter(f => !this.isValidFileType(f));
-        
+
         if (invalidFiles.length > 0) {
             showErrorNotification(new Error(
                 `Los siguientes archivos no son válidos: ${invalidFiles.map(f => f.name).join(', ')}`
             ));
             return;
+        }
+
+        // ✅ VALIDACIÓN DE NOMBRES PARA EXÁMENES
+        if (this.documentType === 'examen') {
+            const regex = /^cara_(\d+)(\.[a-zA-Z0-9]+)?$/i;
+            const invalidNames = files.filter(f => !regex.test(f.name));
+
+            if (invalidNames.length > 0) {
+                showErrorNotification(new Error(
+                    `Para exámenes manuscritos, los archivos deben llamarse "cara_x" (ej: cara_1.pdf, cara_2.pdf). Archivos inválidos: ${invalidNames.map(f => f.name).join(', ')}`
+                ));
+                return;
+            }
+
+            // Validar duplicados (en la selección actual y en los nuevos)
+            const currentNames = new Set(this.selectedFiles.map(f => f.name));
+            const newNames = new Set();
+            const duplicates = [];
+
+            for (const file of files) {
+                if (currentNames.has(file.name) || newNames.has(file.name)) {
+                    duplicates.push(file.name);
+                }
+                newNames.add(file.name);
+            }
+
+            if (duplicates.length > 0) {
+                showErrorNotification(new Error(
+                    `No puedes subir archivos duplicados: ${duplicates.join(', ')}`
+                ));
+                return;
+            }
         }
 
         console.log(`📁 ${files.length} archivo(s) seleccionado(s)`);
@@ -351,7 +394,7 @@ export class UploadView {
         this.selectedFiles.push(...files);
 
         showSuccessNotification(`✅ ${files.length} archivo(s) seleccionado(s)`);
-        
+
         // Re-renderizar
         const container = document.getElementById('main-content');
         if (container) {
@@ -362,7 +405,7 @@ export class UploadView {
 
     removeFile(index) {
         this.selectedFiles.splice(index, 1);
-        
+
         // Re-renderizar
         const container = document.getElementById('main-content');
         if (container) {
@@ -393,6 +436,26 @@ export class UploadView {
 
             this.showLoading();
 
+            // ✅ VALIDACIÓN DE SECUENCIA PARA EXÁMENES
+            if (this.documentType === 'examen') {
+                const caras = this.selectedFiles.map(f => {
+                    const match = f.name.match(/^cara_(\d+)/i);
+                    return match ? parseInt(match[1]) : 0;
+                }).sort((a, b) => a - b);
+
+                // Verificar que empiece en 1
+                if (caras[0] !== 1) {
+                    throw new Error('Falta la cara_1. Los exámenes deben comenzar por la cara 1.');
+                }
+
+                // Verificar secuencia sin huecos
+                for (let i = 0; i < caras.length - 1; i++) {
+                    if (caras[i + 1] !== caras[i] + 1) {
+                        throw new Error(`Falta la cara_${caras[i] + 1}. La secuencia de caras debe estar completa (1, 2, 3...).`);
+                    }
+                }
+            }
+
             // ✅ SUBIR ARCHIVOS AHORA
             console.log(`📤 Subiendo ${this.selectedFiles.length} archivos...`);
             const uploadedFiles = [];
@@ -400,13 +463,14 @@ export class UploadView {
             for (const file of this.selectedFiles) {
                 try {
                     console.log(`  📤 Subiendo: ${file.name}`);
-                    const result = await DocumentService.uploadFileProxy(file);
-                    
+                    // Pasamos el tipo de documento para validación en backend
+                    const result = await DocumentService.uploadFileProxy(file, this.documentType);
+
                     uploadedFiles.push({
                         gcs_filename: result.gcs_filename,
                         original_filename: result.original_filename || file.name
                     });
-                    
+
                     console.log(`  ✅ Subido: ${result.gcs_filename}`);
                 } catch (error) {
                     console.error(`  ❌ Error subiendo ${file.name}:`, error);
@@ -439,12 +503,24 @@ export class UploadView {
             showSuccessNotification(`✅ Evaluación iniciada: ${response.total || uploadedFiles.length} documento(s) en proceso`);
 
             // Limpiar y redirigir
+            // Limpiar y redirigir
             setTimeout(() => {
                 this.selectedFiles = [];
                 this.studentList = '';
                 this.documentType = null;
-                this.router.navigate('analysis');
-            }, 2000);
+                // Redirigir con el ID de la evaluación para auto-selección
+                let evaluacionId = response.id || response.evaluacion_id;
+                if (!evaluacionId && response.evaluaciones_creadas && response.evaluaciones_creadas.length > 0) {
+                    const firstItem = response.evaluaciones_creadas[0];
+                    evaluacionId = (typeof firstItem === 'object') ? (firstItem.id || firstItem.evaluacion_id) : firstItem;
+                }
+
+                if (evaluacionId) {
+                    this.router.navigate(`analysis?evaluacionId=${evaluacionId}`);
+                } else {
+                    this.router.navigate('analysis');
+                }
+            }, 1500);
 
         } catch (error) {
             console.error('❌ Error al iniciar evaluación:', error);
@@ -454,14 +530,22 @@ export class UploadView {
     }
 
     showLoading() {
+        const overlay = document.getElementById('loadingOverlay');
+        if (overlay) {
+            overlay.classList.remove('hidden');
+        }
         const btn = document.getElementById('btnStartEvaluation');
         if (btn) {
             btn.disabled = true;
-            btn.innerHTML = '⏳ Subiendo y procesando...';
+            btn.innerHTML = '⏳ Procesando...';
         }
     }
 
     hideLoading() {
+        const overlay = document.getElementById('loadingOverlay');
+        if (overlay) {
+            overlay.classList.add('hidden');
+        }
         const btn = document.getElementById('btnStartEvaluation');
         if (btn) {
             btn.disabled = false;
@@ -475,19 +559,31 @@ export class UploadView {
             'application/msword',
             'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
         ];
-        
+
         const validExtensions = ['.pdf', '.doc', '.docx'];
         const fileName = file.name.toLowerCase();
-        
-        return validTypes.includes(file.type) || 
+
+        return validTypes.includes(file.type) ||
             validExtensions.some(ext => fileName.endsWith(ext));
     }
 
     getFileIcon(filename) {
         const ext = filename.toLowerCase().split('.').pop();
-        
+
         if (ext === 'pdf') return '📕';
         if (ext === 'doc' || ext === 'docx') return '📘';
         return '📄';
+    }
+    renderLoadingOverlay() {
+        return `
+            <div id="loadingOverlay" class="loading-overlay hidden">
+                <div class="loading-content">
+                    <div class="spinner"></div>
+                    <h3>Procesando Evaluación</h3>
+                    <p>Por favor espera, estamos analizando tus documentos con IA...</p>
+                    <p class="loading-subtext">Esto puede tomar unos minutos dependiendo del número de archivos.</p>
+                </div>
+            </div>
+        `;
     }
 }

@@ -18,6 +18,8 @@ export class AnalysisView {
             temas: []
         };
         this.isLoading = false;
+        this.isAnalyzing = false;
+        this.pollingInterval = null;
 
         // Cargar filtros iniciales
         this.loadInitialFilters();
@@ -33,6 +35,19 @@ export class AnalysisView {
 
     async loadInitialFilters() {
         try {
+            // ✅ NUEVO: Verificar si hay un ID de evaluación en la URL
+            const urlParams = new URLSearchParams(window.location.search);
+            const evaluacionId = urlParams.get('evaluacionId');
+
+            if (evaluacionId) {
+                console.log('🔗 Detectado evaluacionId en URL:', evaluacionId);
+                await this.loadSpecificEvaluation(evaluacionId);
+
+                // Limpiar URL para no re-cargar al refrescar
+                window.history.replaceState({}, document.title, window.location.pathname);
+                return;
+            }
+
             const semestres = await FiltrosService.getSemestres();
             this.availableFilters.semestres = semestres;
 
@@ -46,6 +61,67 @@ export class AnalysisView {
         } catch (error) {
             console.error('Error cargando filtros iniciales:', error);
             showErrorNotification('Error al cargar filtros: ' + error.message);
+        }
+    }
+
+    async loadSpecificEvaluation(evaluacionId) {
+        try {
+            this.isLoading = true;
+            this.isAnalyzing = false;
+
+            // Detener polling anterior si existe
+            if (this.pollingInterval) {
+                clearInterval(this.pollingInterval);
+                this.pollingInterval = null;
+            }
+
+            this.updateView();
+
+            // 1. Obtener detalles de la evaluación
+            const evaluacion = await DocumentService.getEvaluacion(evaluacionId);
+
+            if (!evaluacion) {
+                throw new Error('Evaluación no encontrada');
+            }
+
+            console.log('✅ Evaluación cargada:', evaluacion);
+
+            // Verificar si está en proceso (nota 0, null o undefined)
+            const nota = Number(evaluacion.nota);
+            if (!evaluacion.nota || isNaN(nota) || nota === 0) {
+                console.log('⏳ Evaluación en proceso (nota 0/null). Iniciando polling...');
+                this.isLoading = false;
+                this.isAnalyzing = true;
+                this.updateView();
+                this.startPolling(evaluacionId);
+                return;
+            }
+
+            // 2. Establecer filtros
+            this.filters.semestre = evaluacion.semestre;
+            this.filters.curso = evaluacion.codigo_curso; // Asumiendo que viene este campo
+            this.filters.tema = evaluacion.tema;
+
+            // 3. Cargar listas de filtros para que los selectores funcionen
+            this.availableFilters.semestres = await FiltrosService.getSemestres();
+            if (this.filters.semestre) {
+                this.availableFilters.cursos = await FiltrosService.getCursos(this.filters.semestre);
+            }
+            if (this.filters.semestre && this.filters.curso) {
+                this.availableFilters.temas = await FiltrosService.getTemas(this.filters.semestre, this.filters.curso);
+            }
+
+            // 4. Cargar dashboard directamente
+            await this.viewThemeDashboard(this.filters.tema);
+
+        } catch (error) {
+            console.error('Error cargando evaluación específica:', error);
+            showErrorNotification('No se pudo cargar la evaluación solicitada');
+            // Fallback a carga normal
+            const semestres = await FiltrosService.getSemestres();
+            this.availableFilters.semestres = semestres;
+            this.isLoading = false;
+            this.updateView();
         }
     }
 
@@ -135,6 +211,17 @@ export class AnalysisView {
                 <div class="loading-state">
                     <div class="spinner"></div>
                     <p>Cargando datos...</p>
+                </div>
+            `;
+        }
+
+        if (this.isAnalyzing) {
+            return `
+                <div class="loading-state">
+                    <div class="spinner"></div>
+                    <h3>🤖 Analizando con Inteligencia Artificial...</h3>
+                    <p>Estamos procesando los documentos y evaluando con Gemini.</p>
+                    <p class="text-muted">Por favor espera, los resultados aparecerán automáticamente.</p>
                 </div>
             `;
         }
@@ -406,5 +493,36 @@ export class AnalysisView {
             console.error('Error downloading:', error);
             showErrorNotification('Error al descargar transcripciones');
         }
+    }
+    startPolling(evaluacionId) {
+        let attempts = 0;
+        const maxAttempts = 60; // 5 minutos aprox
+
+        this.pollingInterval = setInterval(async () => {
+            attempts++;
+            try {
+                const evaluacion = await DocumentService.getEvaluacion(evaluacionId);
+                console.log(`🔄 Polling intento ${attempts}: Nota ${evaluacion.nota}`);
+
+                if (evaluacion.nota > 0) {
+                    // Evaluación completada
+                    clearInterval(this.pollingInterval);
+                    this.pollingInterval = null;
+                    this.isAnalyzing = false;
+                    showSuccessNotification('✅ Evaluación completada');
+
+                    // Recargar vista completa
+                    this.loadSpecificEvaluation(evaluacionId);
+                } else if (attempts >= maxAttempts) {
+                    clearInterval(this.pollingInterval);
+                    this.pollingInterval = null;
+                    this.isAnalyzing = false;
+                    showErrorNotification('Tiempo de espera agotado. Recarga la página.');
+                    this.updateView();
+                }
+            } catch (error) {
+                console.error('Error en polling:', error);
+            }
+        }, 5000);
     }
 }

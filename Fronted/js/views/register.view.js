@@ -1,4 +1,6 @@
 import { DOMUtils } from '../utils/dom.utils.js';
+import { showErrorNotification } from '../utils/api.utils.js';
+import { ValidatorUtils } from '../utils/validator.utils.js';
 
 export class RegisterView {
     constructor(router) {
@@ -33,7 +35,10 @@ export class RegisterView {
                         </div>
                         <div class="form-group">
                             <label class="form-label" for="password">Contraseña</label>
-                            <input type="password" id="password" class="form-input" placeholder="Crea una contraseña segura" required>
+                            <input type="password" id="password" class="form-input" placeholder="Mín 8 carácteres, mayúscula, número y símbolo" required>
+                            <small class="text-muted" style="font-size: 0.75rem; margin-top: 4px; display: block;">
+                                Mínimo 8 caracteres, una mayúscula, un número y un carácter especial (@$!%*?&_.,-)
+                            </small>
                         </div>
                         <button type="submit" class="btn btn-primary auth-btn">Crear Cuenta</button>
                     </form>
@@ -55,6 +60,15 @@ export class RegisterView {
 
         document.getElementById('register-form')?.addEventListener('submit', (e) => {
             e.preventDefault();
+
+            const password = document.getElementById('password').value;
+
+            // Validación de Contraseña Segura usando ValidatorUtils
+            if (!ValidatorUtils.isValidStrongPassword(password)) {
+                showErrorNotification(new Error('La contraseña debe tener al menos 8 caracteres, una mayúscula, una minúscula, un número y un carácter especial (@$!%*?&_.,-)'));
+                return;
+            }
+
             this.router.navigate('configuration');
         });
 

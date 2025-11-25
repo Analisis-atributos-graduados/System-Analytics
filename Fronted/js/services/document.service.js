@@ -23,10 +23,13 @@ class DocumentService {
     /**
      * Sube un archivo usando el proxy del backend
      */
-    async uploadFileProxy(file) {
+    async uploadFileProxy(file, tipoDocumento) {
         try {
             const formData = new FormData();
             formData.append('file', file);
+            if (tipoDocumento) {
+                formData.append('tipo_documento', tipoDocumento);
+            }
 
             const endpoint = getEndpoint('UPLOAD_FILE_PROXY');
 
@@ -64,20 +67,6 @@ class DocumentService {
             throw error;
         }
     }
-
-    /**
-     * Obtiene una evaluación específica por ID
-     */
-    async getEvaluacion(evaluacionId) {
-        try {
-            const endpoint = getEndpoint('EVALUACION_DETAIL', evaluacionId);
-            return await ApiService.get(endpoint);
-        } catch (error) {
-            console.error(`Error getting evaluation ${evaluacionId}:`, error);
-            throw error;
-        }
-    }
-
     /**
      * Obtiene estadísticas del dashboard
      */

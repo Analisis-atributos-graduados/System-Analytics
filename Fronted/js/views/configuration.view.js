@@ -133,8 +133,9 @@ export class ConfigurationView {
 
             <div class="form-group">
                 <label for="instructor">Instructor *</label>
-                <input type="text" id="instructor" value="${user?.nombre || this.configData.instructor || ''}" 
-                       placeholder="Nombre del instructor" required>
+                <input type="text" id="instructor" value="${this.configData.instructor || user?.nombre || ''}" 
+                       placeholder="Nombre del instructor" disabled required>
+                <small class="text-muted">El nombre del instructor se toma de tu cuenta</small>
             </div>
 
             <div class="form-group">
@@ -364,6 +365,8 @@ export class ConfigurationView {
                     <div class="niveles-section">
                         <div class="niveles-header">
                             <label>Niveles de desempeño</label>
+                            <!-- Botón oculto/deshabilitado porque solo se permite 1 descriptor por ahora, 
+                                 pero mantenemos la estructura si se requiere en el futuro o para agregar niveles -->
                             <button type="button" class="btn btn-sm btn-secondary" 
                                     data-action="add-nivel" data-criterio-index="${index}">
                                 ➕ Agregar nivel
@@ -399,12 +402,12 @@ export class ConfigurationView {
                     <div class="nivel-puntaje-inputs">
                         <input type="number" class="nivel-puntaje-min" 
                             data-criterio-index="${criterioIndex}" data-nivel-index="${nivelIndex}"
-                            value="${nivel.puntaje_min}" min="0" step="0.5" 
+                            value="${nivel.puntaje_min}" min="0" max="20" step="0.5" 
                             placeholder="Min" required>
                         <span>-</span>
                         <input type="number" class="nivel-puntaje-max" 
                             data-criterio-index="${criterioIndex}" data-nivel-index="${nivelIndex}"
-                            value="${nivel.puntaje_max}" min="0" step="0.5" 
+                            value="${nivel.puntaje_max}" min="0" max="20" step="0.5" 
                             placeholder="Max" required>
                         <span class="text-muted">pts</span>
                     </div>
@@ -418,33 +421,18 @@ export class ConfigurationView {
                 </div>
 
                 <div class="nivel-body">
-                    <label>Descriptores (qué debe lograr el estudiante)</label>
+                    <label>Descriptor (qué debe lograr el estudiante)</label>
                     <div class="descriptores-list">
-                        ${nivel.descriptores.map((desc, dIndex) => `
-                            <div class="descriptor-item">
-                                <span class="descriptor-bullet">•</span>
-                                <input type="text" class="descriptor-input" 
-                                    data-criterio-index="${criterioIndex}" 
-                                    data-nivel-index="${nivelIndex}"
-                                    data-descriptor-index="${dIndex}"
-                                    value="${desc || ''}" 
-                                    placeholder="Descriptor ${dIndex + 1}">
-                                <button type="button" class="btn-icon btn-delete-small" 
-                                        data-action="delete-descriptor"
-                                        data-criterio-index="${criterioIndex}" 
-                                        data-nivel-index="${nivelIndex}"
-                                        data-descriptor-index="${dIndex}">
-                                    ✕
-                                </button>
-                            </div>
-                        `).join('')}
+                        <div class="descriptor-item">
+                            <span class="descriptor-bullet">•</span>
+                            <textarea class="descriptor-input auto-expand" 
+                                data-criterio-index="${criterioIndex}" 
+                                data-nivel-index="${nivelIndex}"
+                                data-descriptor-index="0"
+                                placeholder="Describe el nivel de desempeño..."
+                                rows="2">${nivel.descriptores[0] || ''}</textarea>
+                        </div>
                     </div>
-                    <button type="button" class="btn btn-sm btn-secondary" 
-                            data-action="add-descriptor" 
-                            data-criterio-index="${criterioIndex}" 
-                            data-nivel-index="${nivelIndex}">
-                        ➕ Agregar descriptor
-                    </button>
                 </div>
             </div>
         `;
@@ -490,6 +478,42 @@ export class ConfigurationView {
         if (btnBack) btnBack.addEventListener('click', () => this.previousStep());
         if (btnNext) btnNext.addEventListener('click', () => this.nextStep());
         if (btnFinish) btnFinish.addEventListener('click', () => this.finish());
+
+        // ✅ Sanitización para Step 1: Nombre del curso
+        if (this.currentStep === 0) {
+            const courseName = document.getElementById('courseName');
+            if (courseName) {
+                courseName.addEventListener('input', (e) => {
+                    const sanitized = ValidatorUtils.sanitizeText(e.target.value, true);
+                    if (e.target.value !== sanitized) {
+                        e.target.value = sanitized;
+                    }
+                });
+            }
+        }
+
+        // ✅ Sanitización para Step 2: Tema y Descripción del tema
+        if (this.currentStep === 1) {
+            const topic = document.getElementById('topic');
+            if (topic) {
+                topic.addEventListener('input', (e) => {
+                    const sanitized = ValidatorUtils.sanitizeText(e.target.value, true);
+                    if (e.target.value !== sanitized) {
+                        e.target.value = sanitized;
+                    }
+                });
+            }
+
+            const descripcionTema = document.getElementById('descripcion_tema');
+            if (descripcionTema) {
+                descripcionTema.addEventListener('input', (e) => {
+                    const sanitized = ValidatorUtils.sanitizeText(e.target.value, true);
+                    if (e.target.value !== sanitized) {
+                        e.target.value = sanitized;
+                    }
+                });
+            }
+        }
 
         if (this.currentStep === 2) {
             this.attachStep3Listeners();
@@ -537,14 +561,24 @@ export class ConfigurationView {
 
         if (rubricName) {
             rubricName.addEventListener('input', (e) => {
-                this.configData.rubrica.nombre_rubrica = e.target.value;
+                // ✅ Sanitizar nombre de rúbrica
+                const sanitized = ValidatorUtils.sanitizeText(e.target.value, true);
+                if (e.target.value !== sanitized) {
+                    e.target.value = sanitized;
+                }
+                this.configData.rubrica.nombre_rubrica = sanitized;
                 this.saveConfig();
             });
         }
 
         if (rubricDesc) {
             rubricDesc.addEventListener('input', (e) => {
-                this.configData.rubrica.descripcion = e.target.value;
+                // ✅ Sanitizar descripción (eliminar números, símbolos y múltiples espacios)
+                const sanitized = ValidatorUtils.sanitizeText(e.target.value);
+                if (e.target.value !== sanitized) {
+                    e.target.value = sanitized;
+                }
+                this.configData.rubrica.descripcion = sanitized;
                 this.saveConfig();
             });
         }
@@ -570,14 +604,24 @@ export class ConfigurationView {
                 // Nombre de criterio
                 if (target.classList.contains('criterio-nombre')) {
                     const index = parseInt(target.dataset.criterioIndex);
-                    this.configData.rubrica.criterios[index].nombre_criterio = target.value;
+                    // ✅ Sanitizar nombre de criterio
+                    const sanitized = ValidatorUtils.sanitizeText(target.value, true);
+                    if (target.value !== sanitized) {
+                        target.value = sanitized;
+                    }
+                    this.configData.rubrica.criterios[index].nombre_criterio = sanitized;
                     this.saveConfig();
                 }
 
                 // Descripción de criterio
                 if (target.classList.contains('criterio-descripcion')) {
                     const index = parseInt(target.dataset.criterioIndex);
-                    this.configData.rubrica.criterios[index].descripcion_criterio = target.value;
+                    // ✅ Sanitizar descripción (eliminar números, símbolos y múltiples espacios)
+                    const sanitized = ValidatorUtils.sanitizeText(target.value, true);
+                    if (target.value !== sanitized) {
+                        target.value = sanitized;
+                    }
+                    this.configData.rubrica.criterios[index].descripcion_criterio = sanitized;
                     this.saveConfig();
                 }
 
@@ -615,7 +659,12 @@ export class ConfigurationView {
                 if (target.classList.contains('nivel-nombre')) {
                     const cIndex = parseInt(target.dataset.criterioIndex);
                     const nIndex = parseInt(target.dataset.nivelIndex);
-                    this.configData.rubrica.criterios[cIndex].niveles[nIndex].nombre_nivel = target.value;
+                    // ✅ Sanitizar nombre de nivel
+                    const sanitized = ValidatorUtils.sanitizeText(target.value, true);
+                    if (target.value !== sanitized) {
+                        target.value = sanitized;
+                    }
+                    this.configData.rubrica.criterios[cIndex].niveles[nIndex].nombre_nivel = sanitized;
                     this.saveConfig();
                 }
 
@@ -623,15 +672,33 @@ export class ConfigurationView {
                 if (target.classList.contains('nivel-puntaje-min')) {
                     const cIndex = parseInt(target.dataset.criterioIndex);
                     const nIndex = parseInt(target.dataset.nivelIndex);
-                    this.configData.rubrica.criterios[cIndex].niveles[nIndex].puntaje_min = parseFloat(target.value) || 0;
+                    let val = parseFloat(target.value) || 0;
+                    if (val < 0) val = 0;
+                    if (val > 20) val = 20;
+                    if (parseFloat(target.value) !== val) target.value = val;
+
+                    this.configData.rubrica.criterios[cIndex].niveles[nIndex].puntaje_min = val;
                     this.saveConfig();
                 }
 
                 if (target.classList.contains('nivel-puntaje-max')) {
                     const cIndex = parseInt(target.dataset.criterioIndex);
                     const nIndex = parseInt(target.dataset.nivelIndex);
-                    this.configData.rubrica.criterios[cIndex].niveles[nIndex].puntaje_max = parseFloat(target.value) || 0;
+                    let val = parseFloat(target.value) || 0;
+                    if (val < 0) val = 0;
+                    if (val > 20) val = 20;
+                    if (parseFloat(target.value) !== val) target.value = val;
+
+                    this.configData.rubrica.criterios[cIndex].niveles[nIndex].puntaje_max = val;
                     this.saveConfig();
+                }
+
+                // ✅ NUEVO: Sanitizar inputs numéricos (eliminar ceros a la izquierda)
+                if (target.type === 'number') {
+                    const val = target.value;
+                    if (val.length > 1 && val.startsWith('0') && !val.startsWith('0.')) {
+                        target.value = parseFloat(val);
+                    }
                 }
 
                 // Descriptores
@@ -639,7 +706,12 @@ export class ConfigurationView {
                     const cIndex = parseInt(target.dataset.criterioIndex);
                     const nIndex = parseInt(target.dataset.nivelIndex);
                     const dIndex = parseInt(target.dataset.descriptorIndex);
-                    this.configData.rubrica.criterios[cIndex].niveles[nIndex].descriptores[dIndex] = target.value;
+                    // ✅ Sanitizar descriptor (eliminar números, símbolos y múltiples espacios)
+                    const sanitized = ValidatorUtils.sanitizeText(target.value, true);
+                    if (target.value !== sanitized) {
+                        target.value = sanitized;
+                    }
+                    this.configData.rubrica.criterios[cIndex].niveles[nIndex].descriptores[dIndex] = sanitized;
                     this.saveConfig();
                 }
             };
@@ -772,22 +844,13 @@ export class ConfigurationView {
     }
 
     addDescriptor(criterioIndex, nivelIndex) {
-        this.configData.rubrica.criterios[criterioIndex].niveles[nivelIndex].descriptores.push('');
-        this.reRender();
-        this.saveConfig();
+        // Deshabilitado: Solo un descriptor por nivel
+        console.warn('Solo se permite un descriptor por nivel');
     }
 
     deleteDescriptor(criterioIndex, nivelIndex, descriptorIndex) {
-        const descriptores = this.configData.rubrica.criterios[criterioIndex].niveles[nivelIndex].descriptores;
-
-        if (descriptores.length <= 1) {
-            showErrorNotification(new Error('Debe haber al menos un descriptor'));
-            return;
-        }
-
-        descriptores.splice(descriptorIndex, 1);
-        this.reRender();
-        this.saveConfig();
+        // Deshabilitado: No se puede eliminar el único descriptor
+        console.warn('No se puede eliminar el descriptor único');
     }
 
     destroy() {
@@ -854,8 +917,8 @@ export class ConfigurationView {
         if (this.currentStep === 0) {
             // Validar Nombre del Curso
             const courseName = document.getElementById('courseName');
-            if (!ValidatorUtils.isValidText(courseName?.value)) {
-                showErrorNotification(new Error('Nombre del curso inválido (solo letras, números y puntuación básica)'));
+            if (!ValidatorUtils.isValidDescription(courseName?.value)) {
+                showErrorNotification(new Error('Nombre del curso inválido: solo letras y puntuación básica, sin números ni símbolos'));
                 courseName?.focus();
                 return false;
             }
@@ -868,12 +931,17 @@ export class ConfigurationView {
                 return false;
             }
 
-            // Validar Instructor
+            // Validar Instructor (Ahora es read-only, pero validamos igual)
             const instructor = document.getElementById('instructor');
-            if (!ValidatorUtils.isValidName(instructor?.value)) {
-                showErrorNotification(new Error('Nombre del instructor inválido (solo letras y espacios)'));
-                instructor?.focus();
-                return false;
+            if (!instructor.value.trim()) {
+                // Si está vacío, intentar llenarlo con el usuario actual
+                const user = AuthService.getCurrentUser();
+                if (user?.nombre) {
+                    instructor.value = user.nombre;
+                } else {
+                    showErrorNotification(new Error('El nombre del instructor es requerido'));
+                    return false;
+                }
             }
 
             // Validar Semestre
@@ -887,17 +955,17 @@ export class ConfigurationView {
         } else if (this.currentStep === 1) {
             // Validar Tema
             const topic = document.getElementById('topic');
-            if (!ValidatorUtils.isValidText(topic?.value)) {
-                showErrorNotification(new Error('Tema inválido (caracteres no permitidos)'));
+            if (!ValidatorUtils.isValidDescription(topic?.value)) {
+                showErrorNotification(new Error('Tema inválido: solo letras y puntuación básica, sin números ni símbolos'));
                 topic?.focus();
                 return false;
             }
 
-            // Validar Descripción (Opcional pero si existe debe ser válida)
+            // Validar Descripción (OBLIGATORIO)
             const descripcion = document.getElementById('descripcion_tema');
-            if (descripcion?.value && !ValidatorUtils.isValidText(descripcion.value)) {
-                showErrorNotification(new Error('Descripción inválida (caracteres no permitidos)'));
-                descripcion.focus();
+            if (!ValidatorUtils.isValidDescription(descripcion?.value)) {
+                showErrorNotification(new Error('La descripción del tema es obligatoria y debe contener solo letras y puntuación básica'));
+                descripcion?.focus();
                 return false;
             }
         }
@@ -923,8 +991,14 @@ export class ConfigurationView {
                 // Validar rúbrica nueva
                 const rubrica = this.configData.rubrica;
 
-                if (!ValidatorUtils.isValidText(rubrica.nombre_rubrica)) {
-                    showErrorNotification(new Error('Nombre de rúbrica inválido (caracteres no permitidos)'));
+                if (!ValidatorUtils.isValidDescription(rubrica.nombre_rubrica)) {
+                    showErrorNotification(new Error('El nombre de la rúbrica es inválido: solo letras y puntuación básica, sin números ni símbolos'));
+                    return;
+                }
+
+                // ✅ REQUERIR descripción de rúbrica
+                if (!rubrica.descripcion || !ValidatorUtils.isValidDescription(rubrica.descripcion)) {
+                    showErrorNotification(new Error('La descripción de la rúbrica es obligatoria y debe contener solo letras y puntuación básica'));
                     return;
                 }
 
@@ -937,8 +1011,14 @@ export class ConfigurationView {
                 for (let i = 0; i < rubrica.criterios.length; i++) {
                     const criterio = rubrica.criterios[i];
 
-                    if (!ValidatorUtils.isValidText(criterio.nombre_criterio)) {
-                        showErrorNotification(new Error(`Nombre del criterio ${i + 1} inválido`));
+                    if (!ValidatorUtils.isValidDescription(criterio.nombre_criterio)) {
+                        showErrorNotification(new Error(`Nombre del criterio ${i + 1} inválido: solo letras y puntuación básica, sin números ni símbolos`));
+                        return;
+                    }
+
+                    // ✅ REQUERIR descripción de criterio
+                    if (!criterio.descripcion_criterio || !ValidatorUtils.isValidDescription(criterio.descripcion_criterio)) {
+                        showErrorNotification(new Error(`La descripción del criterio "${criterio.nombre_criterio}" es obligatoria y debe contener solo letras y puntuación básica`));
                         return;
                     }
 
@@ -951,16 +1031,24 @@ export class ConfigurationView {
                     for (let j = 0; j < criterio.niveles.length; j++) {
                         const nivel = criterio.niveles[j];
 
-                        if (!ValidatorUtils.isValidText(nivel.nombre_nivel)) {
-                            showErrorNotification(new Error(`Nombre del nivel ${j + 1} en "${criterio.nombre_criterio}" inválido`));
+                        if (!ValidatorUtils.isValidDescription(nivel.nombre_nivel)) {
+                            showErrorNotification(new Error(`Nombre del nivel ${j + 1} en "${criterio.nombre_criterio}" inválido: solo letras y puntuación básica, sin números ni símbolos`));
                             return;
                         }
 
                         // Filtrar descriptores vacíos y validar
                         nivel.descriptores = nivel.descriptores.filter(d => d.trim() !== '');
+
+                        // ✅ REQUERIR al menos un descriptor no vacío
+                        if (nivel.descriptores.length === 0) {
+                            showErrorNotification(new Error(`El nivel "${nivel.nombre_nivel}" en "${criterio.nombre_criterio}" debe tener al menos un descriptor`));
+                            return;
+                        }
+
+                        // ✅ Validar descriptores con isValidDescription
                         for (const desc of nivel.descriptores) {
-                            if (!ValidatorUtils.isValidText(desc)) {
-                                showErrorNotification(new Error(`Descriptor inválido en nivel "${nivel.nombre_nivel}"`));
+                            if (!ValidatorUtils.isValidDescription(desc)) {
+                                showErrorNotification(new Error(`Descriptor inválido en nivel "${nivel.nombre_nivel}": debe contener solo letras y puntuación básica, sin números ni símbolos`));
                                 return;
                             }
                         }

@@ -8,8 +8,10 @@
 export const handleApiError = (error, context = '') => {
     console.error(`API Error ${context}:`, error);
 
+    const errorMessage = error.message || (typeof error === 'string' ? error : 'Error desconocido');
+
     // Errores de red
-    if (error.message.includes('Failed to fetch')) {
+    if (errorMessage.includes('Failed to fetch')) {
         return {
             title: 'Error de Conexión',
             message: 'No se pudo conectar con el servidor. Verifica tu conexión a internet.',
@@ -18,7 +20,7 @@ export const handleApiError = (error, context = '') => {
     }
 
     // Errores de autenticación
-    if (error.message.includes('Sesión')) {
+    if (errorMessage.includes('Sesión')) {
         return {
             title: 'Sesión Expirada',
             message: 'Tu sesión ha expirado. Por favor inicia sesión nuevamente.',
@@ -27,10 +29,10 @@ export const handleApiError = (error, context = '') => {
     }
 
     // Errores de validación
-    if (error.message.includes('requerido') || error.message.includes('debe')) {
+    if (errorMessage.includes('requerido') || errorMessage.includes('debe')) {
         return {
             title: 'Datos Inválidos',
-            message: error.message,
+            message: errorMessage,
             type: 'validation'
         };
     }
@@ -38,7 +40,7 @@ export const handleApiError = (error, context = '') => {
     // Error genérico
     return {
         title: 'Error',
-        message: error.message || 'Ocurrió un error inesperado',
+        message: errorMessage || 'Ocurrió un error inesperado',
         type: 'generic'
     };
 };
@@ -48,7 +50,7 @@ export const handleApiError = (error, context = '') => {
  */
 export const showErrorNotification = (error, duration = 5000) => {
     const errorInfo = handleApiError(error);
-    
+
     const notification = document.createElement('div');
     notification.className = 'notification error';
     notification.innerHTML = `

@@ -23,8 +23,39 @@
         import { initializeFirebase } from './js/config/firebase.config.js';
         import AuthService from './js/services/auth.service.js';
         
+        const APP_VERSION = '1.0.1'; // Increment this on every deploy
+
+        async function checkVersion() {
+            const storedVersion = localStorage.getItem('appVersion');
+            if (storedVersion !== APP_VERSION) {
+                console.log(`🔄 Nueva versión detectada: ${APP_VERSION} (Anterior: ${storedVersion})`);
+                console.log('🧹 Limpiando caché y recargando...');
+                
+                // Limpiar caches
+                if ('caches' in window) {
+                    try {
+                        const keys = await caches.keys();
+                        await Promise.all(keys.map(key => caches.delete(key)));
+                    } catch (e) {
+                        console.error('Error limpiando caches:', e);
+                    }
+                }
+                
+                // Limpiar localStorage (excepto items críticos si los hubiera)
+                localStorage.clear();
+                localStorage.setItem('appVersion', APP_VERSION);
+                
+                // Recargar forzosamente
+                window.location.reload(true);
+                return false;
+            }
+            return true;
+        }
+
         async function initApp() {
             try {
+                if (!(await checkVersion())) return;
+
                 console.log('🔄 Iniciando aplicación...');
                 
                 // 1. Inicializar Firebase
@@ -56,7 +87,7 @@
                 
                 // 5. Cargar aplicación
                 console.log('📦 Cargando módulo main.js...');
-                const { default: mainApp } = await import('./js/main.js');
+                const { default: mainApp } = await import(`./js/main.js?v=${APP_VERSION}`);
                 
                 if (typeof mainApp === 'function') {
                     console.log('🚀 Ejecutando mainApp()...');
