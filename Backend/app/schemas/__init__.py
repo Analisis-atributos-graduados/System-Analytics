@@ -4,7 +4,8 @@ from .evaluacion_schemas import (
     EvaluacionSchema,
     EvaluacionDetailSchema,
     ResultadoAnalisisSchema,
-    ArchivoProcesadoSchema
+    ArchivoProcesadoSchema,
+    QualityDashboardStats
 )
 from .task_schemas import FileTaskPayload, EvaluationTaskPayload
 from .common_schemas import GenerateUploadURLRequest
@@ -38,6 +39,7 @@ __all__ = [
     'EvaluacionDetailSchema',
     'ResultadoAnalisisSchema',
     'ArchivoProcesadoSchema',
+    'QualityDashboardStats',
 
     # Usuarios
     'UsuarioCreate',

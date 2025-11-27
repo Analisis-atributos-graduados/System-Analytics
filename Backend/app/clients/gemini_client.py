@@ -6,19 +6,61 @@ import google.generativeai as genai
 log = logging.getLogger(__name__)
 
 
+import logging
+import os
+from typing import List, Dict, Optional
+import google.generativeai as genai
+from google.cloud import secretmanager
+
+log = logging.getLogger(__name__)
+
+
 class GeminiClient:
     """Cliente para interactuar con la API de Gemini para análisis de imágenes."""
 
     def __init__(self):
-        api_key = os.environ.get("GEMINI_API_KEY")
+        api_key = self._get_api_key()
+        
         if not api_key:
-            log.warning("GEMINI_API_KEY no configurada")
-
-        genai.configure(api_key=api_key)
+            log.warning("GEMINI_API_KEY no configurada. El cliente de Gemini no funcionará.")
+            # Configurar con clave vacía para evitar que la app se caiga al inicio
+            genai.configure(api_key="DUMMY_KEY_FOR_INITIALIZATION")
+        else:
+            genai.configure(api_key=api_key)
 
         # ✅ CORREGIDO: Sin el prefijo "models/"
         self.model = genai.GenerativeModel('gemini-flash-latest')
         log.info(f"GeminiClient inicializado con modelo {self.model.model_name}")
+
+    def _get_api_key(self) -> Optional[str]:
+        """
+        Obtiene la API key de Gemini de forma segura.
+        1. Intenta desde Google Secret Manager.
+        2. Si falla, intenta desde variables de entorno.
+        """
+        try:
+            # Reemplaza con tu Project ID y Secret ID
+            project_id = os.environ.get("GOOGLE_CLOUD_PROJECT", "evalia-475805")
+            secret_id = "GEMINI_API_KEY"
+            secret_name = f"projects/{project_id}/secrets/{secret_id}/versions/latest"
+
+            client = secretmanager.SecretManagerServiceClient()
+            response = client.access_secret_version(request={"name": secret_name})
+            
+            key = response.payload.data.decode("UTF-8")
+            log.info("✅ Clave de API de Gemini cargada desde Secret Manager.")
+            return key
+        except Exception as e:
+            log.warning(f"No se pudo cargar la clave desde Secret Manager: {e}. Intentando desde variable de entorno...")
+            
+            # Fallback a variable de entorno
+            api_key = os.environ.get("GEMINI_API_KEY")
+            if api_key:
+                log.info("✅ Clave de API de Gemini cargada desde variable de entorno.")
+                return api_key
+            
+            log.error("❌ No se encontró la clave de API de Gemini ni en Secret Manager ni en variables de entorno.")
+            return None
 
     def analyze_images(
             self,

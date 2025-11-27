@@ -485,6 +485,7 @@ export class UploadView {
                 pdf_files: uploadedFiles,
                 student_list: this.studentList.trim(),
                 rubrica_id: this.courseData.rubrica_id,
+                curso_id: this.courseData.curso_id, // ✅ AGREGADO: ID del curso
                 nombre_curso: this.courseData.courseName,
                 codigo_curso: this.courseData.courseCode,
                 instructor: this.courseData.instructor,

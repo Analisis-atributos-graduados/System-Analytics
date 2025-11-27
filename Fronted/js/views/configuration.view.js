@@ -80,9 +80,11 @@ export class ConfigurationView {
         }
     }
 
-    render() {
+    async render() {
         const steps = ['Información del curso', 'Detalles del tema', 'Configuración de rúbrica'];
         const stepIndicator = new StepIndicatorComponent(steps, this.currentStep);
+
+        const stepContent = await this.renderStep();
 
         return `
             <div class="page-title">
@@ -97,7 +99,7 @@ export class ConfigurationView {
                     <h3>${steps[this.currentStep]}</h3>
                 </div>
                 <div class="card-body">
-                    ${this.renderStep()}
+                    ${stepContent}
                 </div>
                 <div class="card-footer">
                     ${this.renderFooter()}
@@ -106,29 +108,63 @@ export class ConfigurationView {
         `;
     }
 
-    renderStep() {
+    async renderStep() {
         switch (this.currentStep) {
-            case 0: return this.renderStep1();
+            case 0: return await this.renderStep1();
             case 1: return this.renderStep2();
             case 2: return this.renderStep3();
             default: return '';
         }
     }
 
-    renderStep1() {
+    async renderStep1() {
         const user = AuthService.getCurrentUser();
+        let courses = [];
+        try {
+            // ✅ Cargar cursos habilitados desde el backend
+            const CursoService = (await import('../services/curso.service.js')).CursoService;
+            courses = await CursoService.getEnabled();
+        } catch (error) {
+            console.error('Error cargando cursos:', error);
+            showErrorNotification('No se pudieron cargar los cursos. Usando lista local.');
+            // Fallback local si falla el backend
+            courses = [
+                { id: 0, nombre: 'Cálculo Avanzado', codigo: 'MAT301' },
+                { id: 0, nombre: 'Física II', codigo: 'FIS202' }
+            ];
+        }
+
+        // Si courses viene vacío o nulo
+        if (!courses) courses = [];
+
+        // Mapear a formato simple si es necesario, pero el backend devuelve objetos completos
+        // El select value será el ID del curso ahora, no el nombre
+        // Pero espera, el backend espera curso_id.
+        // Debemos guardar curso_id en configData.
+
+        // Generar HTML del select
+        const options = courses.map(c => `
+            <option value="${c.id}" 
+                ${this.configData.curso_id == c.id ? 'selected' : ''}
+                data-codigo="${c.codigo || ''}">
+                ${c.nombre}
+            </option>
+        `).join('');
 
         return `
             <div class="form-group">
                 <label for="courseName">Nombre del curso *</label>
-                <input type="text" id="courseName" value="${this.configData.courseName || ''}" 
-                       placeholder="Ej: Cálculo Avanzado" required>
+                <select id="courseName" required class="form-control">
+                    <option value="">-- Selecciona un curso --</option>
+                    ${options}
+                </select>
             </div>
 
             <div class="form-group">
                 <label for="courseCode">Código del curso *</label>
                 <input type="text" id="courseCode" value="${this.configData.courseCode || ''}" 
-                       placeholder="Ej: CA-301" required>
+                       placeholder="Ej: 1234 o 12345" pattern="[0-9]{4,5}" maxlength="5" required>
+                <small class="text-muted">Ingrese un código numérico de 4 a 5 dígitos</small>
             </div>
 
             <div class="form-group">
@@ -479,15 +515,34 @@ export class ConfigurationView {
         if (btnNext) btnNext.addEventListener('click', () => this.nextStep());
         if (btnFinish) btnFinish.addEventListener('click', () => this.finish());
 
-        // ✅ Sanitización para Step 1: Nombre del curso
+        // ✅ Sanitización y Lógica para Step 1: Nombre del curso
         if (this.currentStep === 0) {
-            const courseName = document.getElementById('courseName');
-            if (courseName) {
-                courseName.addEventListener('input', (e) => {
-                    const sanitized = ValidatorUtils.sanitizeText(e.target.value, true);
-                    if (e.target.value !== sanitized) {
-                        e.target.value = sanitized;
+            const courseSelect = document.getElementById('courseName');
+            const courseCodeInput = document.getElementById('courseCode');
+
+            if (courseSelect) {
+                courseSelect.addEventListener('change', (e) => {
+                    const selectedOption = e.target.options[e.target.selectedIndex];
+                    const cursoId = selectedOption.value;
+                    const nombre = selectedOption.text;
+                    const codigo = selectedOption.dataset.codigo || '';
+
+                    if (cursoId) {
+                        this.configData.curso_id = parseInt(cursoId);
+                        this.configData.courseName = nombre; // Mantener para compatibilidad visual si se necesita
+                        this.configData.courseCode = codigo;
+
+                        if (courseCodeInput) {
+                            courseCodeInput.value = codigo;
+                        }
+                    } else {
+                        this.configData.curso_id = null;
+                        this.configData.courseName = '';
+                        this.configData.courseCode = '';
+                        if (courseCodeInput) courseCodeInput.value = '';
                     }
+
+                    this.saveConfig();
                 });
             }
         }
@@ -875,12 +930,12 @@ export class ConfigurationView {
         if (pesoStatusEl) pesoStatusEl.textContent = total === 100 ? '✅' : '⚠️';
     }
 
-    reRender() {
+    async reRender() {
         console.log('🔄 Re-renderizando vista...');
 
         const container = document.getElementById('main-content');
         if (container) {
-            container.innerHTML = this.render();
+            container.innerHTML = await this.render();
             this.attachEventListeners();
             console.log('✅ Vista re-renderizada');
         }
@@ -899,7 +954,12 @@ export class ConfigurationView {
 
         // Guardar datos del paso actual
         if (this.currentStep === 0) {
-            this.configData.courseName = document.getElementById('courseName')?.value;
+            // ✅ CORREGIDO: Obtener el TEXTO del curso, no el valor (ID)
+            const courseSelect = document.getElementById('courseName');
+            if (courseSelect && courseSelect.selectedIndex > 0) {
+                this.configData.courseName = courseSelect.options[courseSelect.selectedIndex].text;
+            }
+
             this.configData.courseCode = document.getElementById('courseCode')?.value;
             this.configData.instructor = document.getElementById('instructor')?.value;
             this.configData.semestre = document.getElementById('semestre')?.value;
@@ -915,10 +975,10 @@ export class ConfigurationView {
 
     validateCurrentStep() {
         if (this.currentStep === 0) {
-            // Validar Nombre del Curso
+            // Validar que se haya seleccionado un curso
             const courseName = document.getElementById('courseName');
-            if (!ValidatorUtils.isValidDescription(courseName?.value)) {
-                showErrorNotification(new Error('Nombre del curso inválido: solo letras y puntuación básica, sin números ni símbolos'));
+            if (!courseName?.value) {
+                showErrorNotification(new Error('Debe seleccionar un curso'));
                 courseName?.focus();
                 return false;
             }
@@ -926,7 +986,7 @@ export class ConfigurationView {
             // Validar Código del Curso
             const courseCode = document.getElementById('courseCode');
             if (!ValidatorUtils.isValidCourseCode(courseCode?.value)) {
-                showErrorNotification(new Error('Código de curso inválido (ej: CA-301)'));
+                showErrorNotification(new Error('Código de curso inválido: debe ser un número de 4 a 5 dígitos'));
                 courseCode?.focus();
                 return false;
             }
@@ -974,6 +1034,8 @@ export class ConfigurationView {
     }
 
     async finish() {
+        const btnFinish = document.getElementById('btnFinish');
+
         try {
             const rubricOption = document.querySelector('input[name="rubricOption"]:checked');
 
@@ -1061,6 +1123,12 @@ export class ConfigurationView {
                     return;
                 }
 
+                // ✅ Todas las validaciones pasaron - AHORA bloquear el botón
+                if (btnFinish) {
+                    btnFinish.disabled = true;
+                    btnFinish.innerHTML = '⏳ Procesando...';
+                }
+
                 // Guardar rúbrica si está marcado
                 const saveRubric = document.getElementById('saveRubric');
                 if (saveRubric && saveRubric.checked) {
@@ -1071,9 +1139,20 @@ export class ConfigurationView {
                     } catch (error) {
                         console.error('Error guardando rúbrica:', error);
                         showErrorNotification(error);
+                        // Reabilitar botón en caso de error
+                        if (btnFinish) {
+                            btnFinish.disabled = false;
+                            btnFinish.innerHTML = '✅ Finalizar configuración';
+                        }
                         return;
                     }
                 }
+            }
+
+            // ✅ Si usó rúbrica existente, también bloquear aquí
+            if (btnFinish && !btnFinish.disabled) {
+                btnFinish.disabled = true;
+                btnFinish.innerHTML = '⏳ Procesando...';
             }
 
             this.saveConfig();
@@ -1087,6 +1166,11 @@ export class ConfigurationView {
         } catch (error) {
             console.error('Error en finish:', error);
             showErrorNotification(error);
+            // Reabilitar botón en caso de error
+            if (btnFinish) {
+                btnFinish.disabled = false;
+                btnFinish.innerHTML = '✅ Finalizar configuración';
+            }
         }
     }
 

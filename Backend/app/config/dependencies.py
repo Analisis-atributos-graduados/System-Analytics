@@ -9,7 +9,8 @@ from app.repositories import (
     RubricaRepository,
     EvaluacionRepository,
     ArchivoRepository,
-    ResultadoRepository
+    ResultadoRepository,
+    CursoRepository
 )
 from app.middleware import FirebaseAuth
 
@@ -111,9 +112,11 @@ def get_orchestrator_service(
 ) -> OrchestratorService:
     evaluacion_repo = EvaluacionRepository(db)
     rubrica_repo = RubricaRepository(db)
+    curso_repo = CursoRepository(db)
     return OrchestratorService(
         evaluacion_repo=evaluacion_repo,
         rubrica_repo=rubrica_repo,
+        curso_repo=curso_repo,
         gcs_client=gcs_client,
         task_service=task_service,
         ocr_client=ocr_client,

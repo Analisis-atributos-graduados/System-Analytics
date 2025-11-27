@@ -126,6 +126,8 @@ class ExtractionService:
             # Detectar si tiene texto extraíble
             has_text = self.text_extractor.detect_has_extractable_text(file_bytes, file_extension)
 
+            log.warning(f"DEBUG: has_text={has_text}, extension={file_extension}")
+
             if has_text:
                 log.info("Archivo con texto extraíble, extrayendo directamente")
                 if file_extension.lower() == '.pdf':
@@ -137,6 +139,7 @@ class ExtractionService:
                     return None
             else:
                 # Necesita OCR (exámenes manuscritos)
+                log.warning("DEBUG: Entrando a bloque OCR")
                 log.info("Archivo sin texto extraíble, usando OCR")
                 
                 if file_extension.lower() == '.pdf':

@@ -5,7 +5,7 @@ from PyPDF2 import PdfReader, PdfWriter
 import io
 import fitz  # PyMuPDF
 
-from app.repositories import EvaluacionRepository, RubricaRepository
+from app.repositories import EvaluacionRepository, RubricaRepository, CursoRepository
 from app.clients import GCSClient, TaskClient, RapidAPIClient
 from app.extractors import StudentNameMatcher
 from .task_service import TaskService
@@ -21,6 +21,7 @@ class OrchestratorService:
             self,
             evaluacion_repo: EvaluacionRepository,
             rubrica_repo: RubricaRepository,
+            curso_repo: CursoRepository,  # ✅ Inyectar CursoRepository
             gcs_client: GCSClient,
             task_service: TaskService,
             ocr_client: RapidAPIClient,
@@ -28,6 +29,7 @@ class OrchestratorService:
     ):
         self.evaluacion_repo = evaluacion_repo
         self.rubrica_repo = rubrica_repo
+        self.curso_repo = curso_repo  # ✅ Guardar repo
         self.gcs_client = gcs_client
         self.task_service = task_service
         self.ocr_client = ocr_client
@@ -39,7 +41,7 @@ class OrchestratorService:
             rubrica_id: int,
             pdf_files: List[Dict],
             student_list: str,
-            nombre_curso: str,
+            curso_id: int,  # ✅ CAMBIO: curso_id en lugar de nombre_curso
             codigo_curso: str,
             instructor: str,
             semestre: str,
@@ -52,7 +54,7 @@ class OrchestratorService:
         Valida que la rúbrica exista y pertenezca al profesor.
         """
         try:
-            log.info(f"Iniciando procesamiento: profesor_id={profesor_id}, rubrica_id={rubrica_id}")
+            log.info(f"Iniciando procesamiento: profesor_id={profesor_id}, rubrica_id={rubrica_id}, curso_id={curso_id}")
 
             # Validar rúbrica
             rubrica = self.rubrica_repo.get_by_id(rubrica_id)
@@ -65,7 +67,13 @@ class OrchestratorService:
             if not rubrica.activo:
                 raise ValueError(f"La rúbrica {rubrica_id} está inactiva")
 
+            # ✅ Validar curso
+            curso = self.curso_repo.get_by_id(curso_id)
+            if not curso:
+                raise ValueError(f"Curso {curso_id} no encontrado")
+
             log.info(f"Rúbrica validada: {rubrica.nombre_rubrica}")
+            log.info(f"Curso validado: {curso.nombre}")
 
             # Parsear lista de estudiantes
             students = [s.strip() for s in student_list.strip().split('\n') if s.strip()]
@@ -78,7 +86,7 @@ class OrchestratorService:
                     rubrica_id=rubrica_id,
                     pdf_files=pdf_files,
                     students=students,
-                    nombre_curso=nombre_curso,
+                    curso_id=curso_id,  # ✅ Pasar ID
                     codigo_curso=codigo_curso,
                     instructor=instructor,
                     semestre=semestre,
@@ -91,7 +99,7 @@ class OrchestratorService:
                     rubrica_id=rubrica_id,
                     pdf_files=pdf_files,
                     students=students,
-                    nombre_curso=nombre_curso,
+                    curso_id=curso_id,  # ✅ Pasar ID
                     codigo_curso=codigo_curso,
                     instructor=instructor,
                     semestre=semestre,
@@ -110,7 +118,7 @@ class OrchestratorService:
             rubrica_id: int,
             pdf_files: List[Dict],
             students: List[str],
-            nombre_curso: str,
+            curso_id: int,  # ✅ Recibir ID
             codigo_curso: str,
             instructor: str,
             semestre: str,
@@ -119,18 +127,11 @@ class OrchestratorService:
     ) -> Dict:
         """
         Procesa exámenes manuscritos con lógica compleja de caras intercaladas.
-        
-        Lógica:
-        1. Recibe N archivos PDF, uno por cada 'cara' (página) del examen para TODOS los alumnos.
-           Ej: cara_1.pdf (pág 1 de todos), cara_2.pdf (pág 2 de todos).
-        2. Caras IMPARES (1, 3...) están en orden normal (Alumno A, B, C...).
-        3. Caras PARES (2, 4...) están en orden INVERSO (Alumno C, B, A...).
-        4. Identificación: Se usa OCR (RapidAPI) en las páginas de cara_1.pdf para encontrar el nombre del alumno.
         """
         try:
             log.info("Procesando exámenes manuscritos (Lógica Multi-Cara)...")
 
-            # 1. Ordenar archivos por número de cara (cara_1, cara_2, etc.)
+            # ... (código de ordenamiento de archivos igual) ...
             import re
             
             def get_face_number(filename):
@@ -142,18 +143,15 @@ class OrchestratorService:
             if not sorted_files:
                 raise ValueError("No se recibieron archivos válidos (deben llamarse 'cara_X.pdf')")
 
-            log.info(f"Archivos ordenados: {[f['original_filename'] for f in sorted_files]}")
-
-            # 2. Descargar y abrir todos los PDFs
-            face_pdfs = [] # Lista de objetos PdfReader
-            face_images = [] # Lista de documentos fitz (para OCR)
+            # ... (código de descarga de PDFs igual) ...
+            face_pdfs = [] 
+            face_images = [] 
             
             for f in sorted_files:
                 pdf_bytes = self.gcs_client.download_blob(f['gcs_filename'])
                 face_pdfs.append(PdfReader(io.BytesIO(pdf_bytes)))
                 face_images.append(fitz.open(stream=pdf_bytes, filetype="pdf"))
 
-            # Validar que cara_1 existe
             if get_face_number(sorted_files[0]['original_filename']) != 1:
                 raise ValueError("Falta el archivo de la primera cara (cara_1.pdf)")
 
@@ -162,15 +160,12 @@ class OrchestratorService:
 
             evaluaciones_creadas = []
 
-            # 3. Iterar sobre los índices del lote (0 a N-1)
-            # Usamos cara_1 para identificar al alumno
             for i in range(num_students_in_batch):
-                # Extraer imagen de la página i de cara_1 para OCR
+                # ... (código de OCR igual) ...
                 page_img = face_images[0].load_page(i)
                 pix = page_img.get_pixmap()
                 img_bytes = pix.tobytes("png")
                 
-                # Identificar alumno con OCR + Fuzzy Match
                 texto_ocr = self.ocr_client.ocr_image(img_bytes)
                 
                 nombre_alumno = "UNKNOWN"
@@ -190,7 +185,7 @@ class OrchestratorService:
                     profesor_id=profesor_id,
                     rubrica_id=rubrica_id,
                     nombre_alumno=nombre_alumno,
-                    nombre_curso=nombre_curso,
+                    curso_id=curso_id,  # ✅ Usar ID
                     codigo_curso=codigo_curso,
                     instructor=instructor,
                     semestre=semestre,
@@ -201,15 +196,12 @@ class OrchestratorService:
                 )
                 evaluacion = self.evaluacion_repo.create(evaluacion)
 
+                # ... (resto de lógica igual) ...
                 # 5. Reconstruir PDF del estudiante (Sandwich Logic)
                 writer = PdfWriter()
                 
                 for face_idx, pdf_reader in enumerate(face_pdfs):
                     face_num = face_idx + 1
-                    
-                    # Lógica de inversión:
-                    # Impares (1, 3...): Orden normal -> índice i
-                    # Pares (2, 4...): Orden inverso -> índice (Total - 1 - i)
                     
                     if face_num % 2 != 0: # Impar
                         target_page_idx = i
@@ -262,7 +254,7 @@ class OrchestratorService:
             rubrica_id: int,
             pdf_files: List[Dict],
             students: List[str],
-            nombre_curso: str,
+            curso_id: int,  # ✅ Recibir ID
             codigo_curso: str,
             instructor: str,
             semestre: str,
@@ -289,7 +281,7 @@ class OrchestratorService:
                     profesor_id=profesor_id,
                     rubrica_id=rubrica_id,
                     nombre_alumno=nombre_alumno,
-                    nombre_curso=nombre_curso,
+                    curso_id=curso_id,  # ✅ Usar ID
                     codigo_curso=codigo_curso,
                     instructor=instructor,
                     semestre=semestre,

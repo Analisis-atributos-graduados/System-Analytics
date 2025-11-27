@@ -1,7 +1,7 @@
 import DocumentService from '../services/document.service.js';
 import FiltrosService from '../services/filtros.service.js';
 import AuthService from '../services/auth.service.js';
-import { showErrorNotification } from '../utils/api.utils.js';
+import { showErrorNotification, showSuccessNotification } from '../utils/api.utils.js';
 
 export class AnalysisView {
     constructor(router) {
@@ -67,17 +67,14 @@ export class AnalysisView {
     async loadSpecificEvaluation(evaluacionId) {
         try {
             this.isLoading = true;
-            this.isAnalyzing = false;
+            this.isAnalyzing = false; // Manejo más granular ahora
+            this.updateView();
 
-            // Detener polling anterior si existe
             if (this.pollingInterval) {
                 clearInterval(this.pollingInterval);
                 this.pollingInterval = null;
             }
 
-            this.updateView();
-
-            // 1. Obtener detalles de la evaluación
             const evaluacion = await DocumentService.getEvaluacion(evaluacionId);
 
             if (!evaluacion) {
@@ -86,23 +83,11 @@ export class AnalysisView {
 
             console.log('✅ Evaluación cargada:', evaluacion);
 
-            // Verificar si está en proceso (nota 0, null o undefined)
-            const nota = Number(evaluacion.nota);
-            if (!evaluacion.nota || isNaN(nota) || nota === 0) {
-                console.log('⏳ Evaluación en proceso (nota 0/null). Iniciando polling...');
-                this.isLoading = false;
-                this.isAnalyzing = true;
-                this.updateView();
-                this.startPolling(evaluacionId);
-                return;
-            }
-
-            // 2. Establecer filtros
+            // 1. Establecer filtros y cargar listas de filtros INMEDIATAMENTE
             this.filters.semestre = evaluacion.semestre;
-            this.filters.curso = evaluacion.codigo_curso; // Asumiendo que viene este campo
+            this.filters.curso = evaluacion.codigo_curso;
             this.filters.tema = evaluacion.tema;
 
-            // 3. Cargar listas de filtros para que los selectores funcionen
             this.availableFilters.semestres = await FiltrosService.getSemestres();
             if (this.filters.semestre) {
                 this.availableFilters.cursos = await FiltrosService.getCursos(this.filters.semestre);
@@ -111,13 +96,21 @@ export class AnalysisView {
                 this.availableFilters.temas = await FiltrosService.getTemas(this.filters.semestre, this.filters.curso);
             }
 
-            // 4. Cargar dashboard directamente
+            // 2. Cargar el dashboard (incluso si está vacío o pendiente)
+            // Esto renderizará la estructura y los filtros seleccionados.
             await this.viewThemeDashboard(this.filters.tema);
+
+            // 3. Verificar si la evaluación está completa y, si no, iniciar polling.
+            const nota = evaluacion.resultado_analisis ? Number(evaluacion.resultado_analisis.nota_final) : 0;
+            if (!evaluacion.resultado_analisis || isNaN(nota) || nota === 0) {
+                console.log('⏳ Evaluación en proceso. Los resultados se actualizarán automáticamente.');
+                showSuccessNotification('Análisis en curso... El dashboard se actualizará automáticamente.');
+                this.startPolling(evaluacionId); // El polling refrescará cuando esté listo.
+            }
 
         } catch (error) {
             console.error('Error cargando evaluación específica:', error);
             showErrorNotification('No se pudo cargar la evaluación solicitada');
-            // Fallback a carga normal
             const semestres = await FiltrosService.getSemestres();
             this.availableFilters.semestres = semestres;
             this.isLoading = false;
@@ -130,11 +123,36 @@ export class AnalysisView {
 
         try {
             const cursos = await FiltrosService.getCursos(this.filters.semestre);
-            this.availableFilters.cursos = cursos;
 
-            if (cursos.length === 1) {
-                this.filters.curso = cursos[0].codigo;
-                await this.loadTemas();
+            // ✅ Lógica específica para Área de Calidad: Agrupar por nombre
+            const user = AuthService.getCurrentUser();
+            if (user && user.rol === 'AREA_CALIDAD') {
+                // Deduplicar por nombre
+                const uniqueCursos = [];
+                const seenNames = new Set();
+
+                cursos.forEach(c => {
+                    if (!seenNames.has(c.nombre)) {
+                        seenNames.add(c.nombre);
+                        uniqueCursos.push({
+                            codigo: c.nombre, // Usamos el nombre como identificador
+                            nombre: c.nombre
+                        });
+                    }
+                });
+                this.availableFilters.cursos = uniqueCursos;
+            } else {
+                this.availableFilters.cursos = cursos;
+            }
+
+            if (this.availableFilters.cursos.length === 1) {
+                this.filters.curso = this.availableFilters.cursos[0].codigo;
+                // Si es calidad, cargamos dashboard directo, si no, cargamos temas
+                if (user && user.rol === 'AREA_CALIDAD') {
+                    await this.viewQualityDashboard(this.filters.curso);
+                } else {
+                    await this.loadTemas();
+                }
             }
         } catch (error) {
             console.error('Error cargando cursos:', error);
@@ -157,6 +175,7 @@ export class AnalysisView {
 
     render() {
         const user = AuthService.getCurrentUser();
+        const isQualityArea = user && user.rol === 'AREA_CALIDAD';
 
         return `
             <div class="page-title">
@@ -190,7 +209,7 @@ export class AnalysisView {
                             <option value="">Seleccionar curso</option>
                             ${this.availableFilters.cursos.map(c => `
                                 <option value="${c.codigo}" ${this.filters.curso === c.codigo ? 'selected' : ''}>
-                                    ${c.codigo} - ${c.nombre}
+                                    ${isQualityArea ? c.nombre : `${c.codigo} - ${c.nombre}`}
                                 </option>
                             `).join('')}
                         </select>
@@ -226,6 +245,25 @@ export class AnalysisView {
             `;
         }
 
+        // ✅ Detectar rol del usuario
+        const user = AuthService.getCurrentUser();
+        const isQualityArea = user && user.rol === 'AREA_CALIDAD';
+
+        // ✅ Dashboard del Área de Calidad (agregado)
+        if (isQualityArea) {
+            if (!this.filters.curso) {
+                return `
+                    <div class="empty-state">
+                        <div class="empty-icon">👆</div>
+                        <h3>Selecciona un curso</h3>
+                        <p>Para ver el rendimiento agregado (todos los códigos/secciones).</p>
+                    </div>
+                `;
+            }
+            return this.renderQualityDashboard();
+        }
+
+        // ✅ Dashboard del Profesor (individual)
         if (!this.filters.curso) {
             return `
                 <div class="empty-state">
@@ -243,6 +281,145 @@ export class AnalysisView {
 
         // Si hay tema seleccionado, mostrar Dashboard
         return this.renderDashboard();
+    }
+
+    // =========================================
+    // DASHBOARD DEL ÁREA DE CALIDAD
+    // =========================================
+
+    renderQualityDashboard() {
+        if (!this.dashboardStats) return '';
+
+        const stats = this.dashboardStats;
+
+        return `
+            <div class="quality-dashboard">
+                <!-- Header informativo -->
+                <div class="dashboard-header">
+                    <h3 class="section-title">📊 Dashboard de Calidad - ${this.filters.curso}</h3>
+                    <p class="section-subtitle">Vista agregada de rendimiento académico (AG-07)</p>
+                </div>
+
+                <!-- Grid de métricas -->
+                <div class="dashboard-grid">
+                    ${this.renderStudentCountCard(stats.total_alumnos)}
+                    ${this.renderPerformanceDistribution(stats.criterios)}
+                    ${this.renderCriteriaTable(stats.criterios)}
+                    ${this.renderAchievementIndicator(stats.porcentaje_logro)}
+                </div>
+            </div>
+        `;
+    }
+
+    renderStudentCountCard(total) {
+        return `
+            <div class="metric-card">
+                <div class="metric-icon">👥</div>
+                <div class="metric-value">${total}</div>
+                <div class="metric-label">Total de alumnos evaluados</div>
+                <p class="metric-note">Suma de todos los códigos/secciones del curso</p>
+            </div>
+        `;
+    }
+
+    renderPerformanceDistribution(criterios) {
+        // Asumimos que viene un solo criterio AG-07 o tomamos el primero
+        const c = criterios[0] || { excelente: 0, bueno: 0, requiereMejora: 0, noAceptable: 0 };
+
+        const total = c.excelente + c.bueno + c.requiereMejora + c.noAceptable;
+        const porcentajes = {
+            excelente: total > 0 ? (c.excelente / total) * 100 : 0,
+            bueno: total > 0 ? (c.bueno / total) * 100 : 0,
+            requiereMejora: total > 0 ? (c.requiereMejora / total) * 100 : 0,
+            noAceptable: total > 0 ? (c.noAceptable / total) * 100 : 0
+        };
+
+        return `
+            <div class="metric-card distribution-card">
+                <h4 class="card-title">📈 Distribución de Desempeño</h4>
+                <div class="distribution-bars">
+                    <div class="distribution-row">
+                        <span class="dist-label">Excelente (16-20)</span>
+                        <div class="dist-bar">
+                            <div class="dist-fill excelente" style="width: ${porcentajes.excelente}%"></div>
+                        </div>
+                        <span class="dist-value">${porcentajes.excelente.toFixed(1)}%</span>
+                    </div>
+                    <div class="distribution-row">
+                        <span class="dist-label">Bueno (11-15)</span>
+                        <div class="dist-bar">
+                            <div class="dist-fill bueno" style="width: ${porcentajes.bueno}%"></div>
+                        </div>
+                        <span class="dist-value">${porcentajes.bueno.toFixed(1)}%</span>
+                    </div>
+                    <div class="distribution-row">
+                        <span class="dist-label">Req. Mejora (6-10)</span>
+                        <div class="dist-bar">
+                            <div class="dist-fill mejora" style="width: ${porcentajes.requiereMejora}%"></div>
+                        </div>
+                        <span class="dist-value">${porcentajes.requiereMejora.toFixed(1)}%</span>
+                    </div>
+                    <div class="distribution-row">
+                        <span class="dist-label">No Aceptable (0-5)</span>
+                        <div class="dist-bar">
+                            <div class="dist-fill no-aceptable" style="width: ${porcentajes.noAceptable}%"></div>
+                        </div>
+                        <span class="dist-value">${porcentajes.noAceptable.toFixed(1)}%</span>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    renderCriteriaTable(criterios) {
+        return `
+            <div class="metric-card criteria-table-card">
+                <h4 class="card-title">📋 Rendimiento por Atributo</h4>
+                <div class="table-responsive">
+                    <table class="criteria-table">
+                        <thead>
+                            <tr>
+                                <th>Atributo</th>
+                                <th>Excelente (16-20)</th>
+                                <th>Bueno (11-15)</th>
+                                <th>Req. Mejora (6-10)</th>
+                                <th>No Aceptable (0-5)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${criterios.map(c => `
+                                <tr>
+                                    <td class="criteria-code">${c.codigo}</td>
+                                    <td class="value-excelente">${c.excelente}</td>
+                                    <td class="value-bueno">${c.bueno}</td>
+                                    <td class="value-mejora">${c.requiereMejora}</td>
+                                    <td class="value-no-aceptable">${c.noAceptable}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        `;
+    }
+
+    renderAchievementIndicator(porcentaje) {
+        return `
+            <div class="metric-card achievement-card">
+                <h4 class="card-title">🎯 Porcentaje de Logro</h4>
+                <div class="achievement-circle">
+                    <div class="achievement-value">${porcentaje}%</div>
+                </div>
+                <div class="achievement-bar-container">
+                    <div class="achievement-bar">
+                        <div class="achievement-fill" style="width: ${porcentaje}%"></div>
+                    </div>
+                </div>
+                <div class="achievement-label">
+                    Estudiantes con nivel Excelente o Bueno
+                </div>
+            </div>
+        `;
     }
 
     renderThemesList() {
@@ -437,8 +614,20 @@ export class AnalysisView {
                 this.filters.curso = e.target.value || null;
                 this.filters.tema = null;
                 this.availableFilters.temas = [];
-                if (this.filters.curso) await this.loadTemas();
-                this.updateView();
+
+                const user = AuthService.getCurrentUser();
+                if (user && user.rol === 'AREA_CALIDAD') {
+                    // Si es calidad, cargamos dashboard directo
+                    if (this.filters.curso) {
+                        await this.viewQualityDashboard(this.filters.curso);
+                    } else {
+                        this.updateView();
+                    }
+                } else {
+                    // Si es profesor, cargamos temas
+                    if (this.filters.curso) await this.loadTemas();
+                    this.updateView();
+                }
             });
         }
 
@@ -485,6 +674,27 @@ export class AnalysisView {
         }
     }
 
+    async viewQualityDashboard(curso) {
+        this.filters.curso = curso;
+        this.isLoading = true;
+        this.updateView();
+
+        try {
+            const stats = await DocumentService.getQualityDashboardStats({
+                semestre: this.filters.semestre,
+                curso: curso
+            });
+            this.dashboardStats = stats;
+        } catch (error) {
+            console.error('Error loading quality dashboard:', error);
+            showErrorNotification(error);
+            this.filters.curso = null;
+        } finally {
+            this.isLoading = false;
+            this.updateView();
+        }
+    }
+
     async downloadTranscriptions() {
         try {
             // Mostrar indicador de carga en el botón si fuera necesario
@@ -502,9 +712,10 @@ export class AnalysisView {
             attempts++;
             try {
                 const evaluacion = await DocumentService.getEvaluacion(evaluacionId);
-                console.log(`🔄 Polling intento ${attempts}: Nota ${evaluacion.nota}`);
+                const nota = evaluacion.resultado_analisis ? Number(evaluacion.resultado_analisis.nota_final) : 0;
+                console.log(`🔄 Polling intento ${attempts}: Nota ${nota}`);
 
-                if (evaluacion.nota > 0) {
+                if (nota > 0) {
                     // Evaluación completada
                     clearInterval(this.pollingInterval);
                     this.pollingInterval = null;

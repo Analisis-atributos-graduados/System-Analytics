@@ -1,6 +1,6 @@
 from sqlalchemy import Column, Integer, Float, Text, DateTime, ForeignKey, JSON
 from sqlalchemy.orm import relationship
-from app.models.database import Base
+from app.config.database import Base
 
 class ResultadoAnalisis(Base):
     """

@@ -1,7 +1,8 @@
 import logging
 from typing import List, Optional
+from sqlalchemy import or_
 from sqlalchemy.orm import Session, joinedload
-from app.models import Evaluacion
+from app.models import Evaluacion, Curso
 from app.repositories.base_repository import BaseRepository
 
 log = logging.getLogger(__name__)
@@ -20,6 +21,7 @@ class EvaluacionRepository(BaseRepository):
         try:
             return (
                 self.db.query(Evaluacion)
+                .options(joinedload(Evaluacion.curso))  # ✅ Cargar curso
                 .filter(Evaluacion.profesor_id == profesor_id)
                 .order_by(Evaluacion.id.desc())
                 .all()
@@ -28,12 +30,12 @@ class EvaluacionRepository(BaseRepository):
             log.error(f"Error al obtener evaluaciones del profesor {profesor_id}: {e}")
             raise
 
-    # ✅ MÉTODO AGREGADO
     def get_all(self) -> List[Evaluacion]:
         """Obtiene todas las evaluaciones (para AREA_CALIDAD)."""
         try:
             return (
                 self.db.query(Evaluacion)
+                .options(joinedload(Evaluacion.curso))  # ✅ Cargar curso
                 .order_by(Evaluacion.id.desc())
                 .all()
             )
@@ -48,7 +50,8 @@ class EvaluacionRepository(BaseRepository):
                 self.db.query(Evaluacion)
                 .options(
                     joinedload(Evaluacion.resultado_analisis),
-                    joinedload(Evaluacion.archivos_procesados)
+                    joinedload(Evaluacion.archivos_procesados),
+                    joinedload(Evaluacion.curso)  # ✅ Cargar curso
                 )
                 .filter(Evaluacion.id == evaluacion_id)
                 .first()
@@ -64,7 +67,6 @@ class EvaluacionRepository(BaseRepository):
         """
         return self.get_with_resultados(evaluacion_id)
 
-    # ✅ MÉTODO AGREGADO PARA DASHBOARD
     def get_by_filters(self, semestre: str = None, curso: str = None, tema: str = None, profesor_id: int = None) -> List[Evaluacion]:
         """
         Obtiene evaluaciones filtradas con sus resultados cargados (eager loading).
@@ -72,7 +74,8 @@ class EvaluacionRepository(BaseRepository):
         try:
             query = self.db.query(Evaluacion).options(
                 joinedload(Evaluacion.resultado_analisis),
-                joinedload(Evaluacion.archivos_procesados)
+                joinedload(Evaluacion.archivos_procesados),
+                joinedload(Evaluacion.curso)  # ✅ Cargar curso
             )
 
             if profesor_id:
@@ -80,11 +83,23 @@ class EvaluacionRepository(BaseRepository):
             if semestre:
                 query = query.filter(Evaluacion.semestre == semestre)
             if curso:
-                query = query.filter(Evaluacion.codigo_curso == curso)
+                # Filtrar por código de curso (prioridad) o ID
+                if curso.isdigit():
+                    # Puede ser un ID o un código numérico (ej: "12345")
+                    query = query.filter(
+                        or_(
+                            Evaluacion.curso_id == int(curso),
+                            Evaluacion.codigo_curso == curso
+                        )
+                    )
+                else:
+                    query = query.filter(Evaluacion.codigo_curso == curso)
             if tema:
                 query = query.filter(Evaluacion.tema == tema)
 
-            return query.order_by(Evaluacion.id.desc()).all()
+            results = query.order_by(Evaluacion.id.desc()).all()
+            log.info(f"DEBUG: get_by_filters(semestre={semestre}, curso={curso}, tema={tema}, prof={profesor_id}) -> {len(results)} resultados")
+            return results
         except Exception as e:
             log.error(f"Error al obtener evaluaciones por filtros: {e}")
             raise

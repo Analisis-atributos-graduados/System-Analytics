@@ -82,6 +82,20 @@ class DocumentService {
     }
 
     /**
+     * Obtiene estadísticas del dashboard de calidad (AG-07)
+     */
+    async getQualityDashboardStats(filters) {
+        try {
+            const endpoint = buildURL(getEndpoint('QUALITY_DASHBOARD_STATS'), filters);
+            const stats = await ApiService.get(endpoint);
+            return stats;
+        } catch (error) {
+            console.error('Error getting quality dashboard stats:', error);
+            throw error;
+        }
+    }
+
+    /**
      * Descarga transcripciones
      */
     async downloadTranscriptions(filters) {
@@ -132,6 +146,19 @@ class DocumentService {
             return response;
         } catch (error) {
             console.error('Error enqueuing exam batch:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Obtiene una evaluación por ID
+     */
+    async getEvaluacion(evaluacionId) {
+        try {
+            const endpoint = getEndpoint('EVALUACION_DETAIL', evaluacionId);
+            return await ApiService.get(endpoint);
+        } catch (error) {
+            console.error(`Error getting evaluation ${evaluacionId}:`, error);
             throw error;
         }
     }

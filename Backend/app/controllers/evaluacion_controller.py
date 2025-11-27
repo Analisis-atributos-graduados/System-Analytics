@@ -10,7 +10,8 @@ from app.models import get_db, Usuario, Evaluacion, Criterio
 from app.schemas import (
     EvaluacionSchema,
     EvaluacionDetailSchema,
-    ExamBatchRequest
+    ExamBatchRequest,
+    QualityDashboardStats
 )
 from app.repositories import EvaluacionRepository
 from app.services import OrchestratorService
@@ -213,7 +214,108 @@ async def get_dashboard_stats(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/download-transcriptions")
+@router.get("/quality-dashboard-stats")
+async def get_quality_dashboard_stats(
+    semestre: str = Query(...),
+    curso: Optional[str] = Query(None),
+    current_user: Usuario = Depends(require_role("AREA_CALIDAD")),
+    db: Session = Depends(get_db)
+):
+    """
+    Obtiene estadísticas para el dashboard de calidad (AG-07).
+    Agrega por curso (ignorando secciones) y usa buckets específicos.
+    """
+    try:
+        repo = EvaluacionRepository(db)
+        
+        # 1. Obtener todas las evaluaciones del semestre
+        # Si se especifica curso, intentamos filtrar por nombre si es posible, 
+        # pero como el repo filtra por código/ID, mejor traemos todo y filtramos en memoria
+        # para asegurar la agregación correcta por nombre de curso.
+        evaluaciones = repo.get_by_filters(semestre=semestre)
+        
+        if not evaluaciones:
+            return {
+                "total_alumnos": 0,
+                "porcentaje_logro": 0,
+                "criterios": []
+            }
+
+        # 2. Filtrar por curso (Nombre) si se especifica
+        if curso:
+            # Normalizar para comparación
+            curso_norm = curso.lower().strip()
+            evaluaciones = [
+                e for e in evaluaciones 
+                if e.curso and e.curso.nombre.lower().strip() == curso_norm
+            ]
+
+        if not evaluaciones:
+             return {
+                "total_alumnos": 0,
+                "porcentaje_logro": 0,
+                "criterios": []
+            }
+
+        # 3. Calcular métricas (AG-07)
+        # Buckets: Excelente (16-20), Bueno (11-15), Mejora (6-10), No Aceptable (0-5)
+        buckets = {
+            "excelente": 0,
+            "bueno": 0,
+            "requiereMejora": 0,
+            "noAceptable": 0
+        }
+        
+        total_alumnos = len(evaluaciones)
+        
+        for ev in evaluaciones:
+            if ev.resultado_analisis:
+                nota = ev.resultado_analisis.nota_final
+                if nota >= 16:
+                    buckets["excelente"] += 1
+                elif nota >= 11:
+                    buckets["bueno"] += 1
+                elif nota >= 6:
+                    buckets["requiereMejora"] += 1
+                else:
+                    buckets["noAceptable"] += 1
+            else:
+                # Si no tiene nota (pendiente), cuenta como no aceptable o se ignora?
+                # Asumiremos que solo cuentan los evaluados.
+                # Si queremos ser estrictos: buckets["noAceptable"] += 1
+                # Pero mejor ignoramos los pendientes para no ensuciar la estadística
+                total_alumnos -= 1
+
+        if total_alumnos == 0:
+             return {
+                "total_alumnos": 0,
+                "porcentaje_logro": 0,
+                "criterios": []
+            }
+
+        # Porcentaje de logro: (Excelente + Bueno) / Total
+        logro_count = buckets["excelente"] + buckets["bueno"]
+        porcentaje_logro = (logro_count / total_alumnos) * 100
+
+        # Estructura de respuesta (simulando un criterio único AG-07 por ahora)
+        criterio_stats = {
+            "codigo": "AG-07", # Hardcoded por requerimiento
+            "excelente": buckets["excelente"],
+            "bueno": buckets["bueno"],
+            "requiereMejora": buckets["requiereMejora"],
+            "noAceptable": buckets["noAceptable"]
+        }
+
+        return {
+            "total_alumnos": total_alumnos,
+            "porcentaje_logro": round(porcentaje_logro, 1),
+            "criterios": [criterio_stats]
+        }
+
+    except Exception as e:
+        log.error(f"Error en quality dashboard stats: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 async def download_transcriptions(
     semestre: str = Query(...),
     curso: str = Query(...),
@@ -265,7 +367,9 @@ async def download_transcriptions(
                 c.setFont("Helvetica-Bold", 12)
                 c.drawString(50, height - 50, f"Transcripción - {ev.nombre_alumno}")
                 c.setFont("Helvetica", 10)
-                c.drawString(50, height - 70, f"Curso: {ev.nombre_curso} | Tema: {ev.tema}")
+                # ✅ CORREGIDO: Usar ev.curso.nombre en lugar de ev.nombre_curso
+                nombre_curso = ev.curso.nombre if ev.curso else "Curso Desconocido"
+                c.drawString(50, height - 70, f"Curso: {nombre_curso} | Tema: {ev.tema}")
                 
                 y_position = height - 100
                 
@@ -411,7 +515,7 @@ async def enqueue_exam_batch(
             rubrica_id=request.rubrica_id,
             pdf_files=[f.dict() for f in request.pdf_files],
             student_list=request.student_list,
-            nombre_curso=request.nombre_curso,
+            curso_id=request.curso_id,  # ✅ CAMBIO: curso_id
             codigo_curso=request.codigo_curso,
             instructor=current_user.nombre,
             semestre=request.semestre,

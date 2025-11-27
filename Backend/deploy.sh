@@ -12,7 +12,7 @@ SERVICE_NAME="analitica-backend"
 REGION="us-central1"
 QUEUE_LOCATION="southamerica-east1"
 IMAGE_TAG="$REGION-docker.pkg.dev/$PROJECT_ID/evalia-repo/analitica-backend"
-GEMINI_API_KEY="AIzaSyB9ap8vS0DFVqfeZ6K9P3GTQ5VlrVkUGxo"
+GEMINI_API_KEY="AIzaSyBSEIyFbpwysDEAFsXnEatRP34Bw3Nl4Mw"
 
 echo "Desplegando el servicio $SERVICE_NAME con base de datos Neon..."
 

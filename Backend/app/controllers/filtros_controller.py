@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import distinct
 
-from app.models import get_db, Usuario, Evaluacion
+from app.models import get_db, Usuario, Evaluacion, Curso
 from app.config.dependencies import get_current_user
 from app.repositories import EvaluacionRepository
 
@@ -63,10 +63,11 @@ async def get_cursos(
         # ✅ CORREGIDO: Manejar rol
         rol = str(current_user.rol) if hasattr(current_user.rol, 'value') else current_user.rol
 
+        # ✅ CAMBIO: Join con tabla Curso para obtener el nombre
         query = db.query(
             distinct(Evaluacion.codigo_curso),
-            Evaluacion.nombre_curso
-        ).filter(Evaluacion.semestre == semestre)
+            Curso.nombre
+        ).join(Curso, Evaluacion.curso_id == Curso.id).filter(Evaluacion.semestre == semestre)
 
         if rol == "PROFESOR":
             query = query.filter(Evaluacion.profesor_id == current_user.id)

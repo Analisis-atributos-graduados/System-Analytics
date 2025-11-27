@@ -2,7 +2,7 @@ from sqlalchemy import Column, Integer, String, DateTime, Boolean, Enum
 from sqlalchemy.orm import relationship
 import enum
 
-from .database import Base
+from app.config.database import Base
 
 
 class RolEnum(enum.Enum):

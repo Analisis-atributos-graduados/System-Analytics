@@ -16,6 +16,7 @@ export const API_CONFIG = {
         EVALUACION_DETAIL: (id) => `/evaluaciones/${id}`,
         ENQUEUE_BATCH: '/evaluaciones/enqueue-exam-batch',
         DASHBOARD_STATS: '/evaluaciones/dashboard-stats', // ✅ NUEVO
+        QUALITY_DASHBOARD_STATS: '/evaluaciones/quality-dashboard-stats', // ✅ NUEVO - AG-07
         DOWNLOAD_TRANSCRIPTIONS: '/evaluaciones/download-transcriptions', // ✅ NUEVO
 
         // Filtros

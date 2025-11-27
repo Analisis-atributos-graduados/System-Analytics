@@ -22,9 +22,9 @@ export class ValidatorUtils {
         // Ej: "Evalúa la capacidad del estudiante para resolver problemas complejos."
         DESCRIPTION: /^[a-zA-ZáéíóúÁÉÍÓÚñÑ.,;:¿?¡!()\-]+(?: [a-zA-ZáéíóúÁÉÍÓÚñÑ.,;:¿?¡!()\-]+)*$/,
 
-        // Código de curso: Letras mayúsculas (2-4) - Números (3-4)
-        // Ej: CA-301, FIS-1002
-        COURSE_CODE: /^[A-Z]{2,4}-\d{3,4}$/,
+        // Código de curso: Solo números de 4 a 5 dígitos
+        // Ej: 3012, 10025
+        COURSE_CODE: /^\d{4,5}$/,
 
         // Semestre: YYYY-N (1 o 2)
         // Ej: 2025-1, 2024-2
