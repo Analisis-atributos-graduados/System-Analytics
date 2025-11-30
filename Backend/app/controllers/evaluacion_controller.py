@@ -25,7 +25,7 @@ router = APIRouter(prefix="/evaluaciones", tags=["Evaluaciones"])
 @router.get("/dashboard-stats")
 async def get_dashboard_stats(
     semestre: str = Query(...),
-    curso: str = Query(...),
+    curso: Optional[str] = Query(None),
     tema: str = Query(...),
     current_user: Usuario = Depends(get_current_user),
     db: Session = Depends(get_db)
@@ -218,11 +218,12 @@ async def get_dashboard_stats(
 async def get_quality_dashboard_stats(
     semestre: str = Query(...),
     curso: Optional[str] = Query(None),
+    atributo: Optional[str] = Query(None), # ✅ Nuevo parámetro
     current_user: Usuario = Depends(require_role("AREA_CALIDAD")),
     db: Session = Depends(get_db)
 ):
     """
-    Obtiene estadísticas para el dashboard de calidad (AG-07).
+    Obtiene estadísticas para el dashboard de calidad.
     Agrega por curso (ignorando secciones) y usa buckets específicos.
     """
     try:
@@ -257,7 +258,7 @@ async def get_quality_dashboard_stats(
                 "criterios": []
             }
 
-        # 3. Calcular métricas (AG-07)
+        # 3. Calcular métricas
         # Buckets: Excelente (16-20), Bueno (11-15), Mejora (6-10), No Aceptable (0-5)
         buckets = {
             "excelente": 0,
@@ -297,9 +298,12 @@ async def get_quality_dashboard_stats(
         logro_count = buckets["excelente"] + buckets["bueno"]
         porcentaje_logro = (logro_count / total_alumnos) * 100
 
-        # Estructura de respuesta (simulando un criterio único AG-07 por ahora)
+        # Estructura de respuesta
+        # Usamos el atributo solicitado o "AG-07" por defecto (legacy)
+        attr_code = atributo if atributo else "AG-07"
+        
         criterio_stats = {
-            "codigo": "AG-07", # Hardcoded por requerimiento
+            "codigo": attr_code,
             "excelente": buckets["excelente"],
             "bueno": buckets["bueno"],
             "requiereMejora": buckets["requiereMejora"],
@@ -316,6 +320,8 @@ async def get_quality_dashboard_stats(
         log.error(f"Error en quality dashboard stats: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+
+@router.get("/download-transcriptions")
 async def download_transcriptions(
     semestre: str = Query(...),
     curso: str = Query(...),

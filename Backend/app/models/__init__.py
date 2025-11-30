@@ -10,6 +10,7 @@ from .evaluacion import Evaluacion
 from .archivo_procesado import ArchivoProcesado
 from .resultado_analisis import ResultadoAnalisis
 from .curso import Curso
+from .curso_atributo import CursoAtributo
 from .meta_porcentaje import MetaPorcentaje
 
 # 3. Definir qué exporta este paquete
@@ -25,5 +26,6 @@ __all__ = [
     "ArchivoProcesado",
     "ResultadoAnalisis",
     "Curso",
+    "CursoAtributo",
     "MetaPorcentaje",
 ]

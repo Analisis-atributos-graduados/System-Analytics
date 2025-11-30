@@ -28,7 +28,7 @@ export class NavigationComponent {
                 id: 'settings',
                 label: 'Ajustes',
                 icon: '⚙️',
-                roles: ['AREA_CALIDAD']
+                roles: ['AREA_CALIDAD', 'PROFESOR']
             }
         ];
     }

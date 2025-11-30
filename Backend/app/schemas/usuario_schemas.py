@@ -1,26 +1,36 @@
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, Field, EmailStr
 
-class UsuarioCreate(BaseModel):
-    """Schema para crear un usuario después del registro en Firebase."""
-    firebase_uid: str = Field(..., description="UID de Firebase Auth")
+
+class UsuarioBase(BaseModel):
+    """Schema base para Usuario"""
     email: EmailStr
-    nombre: str
-    rol: str = Field(..., description="PROFESOR o AREA_CALIDAD")
+    nombre: str = Field(..., min_length=1)
+    rol: str = Field(..., pattern="^(PROFESOR|AREA_CALIDAD)$")
 
 
-class UsuarioResponse(BaseModel):
-    """Schema para devolver información de usuario."""
-    id: int
+class UsuarioCreate(UsuarioBase):
+    """Schema para crear un usuario (con firebase_uid)"""
     firebase_uid: str
-    email: str
-    nombre: str
-    rol: str
+
+
+class UsuarioCreateByAdmin(BaseModel):
+    """Schema para que Admin cree un usuario (sin firebase_uid)"""
+    email: EmailStr
+    nombre: str = Field(..., min_length=1)
+    rol: str = Field(..., pattern="^(PROFESOR|AREA_CALIDAD)$")
+    password: str = Field(..., min_length=8, description="Contraseña inicial para el usuario")
+
+
+class UsuarioUpdate(BaseModel):
+    """Schema para actualizar un usuario"""
+    nombre: str | None = None
+    activo: bool | None = None
+
+
+class UsuarioResponse(UsuarioBase):
+    """Schema para devolver un usuario"""
+    id: int
     activo: bool
 
     class Config:
         from_attributes = True
-
-
-class UsuarioLogin(BaseModel):
-    """Schema para login (solo se usa el token de Firebase en realidad)."""
-    firebase_token: str

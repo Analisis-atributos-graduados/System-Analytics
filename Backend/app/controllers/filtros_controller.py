@@ -2,7 +2,7 @@ import logging
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
-from sqlalchemy import distinct
+from sqlalchemy import distinct, or_
 
 from app.models import get_db, Usuario, Evaluacion, Curso
 from app.config.dependencies import get_current_user
@@ -63,20 +63,28 @@ async def get_cursos(
         # ✅ CORREGIDO: Manejar rol
         rol = str(current_user.rol) if hasattr(current_user.rol, 'value') else current_user.rol
 
-        # ✅ CAMBIO: Join con tabla Curso para obtener el nombre
-        query = db.query(
-            distinct(Evaluacion.codigo_curso),
-            Curso.nombre
-        ).join(Curso, Evaluacion.curso_id == Curso.id).filter(Evaluacion.semestre == semestre)
-
+        # ✅ CAMBIO: Obtener cursos completos para acceder a atributos
+        # Primero obtenemos los IDs de cursos evaluados en el semestre
+        subquery = db.query(distinct(Evaluacion.curso_id)).filter(Evaluacion.semestre == semestre)
+        
         if rol == "PROFESOR":
-            query = query.filter(Evaluacion.profesor_id == current_user.id)
-
-        cursos = [
-            {"codigo": c[0], "nombre": c[1]}
-            for c in query.all()
-            if c[0] and c[1]
-        ]
+            subquery = subquery.filter(Evaluacion.profesor_id == current_user.id)
+            
+        curso_ids = [r[0] for r in subquery.all()]
+        
+        # Luego consultamos los cursos con sus atributos
+        from app.models.curso import Curso
+        cursos_db = db.query(Curso).filter(Curso.id.in_(curso_ids)).all()
+        
+        cursos = []
+        for c in cursos_db:
+            # Extraer códigos de atributos
+            attr_codes = [a.atributo_codigo for a in c.atributos]
+            cursos.append({
+                "codigo": c.nombre, # Usamos nombre como código según lógica existente
+                "nombre": c.nombre,
+                "atributos": attr_codes
+            })
 
         log.info(f"Cursos para semestre {semestre}: {len(cursos)}")
         return cursos
@@ -103,9 +111,12 @@ async def get_temas(
         # ✅ CORREGIDO: Manejar rol
         rol = str(current_user.rol) if hasattr(current_user.rol, 'value') else current_user.rol
 
-        query = db.query(distinct(Evaluacion.tema)).filter(
+        query = db.query(distinct(Evaluacion.tema)).join(Evaluacion.curso).filter(
             Evaluacion.semestre == semestre,
-            Evaluacion.codigo_curso == curso
+            or_(
+                Evaluacion.codigo_curso == curso,
+                Curso.nombre == curso
+            )
         )
 
         if rol == "PROFESOR":

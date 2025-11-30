@@ -6,17 +6,24 @@ import { showErrorNotification, showSuccessNotification } from '../utils/api.uti
 export class AnalysisView {
     constructor(router) {
         this.router = router;
+        this.isDestroyed = false;
         this.dashboardStats = null;
         this.filters = {
             semestre: null,
             curso: null,
-            tema: null
+            tema: null,
+            atributo: null // ✅ Nuevo filtro
         };
         this.availableFilters = {
             semestres: [],
             cursos: [],
-            temas: []
+            temas: [],
+            atributos: Array.from({ length: 12 }, (_, i) => ({
+                codigo: `AG-${String(i + 1).padStart(2, '0')}`,
+                nombre: `Atributo de Graduado ${i + 1}`
+            }))
         };
+        this.allCursos = []; // ✅ Almacenar todos los cursos para filtrado local
         this.isLoading = false;
         this.isAnalyzing = false;
         this.pollingInterval = null;
@@ -26,6 +33,7 @@ export class AnalysisView {
     }
 
     updateView() {
+        if (this.isDestroyed) { return; }
         const mainContent = document.getElementById('main-content');
         if (mainContent) {
             mainContent.innerHTML = this.render();
@@ -90,7 +98,9 @@ export class AnalysisView {
 
             this.availableFilters.semestres = await FiltrosService.getSemestres();
             if (this.filters.semestre) {
-                this.availableFilters.cursos = await FiltrosService.getCursos(this.filters.semestre);
+                // await this.availableFilters.cursos = await FiltrosService.getCursos(this.filters.semestre);
+                // Usar loadCursos para poblar correctamente
+                await this.loadCursos();
             }
             if (this.filters.semestre && this.filters.curso) {
                 this.availableFilters.temas = await FiltrosService.getTemas(this.filters.semestre, this.filters.curso);
@@ -122,41 +132,75 @@ export class AnalysisView {
         if (!this.filters.semestre) return;
 
         try {
+            // Solo cargar del backend si no tenemos datos o cambió el semestre
+            // Pero como loadCursos se llama al cambiar semestre, asumimos fetch
             const cursos = await FiltrosService.getCursos(this.filters.semestre);
 
             // ✅ Lógica específica para Área de Calidad: Agrupar por nombre
             const user = AuthService.getCurrentUser();
             if (user && user.rol === 'AREA_CALIDAD') {
-                // Deduplicar por nombre
-                const uniqueCursos = [];
-                const seenNames = new Set();
+                // Deduplicar por nombre y preservar atributos (union de atributos si hay duplicados)
+                const uniqueCursosMap = new Map();
 
                 cursos.forEach(c => {
-                    if (!seenNames.has(c.nombre)) {
-                        seenNames.add(c.nombre);
-                        uniqueCursos.push({
-                            codigo: c.nombre, // Usamos el nombre como identificador
-                            nombre: c.nombre
+                    if (!uniqueCursosMap.has(c.nombre)) {
+                        uniqueCursosMap.set(c.nombre, {
+                            codigo: c.nombre,
+                            nombre: c.nombre,
+                            atributos: new Set(c.atributos || [])
                         });
+                    } else {
+                        // Merge attributes
+                        const existing = uniqueCursosMap.get(c.nombre);
+                        if (c.atributos) {
+                            c.atributos.forEach(a => existing.atributos.add(a));
+                        }
                     }
                 });
-                this.availableFilters.cursos = uniqueCursos;
+
+                this.allCursos = Array.from(uniqueCursosMap.values()).map(c => ({
+                    ...c,
+                    atributos: Array.from(c.atributos)
+                }));
+
             } else {
-                this.availableFilters.cursos = cursos;
+                this.allCursos = cursos;
             }
 
-            if (this.availableFilters.cursos.length === 1) {
-                this.filters.curso = this.availableFilters.cursos[0].codigo;
-                // Si es calidad, cargamos dashboard directo, si no, cargamos temas
-                if (user && user.rol === 'AREA_CALIDAD') {
-                    await this.viewQualityDashboard(this.filters.curso);
-                } else {
-                    await this.loadTemas();
-                }
-            }
+            this.applyCourseFilters();
+
         } catch (error) {
             console.error('Error cargando cursos:', error);
         }
+    }
+
+    applyCourseFilters() {
+        let filtered = this.allCursos;
+
+        // Filtrar por atributo si está seleccionado
+        if (this.filters.atributo) {
+            filtered = filtered.filter(c => c.atributos && c.atributos.includes(this.filters.atributo));
+        }
+
+        this.availableFilters.cursos = filtered;
+
+        // Resetear selección de curso si el actual no está en la lista filtrada
+        if (this.filters.curso && !filtered.find(c => c.codigo === this.filters.curso)) {
+            this.filters.curso = null;
+        }
+
+        // Auto-seleccionar si solo hay uno
+        /*
+        if (this.availableFilters.cursos.length === 1) {
+            this.filters.curso = this.availableFilters.cursos[0].codigo;
+            const user = AuthService.getCurrentUser();
+            if (user && user.rol === 'AREA_CALIDAD') {
+                this.viewQualityDashboard(this.filters.curso);
+            } else {
+                this.loadTemas();
+            }
+        }
+        */
     }
 
     async loadTemas() {
@@ -201,15 +245,30 @@ export class AnalysisView {
                         </select>
                     </div>
 
+                    <!-- Atributo (Solo Calidad) -->
+                    ${isQualityArea ? `
+                    <div class="filter-group">
+                        <label for="filterAtributo">Atributo</label>
+                        <select id="filterAtributo" class="form-control" ${!this.filters.semestre ? 'disabled' : ''}>
+                            <option value="">Seleccionar atributo</option>
+                            ${this.availableFilters.atributos.map(a => `
+                                <option value="${a.codigo}" ${this.filters.atributo === a.codigo ? 'selected' : ''}>
+                                    ${a.codigo} - ${a.nombre}
+                                </option>
+                            `).join('')}
+                        </select>
+                    </div>
+                    ` : ''}
+
                     <!-- Curso -->
                     <div class="filter-group">
                         <label for="filterCurso">Curso</label>
                         <select id="filterCurso" class="form-control" 
-                                ${!this.filters.semestre ? 'disabled' : ''}>
+                                ${!this.filters.semestre || (isQualityArea && !this.filters.atributo) ? 'disabled' : ''}>
                             <option value="">Seleccionar curso</option>
                             ${this.availableFilters.cursos.map(c => `
                                 <option value="${c.codigo}" ${this.filters.curso === c.codigo ? 'selected' : ''}>
-                                    ${isQualityArea ? c.nombre : `${c.codigo} - ${c.nombre}`}
+                                    ${c.nombre}
                                 </option>
                             `).join('')}
                         </select>
@@ -601,9 +660,21 @@ export class AnalysisView {
                 this.filters.semestre = e.target.value || null;
                 this.filters.curso = null;
                 this.filters.tema = null;
+                this.filters.atributo = null; // Reset atributo
                 this.availableFilters.cursos = [];
                 this.availableFilters.temas = [];
                 if (this.filters.semestre) await this.loadCursos();
+                this.updateView();
+            });
+        }
+
+        // ✅ Nuevo Listener para Atributo
+        const filterAtributo = document.getElementById('filterAtributo');
+        if (filterAtributo) {
+            filterAtributo.addEventListener('change', async (e) => {
+                this.filters.atributo = e.target.value || null;
+                this.filters.curso = null; // Reset curso al cambiar atributo
+                this.applyCourseFilters(); // Re-filtrar cursos
                 this.updateView();
             });
         }
@@ -682,7 +753,8 @@ export class AnalysisView {
         try {
             const stats = await DocumentService.getQualityDashboardStats({
                 semestre: this.filters.semestre,
-                curso: curso
+                curso: curso,
+                atributo: this.filters.atributo // ✅ Pasar atributo seleccionado
             });
             this.dashboardStats = stats;
         } catch (error) {
@@ -726,14 +798,22 @@ export class AnalysisView {
                     this.loadSpecificEvaluation(evaluacionId);
                 } else if (attempts >= maxAttempts) {
                     clearInterval(this.pollingInterval);
-                    this.pollingInterval = null;
                     this.isAnalyzing = false;
-                    showErrorNotification('Tiempo de espera agotado. Recarga la página.');
-                    this.updateView();
+                    showErrorNotification('Tiempo de espera agotado. Por favor recarga la página.');
                 }
             } catch (error) {
                 console.error('Error en polling:', error);
             }
         }, 5000);
+    }
+
+    destroy() {
+        this.isDestroyed = true;
+        if (this.pollingInterval) {
+            clearInterval(this.pollingInterval);
+            this.pollingInterval = null;
+        }
+        this.isLoading = false;
+        this.isAnalyzing = false;
     }
 }

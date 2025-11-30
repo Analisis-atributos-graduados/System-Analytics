@@ -9,7 +9,7 @@ from .evaluacion_schemas import (
 )
 from .task_schemas import FileTaskPayload, EvaluationTaskPayload
 from .common_schemas import GenerateUploadURLRequest
-from .usuario_schemas import UsuarioCreate, UsuarioResponse, UsuarioLogin
+from .usuario_schemas import UsuarioCreate, UsuarioResponse, UsuarioCreateByAdmin, UsuarioUpdate
 from .rubrica_schemas import (
     RubricaCreateRequest,
     RubricaDetailSchema,
@@ -44,7 +44,8 @@ __all__ = [
     # Usuarios
     'UsuarioCreate',
     'UsuarioResponse',
-    'UsuarioLogin',
+    'UsuarioCreateByAdmin',
+    'UsuarioUpdate',
 
     # Rúbricas (nombres originales)
     'RubricaCreateRequest',

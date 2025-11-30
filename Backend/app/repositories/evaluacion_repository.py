@@ -93,7 +93,14 @@ class EvaluacionRepository(BaseRepository):
                         )
                     )
                 else:
-                    query = query.filter(Evaluacion.codigo_curso == curso)
+
+                    # Filtrar por código O por nombre del curso
+                    query = query.filter(
+                        or_(
+                            Evaluacion.codigo_curso == curso,
+                            Evaluacion.curso.has(nombre=curso)
+                        )
+                    )
             if tema:
                 query = query.filter(Evaluacion.tema == tema)
 

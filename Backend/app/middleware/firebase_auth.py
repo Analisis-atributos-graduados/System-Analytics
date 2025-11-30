@@ -32,8 +32,9 @@ class FirebaseAuth:
 
             cls._initialized = True
         except Exception as e:
-            log.error(f"Error al inicializar Firebase: {e}")
-            # No lanzar excepción aquí, dejar que falle en verify_token
+            log.critical(f"Error CRÍTICO al inicializar Firebase: {e}")
+            # Lanzar excepción para detener el inicio de la aplicación si Firebase es crucial
+            raise RuntimeError(f"Fallo al inicializar Firebase Admin SDK: {e}")
 
     @staticmethod
     def verify_token(token: str) -> dict:

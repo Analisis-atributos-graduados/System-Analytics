@@ -86,3 +86,19 @@ class UsuarioRepository(BaseRepository):
             log.error(f"Error al crear usuario: {e}")
             self.db.rollback()
             raise
+
+    def get_all_usuarios(self):
+        """Obtiene todos los usuarios del sistema."""
+        try:
+            return self.db.query(Usuario).order_by(Usuario.id.desc()).all()
+        except Exception as e:
+            log.error(f"Error al obtener todos los usuarios: {e}")
+            raise
+
+    def get_by_id(self, usuario_id: int) -> Optional[Usuario]:
+        """Obtiene un usuario por su ID."""
+        try:
+            return self.db.query(Usuario).filter(Usuario.id == usuario_id).first()
+        except Exception as e:
+            log.error(f"Error al obtener usuario por ID: {e}")
+            raise

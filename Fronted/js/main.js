@@ -6,7 +6,7 @@ import AuthService from './services/auth.service.js';
 /**
  * Inicializa la aplicación principal
  */
-export default function initializeApp() {
+export default async function initializeApp() {
     console.log('🚀 Inicializando componentes de la aplicación...');
 
     try {
@@ -59,8 +59,14 @@ export default function initializeApp() {
 
         console.log('✅ Router inicializado - Ruta inicial:', initialRoute);
 
-        // Guardar router globalmente para debugging
+        // Guardar router y loginView globalmente para debugging y acceso de AuthService
         window.appRouter = router;
+        // Asumimos que LoginView se instancia en el DOM cuando es necesario
+        // pero para el flujo de linking necesitamos acceso directo
+        if (window.location.pathname.endsWith('login.html')) {
+            const { LoginView } = await import('./views/login.view.js');
+            window.appLoginView = new LoginView();
+        }
 
         console.log('🎉 Aplicación cargada exitosamente');
 

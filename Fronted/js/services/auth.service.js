@@ -1,11 +1,17 @@
 import { auth } from '../config/firebase.config.js';
-import { 
-    signInWithEmailAndPassword, 
+import {
+    signInWithEmailAndPassword,
     createUserWithEmailAndPassword,
     signOut,
     onAuthStateChanged,
     GoogleAuthProvider,
-    signInWithPopup
+    signInWithPopup,
+    updatePassword as firebaseUpdatePassword,
+    EmailAuthProvider,
+    reauthenticateWithCredential,
+    sendPasswordResetEmail as firebaseSendPasswordResetEmail,
+    fetchSignInMethodsForEmail,
+    linkWithCredential
 } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
 import ApiService from './api.service.js';
 import { StorageUtils } from '../utils/storage.utils.js';
@@ -17,7 +23,7 @@ class AuthService {
         this.currentUser = null;
         this.firebaseUser = null;
         this.authToken = null;
-        
+
         // Escuchar cambios en el estado de autenticación
         this.setupAuthListener();
     }
@@ -35,11 +41,11 @@ class AuthService {
             if (firebaseUser) {
                 this.firebaseUser = firebaseUser;
                 console.log('🔐 Usuario autenticado:', firebaseUser.email);
-                
+
                 try {
                     // Obtener el ID token
                     this.authToken = await firebaseUser.getIdToken();
-                    
+
                     // Obtener datos del usuario desde el backend
                     await this.syncUserWithBackend();
                 } catch (error) {
@@ -62,14 +68,14 @@ class AuthService {
         try {
             const userCredential = await signInWithEmailAndPassword(auth, email, password);
             const firebaseUser = userCredential.user;
-            
+
             // Obtener token
             this.authToken = await firebaseUser.getIdToken();
             this.firebaseUser = firebaseUser;
-            
+
             // Sincronizar con backend
             await this.syncUserWithBackend();
-            
+
             console.log('✅ Login exitoso:', firebaseUser.email);
             return this.currentUser;
         } catch (error) {
@@ -79,78 +85,125 @@ class AuthService {
     }
 
     /**
- * Inicia sesión con Google
- */
-async loginWithGoogle() {
-    try {
-        console.log('🔵 Iniciando login con Google...');
-        
-        const provider = new GoogleAuthProvider();
-        const result = await signInWithPopup(auth, provider);
-        const firebaseUser = result.user;
-        
-        // Obtener token
-        this.authToken = await firebaseUser.getIdToken();
-        this.firebaseUser = firebaseUser;
-        
-        console.log('✅ Autenticado en Firebase:', firebaseUser.email);
-        
-        // Intentar obtener usuario del backend
+* Inicia sesión con Google
+*/
+    async loginWithGoogle() {
         try {
-            await this.syncUserWithBackend();
-            console.log('✅ Usuario existente en backend, login exitoso');
-            return this.currentUser;
-            
-        } catch (error) {
-            // Si el usuario no existe en backend (404), registrar automáticamente
-            if (error.message.includes('Usuario no encontrado')) {
-                console.log('⚠️ Usuario nuevo con Google, iniciando registro...');
-                
-                // Mostrar modal para seleccionar rol
-                const rol = await this.showRoleSelectionModal(firebaseUser.displayName || firebaseUser.email);
-                
-                if (!rol) {
-                    console.log('❌ Usuario canceló selección de rol');
-                    await this.logout();
-                    throw new Error('Debes seleccionar un rol para continuar');
-                }
-                
-                console.log('📝 Registrando usuario con rol:', rol);
-                
-                // Registrar en backend
-                const backendUser = await ApiService.post('/auth/register', {
-                    firebase_uid: firebaseUser.uid,
-                    email: firebaseUser.email,
-                    nombre: firebaseUser.displayName || firebaseUser.email.split('@')[0],
-                    rol: rol
-                });
-                
-                this.currentUser = backendUser;
-                StorageUtils.save(USER_KEY, backendUser);
-                
-                console.log('✅ Usuario registrado exitosamente con Google');
-                return backendUser;
-            }
-            
-            // Si es otro error, lanzarlo
-            throw error;
-        }
-        
-    } catch (error) {
-        console.error('❌ Error en login con Google:', error);
-        throw this.handleAuthError(error);
-    }
-}
+            console.log('🔵 Iniciando login con Google...');
 
-/**
- * Muestra un modal para seleccionar el rol del usuario
- */
-async showRoleSelectionModal(userName) {
-    return new Promise((resolve) => {
-        // Crear modal
-        const modal = document.createElement('div');
-        modal.id = 'role-selection-modal';
-        modal.style.cssText = `
+            const provider = new GoogleAuthProvider();
+            const result = await signInWithPopup(auth, provider);
+            const firebaseUser = result.user;
+            const googleCredential = result.credential; // Capture Google credential
+
+            // Obtener token
+            this.authToken = await firebaseUser.getIdToken();
+            this.firebaseUser = firebaseUser;
+
+            console.log('✅ Autenticado en Firebase:', firebaseUser.email);
+
+            // Intentar obtener usuario del backend
+            try {
+                await this.syncUserWithBackend();
+                console.log('✅ Usuario autorizado, login exitoso');
+                return this.currentUser;
+
+            } catch (error) {
+                if (error.code === 'auth/account-exists-with-different-credential') {
+                    console.warn('⚠️ Cuenta existe con diferentes credenciales. Iniciando flujo de vinculación...');
+                    await this.handleAccountLinking(firebaseUser.email, googleCredential);
+                    // After linking, try to sync again
+                    await this.syncUserWithBackend();
+                    console.log('✅ Cuenta vinculada y sincronizada, login exitoso');
+                    return this.currentUser;
+                }
+                // Si el usuario no existe en backend (404 o 403), cerrar sesión y mostrar error
+                else if (error.message.includes('Usuario no encontrado') ||
+                    error.message.includes('403') ||
+                    error.message.includes('Acceso denegado')) {
+
+                    console.log('❌ Usuario no autorizado');
+                    await this.logout();
+                    throw new Error('Acceso denegado. Tu cuenta no tiene permisos para acceder al sistema. Por favor contacta al administrador.');
+                }
+
+                // Si es otro error, lanzarlo
+                throw error;
+            }
+
+        } catch (error) {
+            console.error('❌ Error en login con Google:', error);
+            if (error.code === 'auth/account-exists-with-different-credential') {
+                const email = error.customData.email;
+                const credential = GoogleAuthProvider.credentialFromError(error);
+                await this.handleAccountLinking(email, credential);
+            }
+            throw this.handleAuthError(error);
+        }
+    }
+
+    async handleAccountLinking(email, googleCredential) {
+        return new Promise(async (resolve, reject) => {
+            // Si ya hay usuario (caso raro en login, pero posible en settings), usarlo.
+            // Si no (caso normal de login), null.
+            let userToLink = this.firebaseUser;
+
+            // Pedir contraseña al usuario
+            let password = null;
+            if (window.appLoginView && typeof window.appLoginView.showAccountLinkingPrompt === 'function') {
+                try {
+                    password = await window.appLoginView.showAccountLinkingPrompt(email);
+                    if (!password) {
+                        return reject(new Error('Vinculación de cuenta cancelada.'));
+                    }
+                } catch (uiError) {
+                    return reject(new Error('Error en la interacción de vinculación: ' + uiError.message));
+                }
+            } else {
+                return reject(new Error('No se puede mostrar el prompt de vinculación de cuenta.'));
+            }
+
+            try {
+                // 1. Si no estamos logueados, iniciar sesión con email y contraseña
+                if (!userToLink) {
+                    const userCredential = await signInWithEmailAndPassword(auth, email, password);
+                    userToLink = userCredential.user;
+                } else {
+                    // Si ya estábamos logueados (ej. cambio de configuración), re-autenticar para seguridad
+                    const credential = EmailAuthProvider.credential(email, password);
+                    await reauthenticateWithCredential(userToLink, credential);
+                }
+
+                // 2. Vincular la credencial de Google
+                await linkWithCredential(userToLink, googleCredential);
+
+                // Actualizar estado local
+                this.firebaseUser = userToLink;
+                this.authToken = await userToLink.getIdToken();
+
+                console.log('✅ Cuenta de Google vinculada exitosamente.');
+                resolve(true);
+
+            } catch (error) {
+                console.error('❌ Error durante la vinculación:', error);
+                // Si falló el login o el link, asegurarnos de limpiar si no estábamos logueados antes
+                if (!this.firebaseUser) {
+                    await this.logout();
+                }
+                reject(this.handleAuthError(error));
+            }
+        });
+    }
+
+    /**
+     * Muestra un modal para seleccionar el rol del usuario
+     */
+    async showRoleSelectionModal(userName) {
+        return new Promise((resolve) => {
+            // Crear modal
+            const modal = document.createElement('div');
+            modal.id = 'role-selection-modal';
+            modal.style.cssText = `
             position: fixed;
             top: 0;
             left: 0;
@@ -163,8 +216,8 @@ async showRoleSelectionModal(userName) {
             z-index: 9999;
             animation: fadeIn 0.3s ease;
         `;
-        
-        modal.innerHTML = `
+
+            modal.innerHTML = `
             <div style="
                 background: white;
                 padding: 40px;
@@ -258,10 +311,10 @@ async showRoleSelectionModal(userName) {
                 </div>
             </div>
         `;
-        
-        // Agregar animaciones CSS
-        const style = document.createElement('style');
-        style.textContent = `
+
+            // Agregar animaciones CSS
+            const style = document.createElement('style');
+            style.textContent = `
             @keyframes fadeIn {
                 from { opacity: 0; }
                 to { opacity: 1; }
@@ -271,42 +324,42 @@ async showRoleSelectionModal(userName) {
                 to { transform: translateY(0); opacity: 1; }
             }
         `;
-        document.head.appendChild(style);
-        
-        document.body.appendChild(modal);
-        
-        // Event listeners
-        document.getElementById('role-confirm-btn').onclick = () => {
-            const selectedRole = document.querySelector('input[name="role"]:checked');
-            if (!selectedRole) {
-                alert('Por favor selecciona un rol');
-                return;
-            }
-            
-            const rol = selectedRole.value;
-            document.body.removeChild(modal);
-            document.head.removeChild(style);
-            resolve(rol);
-        };
-        
-        document.getElementById('role-cancel-btn').onclick = () => {
-            document.body.removeChild(modal);
-            document.head.removeChild(style);
-            resolve(null);
-        };
-        
-        // Cerrar con ESC
-        const handleEscape = (e) => {
-            if (e.key === 'Escape') {
+            document.head.appendChild(style);
+
+            document.body.appendChild(modal);
+
+            // Event listeners
+            document.getElementById('role-confirm-btn').onclick = () => {
+                const selectedRole = document.querySelector('input[name="role"]:checked');
+                if (!selectedRole) {
+                    alert('Por favor selecciona un rol');
+                    return;
+                }
+
+                const rol = selectedRole.value;
                 document.body.removeChild(modal);
                 document.head.removeChild(style);
-                document.removeEventListener('keydown', handleEscape);
+                resolve(rol);
+            };
+
+            document.getElementById('role-cancel-btn').onclick = () => {
+                document.body.removeChild(modal);
+                document.head.removeChild(style);
                 resolve(null);
-            }
-        };
-        document.addEventListener('keydown', handleEscape);
-    });
-}
+            };
+
+            // Cerrar con ESC
+            const handleEscape = (e) => {
+                if (e.key === 'Escape') {
+                    document.body.removeChild(modal);
+                    document.head.removeChild(style);
+                    document.removeEventListener('keydown', handleEscape);
+                    resolve(null);
+                }
+            };
+            document.addEventListener('keydown', handleEscape);
+        });
+    }
 
     /**
      * Registra un nuevo usuario
@@ -316,11 +369,11 @@ async showRoleSelectionModal(userName) {
             // 1. Crear usuario en Firebase
             const userCredential = await createUserWithEmailAndPassword(auth, email, password);
             const firebaseUser = userCredential.user;
-            
+
             // 2. Obtener token
             this.authToken = await firebaseUser.getIdToken();
             this.firebaseUser = firebaseUser;
-            
+
             // 3. Registrar en backend
             const backendUser = await ApiService.post('/auth/register', {
                 firebase_uid: firebaseUser.uid,
@@ -328,10 +381,10 @@ async showRoleSelectionModal(userName) {
                 nombre: nombre,
                 rol: rol
             });
-            
+
             this.currentUser = backendUser;
             StorageUtils.save(USER_KEY, backendUser);
-            
+
             console.log('✅ Registro exitoso:', backendUser);
             return backendUser;
         } catch (error) {
@@ -343,37 +396,37 @@ async showRoleSelectionModal(userName) {
     /**
  * Sincroniza el usuario de Firebase con el backend
  */
-async syncUserWithBackend() {
-    try {
-        console.log('🔄 Sincronizando usuario con backend...');
-        
-        const backendUser = await ApiService.get('/auth/me');
-        
-        if (!backendUser) {
-            throw new Error('Backend no devolvió datos de usuario');
+    async syncUserWithBackend() {
+        try {
+            console.log('🔄 Sincronizando usuario con backend...');
+
+            const backendUser = await ApiService.get('/auth/me');
+
+            if (!backendUser) {
+                throw new Error('Backend no devolvió datos de usuario');
+            }
+
+            this.currentUser = backendUser;
+            StorageUtils.save(USER_KEY, backendUser);
+
+            console.log('✅ Usuario sincronizado:', backendUser.email, '- Rol:', backendUser.rol);
+            return backendUser;
+
+        } catch (error) {
+            console.error('❌ Error sincronizando con backend:', error);
+
+            // IMPORTANTE: Solo limpiar si es un 404 real
+            if (error.message.includes('Usuario no encontrado') || error.message.includes('404')) {
+                console.warn('⚠️ Usuario no existe en backend');
+
+                // NO cerrar sesión aquí, dejarlo al método que llamó
+                throw new Error('Usuario no encontrado en el sistema');
+            }
+
+            // Para otros errores (red, servidor caído, etc), NO limpiar sesión
+            throw error;
         }
-        
-        this.currentUser = backendUser;
-        StorageUtils.save(USER_KEY, backendUser);
-        
-        console.log('✅ Usuario sincronizado:', backendUser.email, '- Rol:', backendUser.rol);
-        return backendUser;
-        
-    } catch (error) {
-        console.error('❌ Error sincronizando con backend:', error);
-        
-        // IMPORTANTE: Solo limpiar si es un 404 real
-        if (error.message.includes('Usuario no encontrado') || error.message.includes('404')) {
-            console.warn('⚠️ Usuario no existe en backend');
-            
-            // NO cerrar sesión aquí, dejarlo al método que llamó
-            throw new Error('Usuario no encontrado en el sistema');
-        }
-        
-        // Para otros errores (red, servidor caído, etc), NO limpiar sesión
-        throw error;
     }
-}
 
 
 
@@ -394,6 +447,38 @@ async syncUserWithBackend() {
         }
     }
 
+    async updatePassword(currentPassword, newPassword) {
+        if (!this.firebaseUser) {
+            throw new Error('No hay un usuario autenticado.');
+        }
+
+        try {
+            // Crear credencial con el email y la contraseña actual
+            const credential = EmailAuthProvider.credential(this.firebaseUser.email, currentPassword);
+
+            // Re-autenticar al usuario
+            await reauthenticateWithCredential(this.firebaseUser, credential);
+
+            // Si la re-autenticación es exitosa, actualizar la contraseña
+            await firebaseUpdatePassword(this.firebaseUser, newPassword);
+
+            console.log('✅ Contraseña actualizada correctamente.');
+        } catch (error) {
+            console.error('❌ Error al actualizar la contraseña:', error);
+            throw this.handleAuthError(error);
+        }
+    }
+
+    async sendPasswordResetEmail(email) {
+        try {
+            await firebaseSendPasswordResetEmail(auth, email);
+            console.log('✅ Email de recuperación enviado a:', email);
+        } catch (error) {
+            console.error('❌ Error al enviar email de recuperación:', error);
+            throw this.handleAuthError(error);
+        }
+    }
+
     /**
      * Obtiene el token de autenticación actual
      */
@@ -401,7 +486,7 @@ async syncUserWithBackend() {
         if (!this.firebaseUser) {
             return null;
         }
-        
+
         try {
             // Refrescar token si es necesario
             this.authToken = await this.firebaseUser.getIdToken(true);
@@ -415,41 +500,41 @@ async syncUserWithBackend() {
     /**
  * Verifica si el usuario está autenticado
  */
-isAuthenticated() {
-    const hasFirebaseUser = this.firebaseUser !== null;
-    const hasBackendUser = this.currentUser !== null;
-    const hasToken = this.authToken !== null;
-    
-    console.log('🔐 Verificando autenticación:', {
-        firebaseUser: hasFirebaseUser,
-        backendUser: hasBackendUser,
-        token: hasToken,
-        result: hasFirebaseUser && hasBackendUser
-    });
-    
-    return hasFirebaseUser && hasBackendUser;
-}
+    isAuthenticated() {
+        const hasFirebaseUser = this.firebaseUser !== null;
+        const hasBackendUser = this.currentUser !== null;
+        const hasToken = this.authToken !== null;
 
-/**
- * Obtiene el usuario actual
- */
-getCurrentUser() {
-    // Intentar obtener de memoria
-    if (this.currentUser) {
-        return this.currentUser;
+        console.log('🔐 Verificando autenticación:', {
+            firebaseUser: hasFirebaseUser,
+            backendUser: hasBackendUser,
+            token: hasToken,
+            result: hasFirebaseUser && hasBackendUser
+        });
+
+        return hasFirebaseUser && hasBackendUser;
     }
-    
-    // Intentar obtener de localStorage
-    const storedUser = StorageUtils.load(USER_KEY);
-    if (storedUser) {
-        this.currentUser = storedUser;
-        console.log('👤 Usuario recuperado de localStorage:', storedUser.email);
-        return storedUser;
+
+    /**
+     * Obtiene el usuario actual
+     */
+    getCurrentUser() {
+        // Intentar obtener de memoria
+        if (this.currentUser) {
+            return this.currentUser;
+        }
+
+        // Intentar obtener de localStorage
+        const storedUser = StorageUtils.load(USER_KEY);
+        if (storedUser) {
+            this.currentUser = storedUser;
+            console.log('👤 Usuario recuperado de localStorage:', storedUser.email);
+            return storedUser;
+        }
+
+        console.warn('⚠️ No hay usuario actual disponible');
+        return null;
     }
-    
-    console.warn('⚠️ No hay usuario actual disponible');
-    return null;
-}
 
 
     /**
@@ -483,84 +568,84 @@ getCurrentUser() {
  * Espera a que Firebase Auth termine de cargar el estado del usuario
  * @returns {Promise<boolean>} true si hay usuario autenticado, false si no
  */
-waitForAuth() {
-    return new Promise((resolve) => {
-        console.log('⏳ Esperando a Firebase Auth...');
-        
-        let resolved = false;
-        
-        // Timeout de seguridad (8 segundos - más tiempo para Firebase)
-        const timeout = setTimeout(() => {
-            if (!resolved) {
-                console.warn('⚠️ Timeout esperando Firebase Auth');
-                resolved = true;
-                unsubscribe();
-                resolve(false);
-            }
-        }, 8000);
-        
-        // Escuchar cambios de autenticación
-        const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-            if (resolved) return; // Ya resolvimos, ignorar
-            
-            console.log('🔔 onAuthStateChanged disparado:', firebaseUser ? firebaseUser.email : 'sin usuario');
-            
-            if (firebaseUser) {
-                // Hay usuario en Firebase
-                console.log('🔐 Usuario Firebase detectado:', firebaseUser.email);
-                this.firebaseUser = firebaseUser;
-                
-                try {
-                    // Obtener token
-                    this.authToken = await firebaseUser.getIdToken();
-                    console.log('🎫 Token obtenido');
-                    
-                    // Sincronizar con backend
-                    await this.syncUserWithBackend();
-                    console.log('✅ Usuario sincronizado con backend');
-                    
-                    // Resolver como exitoso
-                    clearTimeout(timeout);
+    waitForAuth() {
+        return new Promise((resolve) => {
+            console.log('⏳ Esperando a Firebase Auth...');
+
+            let resolved = false;
+
+            // Timeout de seguridad (8 segundos - más tiempo para Firebase)
+            const timeout = setTimeout(() => {
+                if (!resolved) {
+                    console.warn('⚠️ Timeout esperando Firebase Auth');
                     resolved = true;
                     unsubscribe();
-                    resolve(true);
-                    
-                } catch (error) {
-                    console.error('❌ Error sincronizando con backend:', error);
-                    
-                    // Si el backend no encuentra al usuario, cerrar sesión de Firebase
-                    if (error.message.includes('Usuario no encontrado') || error.message.includes('404')) {
-                        console.warn('⚠️ Usuario no existe en backend, cerrando sesión...');
-                        await this.logout();
+                    resolve(false);
+                }
+            }, 8000);
+
+            // Escuchar cambios de autenticación
+            const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+                if (resolved) return; // Ya resolvimos, ignorar
+
+                console.log('🔔 onAuthStateChanged disparado:', firebaseUser ? firebaseUser.email : 'sin usuario');
+
+                if (firebaseUser) {
+                    // Hay usuario en Firebase
+                    console.log('🔐 Usuario Firebase detectado:', firebaseUser.email);
+                    this.firebaseUser = firebaseUser;
+
+                    try {
+                        // Obtener token
+                        this.authToken = await firebaseUser.getIdToken();
+                        console.log('🎫 Token obtenido');
+
+                        // Sincronizar con backend
+                        await this.syncUserWithBackend();
+                        console.log('✅ Usuario sincronizado con backend');
+
+                        // Resolver como exitoso
+                        clearTimeout(timeout);
+                        resolved = true;
+                        unsubscribe();
+                        resolve(true);
+
+                    } catch (error) {
+                        console.error('❌ Error sincronizando con backend:', error);
+
+                        // Si el backend no encuentra al usuario, cerrar sesión de Firebase
+                        if (error.message.includes('Usuario no encontrado') || error.message.includes('404')) {
+                            console.warn('⚠️ Usuario no existe en backend, cerrando sesión...');
+                            await this.logout();
+                        }
+
+                        clearTimeout(timeout);
+                        resolved = true;
+                        unsubscribe();
+                        resolve(false);
                     }
-                    
+
+                } else {
+                    // No hay usuario en Firebase
+                    console.log('❌ No hay usuario en Firebase');
+
+                    // Limpiar datos locales si existen
+                    const storedUser = StorageUtils.load(USER_KEY);
+                    if (storedUser) {
+                        console.warn('🗑️ Limpiando usuario de localStorage (sesión caducada)');
+                        StorageUtils.remove(USER_KEY);
+                    }
+
                     clearTimeout(timeout);
                     resolved = true;
                     unsubscribe();
                     resolve(false);
                 }
-                
-            } else {
-                // No hay usuario en Firebase
-                console.log('❌ No hay usuario en Firebase');
-                
-                // Limpiar datos locales si existen
-                const storedUser = StorageUtils.load(USER_KEY);
-                if (storedUser) {
-                    console.warn('🗑️ Limpiando usuario de localStorage (sesión caducada)');
-                    StorageUtils.remove(USER_KEY);
-                }
-                
-                clearTimeout(timeout);
-                resolved = true;
-                unsubscribe();
-                resolve(false);
-            }
+            });
         });
-    });
-}
+    }
 
-    
+
 }
 
 // Exportar instancia única (singleton)

@@ -18,40 +18,48 @@ async def register_user(
         db: Session = Depends(get_db)
 ):
     """
-    Registra un usuario en el sistema después de autenticarse con Firebase.
-
+    Completa el registro de un usuario pre-autorizado.
+    
     Flujo:
-    1. Usuario se registra en Firebase (frontend)
-    2. Frontend obtiene firebase_uid
-    3. Frontend llama a este endpoint con los datos
+    1. Usuario pre-registrado en BD por Admin (firebase_uid='pending:{email}')
+    2. Usuario se autentica en Firebase (frontend)
+    3. Frontend obtiene firebase_uid real
+    4. Frontend llama a este endpoint
+    5. Backend actualiza firebase_uid si el email está pre-registrado
     """
     try:
         usuario_repo = UsuarioRepository(db)
 
-        # Verificar que no exista ya
-        existing = usuario_repo.get_by_firebase_uid(user_data.firebase_uid)
-        if existing:
-            raise HTTPException(status_code=400, detail="Usuario ya registrado")
-
-        # Verificar email único
-        existing_email = usuario_repo.get_by_email(user_data.email)
-        if existing_email:
-            raise HTTPException(status_code=400, detail="Email ya registrado")
-
-        # Validar rol
-        if user_data.rol not in ["PROFESOR", "AREA_CALIDAD"]:
-            raise HTTPException(status_code=400, detail="Rol inválido")
-
-        # Crear usuario
-        usuario = usuario_repo.create_usuario(
-            firebase_uid=user_data.firebase_uid,
-            email=user_data.email,
-            nombre=user_data.nombre,
-            rol=user_data.rol
-        )
-
-        log.info(f"Usuario registrado: {usuario.email} ({usuario.rol})")
-        return usuario
+        # Buscar por email (debe existir, creado por admin)
+        existing_user = usuario_repo.get_by_email(user_data.email)
+        
+        if not existing_user:
+            # Usuario NO está pre-registrado -> Denegar acceso
+            log.warning(f"Intento de registro no autorizado: {user_data.email}")
+            raise HTTPException(
+                status_code=403, 
+                detail="Acceso denegado. Contacta al administrador para obtener acceso al sistema."
+            )
+        
+        # Usuario existe -> Verificar si ya completó registro
+        if existing_user.firebase_uid and not existing_user.firebase_uid.startswith('pending:'):
+            # Ya tiene UID real -> Ya registrado previamente
+            if existing_user.firebase_uid == user_data.firebase_uid:
+                log.info(f"Usuario ya registrado: {user_data.email}")
+                return existing_user
+            else:
+                raise HTTPException(
+                    status_code=400, 
+                    detail="Este email ya está asociado a otra cuenta"
+                )
+        
+        # Usuario pre-registrado -> Actualizar con UID real de Firebase
+        existing_user.firebase_uid = user_data.firebase_uid
+        db.commit()
+        db.refresh(existing_user)
+        
+        log.info(f"Usuario completó registro: {existing_user.email} ({existing_user.rol})")
+        return existing_user
 
     except HTTPException:
         raise

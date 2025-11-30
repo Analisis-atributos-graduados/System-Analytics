@@ -27,10 +27,8 @@ export class Router {
         // ✅ Control de Acceso para Ajustes
         if (routeName === 'settings') {
             const user = AuthService.getCurrentUser();
-            // Asumimos que si no hay usuario o no es AREA_CALIDAD, no puede entrar
-            // Nota: AuthService.getCurrentUser() puede devolver null si no ha cargado, 
-            // pero en este punto ya deberíamos estar logueados.
-            if (!user || user.rol !== 'AREA_CALIDAD') {
+            // Ambos roles pueden entrar, pero verán cosas distintas.
+            if (!user || !['AREA_CALIDAD', 'PROFESOR'].includes(user.rol)) {
                 console.warn('⛔ Acceso denegado a ajustes');
                 showErrorNotification('No tienes permisos para acceder a esta sección');
                 return;
@@ -55,6 +53,11 @@ export class Router {
         }
 
         try {
+            // Limpiar vista anterior si existe
+            if (this.currentView && typeof this.currentView.destroy === 'function') {
+                this.currentView.destroy();
+            }
+
             // Crear instancia de la vista
             this.currentView = new ViewClass(this);
 

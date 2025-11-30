@@ -15,3 +15,4 @@ class Curso(Base):
 
     # Relaciones
     evaluaciones = relationship("Evaluacion", back_populates="curso")
+    atributos = relationship("CursoAtributo", backref="curso", cascade="all, delete-orphan")

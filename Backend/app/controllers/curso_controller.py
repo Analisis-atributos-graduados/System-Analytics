@@ -4,7 +4,7 @@ from typing import List
 
 from app.config.database import get_db
 from app.services.curso_service import CursoService
-from app.schemas.curso_schemas import CursoSchema, CursoCreate, CursoUpdate
+from app.schemas.curso_schemas import CursoSchema, CursoCreate, CursoUpdate, BulkAttributeAssignmentSchema
 from app.config.dependencies import require_role
 
 router = APIRouter(
@@ -79,3 +79,34 @@ def delete_curso(
         service.delete_curso(curso_id)
     except Exception as e:
         raise HTTPException(status_code=400, detail="No se puede eliminar el curso (posiblemente tiene evaluaciones asociadas)")
+
+@router.post("/assign-attributes", status_code=status.HTTP_200_OK)
+def assign_attributes(
+    payload: BulkAttributeAssignmentSchema,
+    db: Session = Depends(get_db),
+    current_user = Depends(require_role("AREA_CALIDAD"))
+):
+    """
+    Guarda la asignación de atributos a cursos.
+    Recibe un payload con la meta y la lista de asignaciones.
+    """
+    from app.services.meta_porcentaje_service import MetaPorcentajeService
+    from app.schemas.meta_porcentaje_schemas import MetaPorcentajeUpdate
+    
+    curso_service = CursoService(db)
+    meta_service = MetaPorcentajeService(db)
+    
+    try:
+        # 1. Actualizar Meta
+        update_data = MetaPorcentajeUpdate(porcentaje=payload.meta)
+        meta_service.update_meta(update_data)
+        
+        # 2. Actualizar Asignaciones
+        # Convertir a dict para pasar al servicio
+        assignments_dicts = [a.dict() for a in payload.asignaciones]
+        curso_service.bulk_assign_attributes(assignments_dicts)
+        
+        return {"message": "Configuración guardada correctamente"}
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error al guardar configuración: {str(e)}")
