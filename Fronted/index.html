@@ -1,11 +1,13 @@
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>EvalIA - Sistema de Evaluación Académica Inteligente</title>
     <link rel="stylesheet" href="css/styles.css">
 </head>
+
 <body>
     <div id="app">
         <div id="header"></div>
@@ -22,15 +24,15 @@
     <script type="module">
         import { initializeFirebase } from './js/config/firebase.config.js';
         import AuthService from './js/services/auth.service.js';
-        
-        const APP_VERSION = '1.0.1'; // Increment this on every deploy
+
+        const APP_VERSION = '1.0.3'; // Increment this on every deploy
 
         async function checkVersion() {
             const storedVersion = localStorage.getItem('appVersion');
             if (storedVersion !== APP_VERSION) {
                 console.log(`🔄 Nueva versión detectada: ${APP_VERSION} (Anterior: ${storedVersion})`);
                 console.log('🧹 Limpiando caché y recargando...');
-                
+
                 // Limpiar caches
                 if ('caches' in window) {
                     try {
@@ -40,11 +42,11 @@
                         console.error('Error limpiando caches:', e);
                     }
                 }
-                
+
                 // Limpiar localStorage (excepto items críticos si los hubiera)
                 localStorage.clear();
                 localStorage.setItem('appVersion', APP_VERSION);
-                
+
                 // Recargar forzosamente
                 window.location.reload(true);
                 return false;
@@ -57,25 +59,25 @@
                 if (!(await checkVersion())) return;
 
                 console.log('🔄 Iniciando aplicación...');
-                
+
                 // 1. Inicializar Firebase
                 await initializeFirebase();
                 console.log('✅ Firebase inicializado');
-                
+
                 // 2. Esperar a que Firebase Auth cargue el usuario
                 console.log('⏳ Esperando autenticación de Firebase...');
                 const isAuthReady = await AuthService.waitForAuth();
-                
+
                 if (!isAuthReady) {
                     console.warn('⚠️ No hay sesión activa, redirigiendo a login...');
                     window.location.href = './login.html';
                     return;
                 }
-                
+
                 // 3. Verificar que tenemos usuario completo
                 const currentUser = AuthService.getCurrentUser();
                 console.log('✅ Usuario autenticado:', currentUser.email, '- Rol:', currentUser.rol);
-                
+
                 // 4. Ocultar loader (VERIFICAR QUE EXISTE)
                 const loader = document.getElementById('auth-loader');
                 if (loader) {
@@ -84,21 +86,21 @@
                 } else {
                     console.warn('⚠️ Elemento auth-loader no encontrado');
                 }
-                
+
                 // 5. Cargar aplicación
                 console.log('📦 Cargando módulo main.js...');
                 const { default: mainApp } = await import(`./js/main.js?v=${APP_VERSION}`);
-                
+
                 if (typeof mainApp === 'function') {
                     console.log('🚀 Ejecutando mainApp()...');
                     mainApp();
                 } else {
                     console.error('❌ main.js no exporta una función por defecto');
                 }
-                
+
             } catch (error) {
                 console.error('❌ Error fatal:', error);
-                
+
                 const loader = document.getElementById('auth-loader');
                 if (loader) {
                     loader.innerHTML = `
@@ -116,8 +118,9 @@
                 }
             }
         }
-        
+
         initApp();
     </script>
 </body>
+
 </html>

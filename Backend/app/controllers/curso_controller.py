@@ -12,7 +12,7 @@ router = APIRouter(
     tags=["Cursos"]
 )
 
-@router.get("/", response_model=List[CursoSchema])
+@router.get("", response_model=List[CursoSchema])
 def get_cursos(
     habilitados_only: bool = False,
     db: Session = Depends(get_db)
@@ -27,7 +27,7 @@ def get_cursos(
         return service.get_cursos_habilitados()
     return service.get_all_cursos()
 
-@router.post("/", response_model=CursoSchema, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=CursoSchema, status_code=status.HTTP_201_CREATED)
 def create_curso(
     curso: CursoCreate,
     db: Session = Depends(get_db),

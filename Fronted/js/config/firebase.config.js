@@ -1,7 +1,7 @@
-import { 
-    getAuth, 
-    setPersistence, 
-    browserLocalPersistence 
+import {
+    getAuth,
+    setPersistence,
+    browserLocalPersistence
 } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
 
 // Configuración de Firebase
@@ -24,20 +24,20 @@ export let app = null;
 export const initializeFirebase = async () => {
     try {
         console.log('🔥 Inicializando Firebase...');
-        
+
         const { initializeApp } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js');
-        
+
         // Inicializar app
         app = initializeApp(FIREBASE_CONFIG);
         auth = getAuth(app);
-        
+
         // IMPORTANTE: Configurar persistencia LOCAL
         await setPersistence(auth, browserLocalPersistence);
         console.log('💾 Persistencia configurada: LOCAL');
-        
+
         console.log('✅ Firebase inicializado correctamente');
         console.log('📧 Auth Domain:', FIREBASE_CONFIG.authDomain);
-        
+
         return { app, auth };
     } catch (error) {
         console.error('❌ Error al inicializar Firebase:', error);

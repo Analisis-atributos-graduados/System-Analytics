@@ -14,7 +14,7 @@ log = logging.getLogger(__name__)
 router = APIRouter(prefix="/users", tags=["Gestión de Usuarios"])
 
 
-@router.post("/", response_model=UsuarioResponse)
+@router.post("", response_model=UsuarioResponse)
 async def create_user(
     user_data: UsuarioCreateByAdmin,
     current_user: Usuario = Depends(require_role("AREA_CALIDAD")),
@@ -93,7 +93,7 @@ async def create_user(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/", response_model=List[UsuarioResponse])
+@router.get("", response_model=List[UsuarioResponse])
 async def list_users(
     current_user: Usuario = Depends(require_role("AREA_CALIDAD")),
     db: Session = Depends(get_db)

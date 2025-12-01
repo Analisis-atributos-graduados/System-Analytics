@@ -23,6 +23,21 @@ Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Analítica Académica API", version="1.0.0")
 
+# IMPORTANTE: Middleware para confiar en headers del proxy (Cloud Run)
+# Esto asegura que los redirects usen HTTPS en lugar de HTTP
+from starlette.middleware.trustedhost import TrustedHostMiddleware
+from starlette.middleware.httpsredirect import HTTPSRedirectMiddleware
+
+# Agregar middleware para manejar correctamente HTTPS detrás de proxy
+@app.middleware("http")
+async def proxy_headers_middleware(request, call_next):
+    # Cloud Run envía el esquema original en X-Forwarded-Proto
+    if "x-forwarded-proto" in request.headers:
+        request.scope["scheme"] = request.headers["x-forwarded-proto"]
+    response = await call_next(request)
+    return response
+
+
 # Configuración CORS
 app.add_middleware(
     CORSMiddleware,

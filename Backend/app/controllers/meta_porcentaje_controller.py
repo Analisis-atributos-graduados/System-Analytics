@@ -11,13 +11,13 @@ router = APIRouter(
     tags=["Meta Porcentaje"]
 )
 
-@router.get("/", response_model=MetaPorcentajeSchema)
+@router.get("", response_model=MetaPorcentajeSchema)
 def get_meta(db: Session = Depends(get_db)):
     """Obtiene la meta de porcentaje actual."""
     service = MetaPorcentajeService(db)
     return service.get_meta()
 
-@router.put("/", response_model=MetaPorcentajeSchema)
+@router.put("", response_model=MetaPorcentajeSchema)
 def update_meta(
     meta: MetaPorcentajeUpdate,
     db: Session = Depends(get_db),
