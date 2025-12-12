@@ -8,7 +8,6 @@ log = logging.getLogger(__name__)
 
 
 class ArchivoRepository(BaseRepository):
-    """Repositorio para operaciones con archivos procesados."""
 
     def __init__(self, db: Session):
         super().__init__(db, ArchivoProcesado)
@@ -20,10 +19,7 @@ class ArchivoRepository(BaseRepository):
             texto_extraido: str,
             analisis_visual: str = ""
     ) -> ArchivoProcesado:
-        """
-        Crea un nuevo registro de archivo procesado.
-        ✅ CORREGIDO: Solo usa campos que existen en el modelo
-        """
+
         try:
             archivo = ArchivoProcesado(
                 evaluacion_id=evaluacion_id,
@@ -44,7 +40,7 @@ class ArchivoRepository(BaseRepository):
             raise
 
     def get_by_evaluacion(self, evaluacion_id: int) -> List[ArchivoProcesado]:
-        """Obtiene todos los archivos procesados de una evaluación."""
+
         try:
             return (
                 self.db.query(ArchivoProcesado)

@@ -15,16 +15,13 @@ export class SettingsView {
         this.courses = [];
         this.metaPorcentaje = 80;
 
-        // Gestión de usuarios
         this.users = [];
 
-        // Definición de los 12 Atributos de Graduado
         this.attributes = Array.from({ length: 12 }, (_, i) => ({
             codigo: `AG-${String(i + 1).padStart(2, '0')}`,
             nombre: `Atributo de Graduado ${i + 1}`
         }));
 
-        // Mapeo: Atributo -> Set de IDs de Cursos
         this.attributeMapping = new Map();
     }
 
@@ -199,12 +196,10 @@ export class SettingsView {
             this.courses = courses;
             this.metaPorcentaje = metaData.porcentaje;
 
-            // Inicializar mapeo
             this.attributes.forEach(attr => {
                 this.attributeMapping.set(attr.codigo, new Set());
             });
 
-            // Poblar mapeo con datos del backend
             this.courses.forEach(curso => {
                 if (curso.atributos && Array.isArray(curso.atributos)) {
                     curso.atributos.forEach(attr => {
@@ -216,14 +211,12 @@ export class SettingsView {
                 }
             });
 
-            // Cargar usuarios si es Área de Calidad
             if (this.isQuality) {
                 await this.loadUsers();
             }
 
             this.renderContent(container);
 
-            // Render assigned courses in zones
             this.attributeMapping.forEach((courseIds, attrCode) => {
                 const zone = document.querySelector(`.attribute-zone[data-attr="${attrCode}"]`);
                 if (zone) {
@@ -251,7 +244,6 @@ export class SettingsView {
             setTimeout(() => this.renderUserTable(), 100);
         } catch (error) {
             console.error('Error cargando usuarios:', error);
-            // No crashear si falla la carga de usuarios
             this.users = [];
         }
     }
@@ -367,39 +359,40 @@ export class SettingsView {
         }
 
         container.innerHTML = `
-            <table style="width: 100%; border-collapse: collapse;">
-                <thead>
-                    <tr style="border-bottom: 2px solid var(--card-border);">
-                        <th style="padding: 12px; text-align: left;">Email</th>
-                        <th style="padding: 12px; text-align: left;">Nombre</th>
-                        <th style="padding: 12px; text-align: left;">Rol</th>
-                        <th style="padding: 12px; text-align: center;">Acciones</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    ${this.users.map(user => `
-                        <tr style="border-bottom: 1px solid var(--card-border);">
-                            <td style="padding: 12px;">${user.email}</td>
-                            <td style="padding: 12px;">${user.nombre}</td>
-                            <td style="padding: 12px;">
-                                <span style="background: ${user.rol === 'AREA_CALIDAD' ? 'var(--primary-color)' : 'var(--secondary-color)'}; color: white; padding: 4px 8px; border-radius: 4px; font-size: 12px;">
-                                    ${user.rol === 'AREA_CALIDAD' ? 'Admin' : 'Profesor'}
-                                </span>
-                            </td>
-                            <td style="padding: 12px; text-align: center;">
-                                ${user.id !== this.user.id ? `
-                                    <button class="btn-delete-user" data-user-id="${user.id}" data-user-name="${user.nombre}" style="background: var(--error-color); color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer;">
-                                        Eliminar
-                                    </button>
-                                ` : '<span style="color: var(--secondary-text);">Tú</span>'}
-                            </td>
+            <div class="table-responsive">
+                <table style="width: 100%; border-collapse: collapse;">
+                    <thead>
+                        <tr style="border-bottom: 2px solid var(--card-border);">
+                            <th style="padding: 12px; text-align: left;">Email</th>
+                            <th style="padding: 12px; text-align: left;">Nombre</th>
+                            <th style="padding: 12px; text-align: left;">Rol</th>
+                            <th style="padding: 12px; text-align: center;">Acciones</th>
                         </tr>
-                    `).join('')}
-                </tbody>
-            </table>
+                    </thead>
+                    <tbody>
+                        ${this.users.map(user => `
+                            <tr style="border-bottom: 1px solid var(--card-border);">
+                                <td style="padding: 12px;">${user.email}</td>
+                                <td style="padding: 12px;">${user.nombre}</td>
+                                <td style="padding: 12px;">
+                                    <span style="background: ${user.rol === 'AREA_CALIDAD' ? 'var(--primary-color)' : 'var(--secondary-color)'}; color: white; padding: 4px 8px; border-radius: 4px; font-size: 12px;">
+                                        ${user.rol === 'AREA_CALIDAD' ? 'Admin' : 'Profesor'}
+                                    </span>
+                                </td>
+                                <td style="padding: 12px; text-align: center;">
+                                    ${user.id !== this.user.id ? `
+                                        <button class="btn-delete-user" data-user-id="${user.id}" data-user-name="${user.nombre}" style="background: var(--error-color); color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer;">
+                                            Eliminar
+                                        </button>
+                                    ` : '<span style="color: var(--secondary-text);">Tú</span>'}
+                                </td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            </div>
         `;
 
-        // Attach delete event listeners
         document.querySelectorAll('.btn-delete-user').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 const userId = parseInt(e.target.dataset.userId);
@@ -514,7 +507,6 @@ export class SettingsView {
                 return;
             }
 
-            // Validaciones usando ValidatorUtils
             if (!ValidatorUtils.isValidName(nombre)) {
                 showErrorNotification('El nombre solo debe contener letras y espacios');
                 return;
@@ -545,7 +537,6 @@ export class SettingsView {
             }
         };
 
-        // Close on ESC
         const handleEsc = (e) => {
             if (e.key === 'Escape' && document.body.contains(modal)) {
                 document.body.removeChild(modal);
@@ -726,7 +717,6 @@ export class SettingsView {
                 courseIds.push(parseInt(card.dataset.id));
             });
 
-            // Solo incluir si tiene cursos
             if (courseIds.length > 0) {
                 asignaciones.push({
                     atributo: attrCode,
@@ -738,7 +728,7 @@ export class SettingsView {
     }
 
     async saveGoal() {
-        console.log('💾 Guardando meta...');
+        console.log('Guardando meta...');
         const payload = {
             meta: this._getGoalPayload(),
             asignaciones: this._getAssignmentsPayload()
@@ -747,7 +737,7 @@ export class SettingsView {
     }
 
     async saveAssignments() {
-        console.log('💾 Guardando asignaciones...');
+        console.log('Guardando asignaciones...');
         const payload = {
             meta: this._getGoalPayload(),
             asignaciones: this._getAssignmentsPayload()
@@ -810,7 +800,6 @@ export class SettingsView {
                 try {
                     await AuthService.updatePassword(currentPassword, newPassword);
                     showSuccessNotification('Contraseña actualizada correctamente.');
-                    // Limpiar campos
                     document.getElementById('current-password').value = '';
                     document.getElementById('new-password').value = '';
                     document.getElementById('new-password-confirm').value = '';
@@ -820,7 +809,6 @@ export class SettingsView {
             });
         }
 
-        // Add listeners for all password toggles on the page
         const passwordToggles = document.querySelectorAll('#change-password-form .toggle-password-btn');
         passwordToggles.forEach(btn => {
             btn.addEventListener('click', function () {

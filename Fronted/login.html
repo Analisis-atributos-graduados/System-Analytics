@@ -26,7 +26,6 @@
                 </div>
 
                 <div id="login-content">
-                    <!-- Loading mientras inicializa Firebase -->
                     <div id="firebase-init-loader" class="loader">
                         <div class="spinner"></div>
                         <p>Iniciando sistema...</p>
@@ -39,24 +38,21 @@
     <script type="module">
         import { initializeFirebase } from './js/config/firebase.config.js';
 
-        // Inicializar Firebase
         const loader = document.getElementById('firebase-init-loader');
 
         try {
             await initializeFirebase();
-            console.log('✅ Firebase inicializado en login');
+            console.log('Firebase inicializado en login');
 
-            // Ocultar loader y cargar vista de login
             loader.style.display = 'none';
 
-            // Cargar vista de login
             const { LoginView } = await import('./js/views/login.view.js');
             const loginView = new LoginView();
             document.getElementById('login-content').innerHTML = loginView.render();
             loginView.attachEventListeners();
 
         } catch (error) {
-            console.error('❌ Error al inicializar Firebase:', error);
+            console.error('Error al inicializar Firebase:', error);
             loader.innerHTML = `
                 <div style="color: red; text-align: center;">
                     <h3>❌ Error de conexión</h3>

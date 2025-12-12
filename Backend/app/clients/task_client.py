@@ -11,7 +11,6 @@ log = logging.getLogger(__name__)
 
 
 class TaskClient:
-    """Cliente para crear tareas en Google Cloud Tasks."""
 
     def __init__(self):
         self.client = tasks_v2.CloudTasksClient()
@@ -20,7 +19,6 @@ class TaskClient:
         self.queue_name = settings.QUEUE_NAME
         self.service_url = settings.SERVICE_URL
 
-        # Construir el path completo de la cola
         self.queue_path = self.client.queue_path(
             self.project_id,
             self.location,
@@ -35,25 +33,13 @@ class TaskClient:
             payload: Dict[Any, Any],
             delay_seconds: int = 0
     ) -> str:
-        """
-        Crea una tarea HTTP POST en Cloud Tasks.
 
-        Args:
-            relative_uri: URI relativo del endpoint (ej: '/process-file-task')
-            payload: Diccionario con el payload JSON
-            delay_seconds: Retraso antes de ejecutar la tarea
-
-        Returns:
-            Nombre completo de la tarea creada
-        """
         try:
-            # Construir URL completa
+
             url = f"{self.service_url}{relative_uri}"
 
-            # Serializar payload a JSON
             payload_bytes = json.dumps(payload).encode('utf-8')
 
-            # Construir la tarea
             task = {
                 "http_request": {
                     "http_method": tasks_v2.HttpMethod.POST,
@@ -65,14 +51,12 @@ class TaskClient:
                 }
             }
 
-            # Agregar retraso si se especifica
             if delay_seconds > 0:
                 d = datetime.datetime.utcnow() + datetime.timedelta(seconds=delay_seconds)
                 timestamp = timestamp_pb2.Timestamp()
                 timestamp.FromDatetime(d)
                 task["schedule_time"] = timestamp
 
-            # Crear la tarea
             response = self.client.create_task(
                 request={
                     "parent": self.queue_path,
@@ -96,9 +80,7 @@ class TaskClient:
             precomputed_ocr_text: str = None,
             delay_seconds: int = 0
     ) -> str:
-        """
-        Crea una tarea para procesar un archivo individual.
-        """
+
         payload = {
             "gcs_filename": gcs_filename,
             "original_filename": original_filename,
@@ -118,9 +100,7 @@ class TaskClient:
             evaluacion_id: int,
             delay_seconds: int = 5
     ) -> str:
-        """
-        Crea una tarea para la evaluación final (agregación y calificación).
-        """
+
         payload = {
             "evaluacion_id": evaluacion_id
         }

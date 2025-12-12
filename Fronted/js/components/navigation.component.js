@@ -60,21 +60,18 @@ export class NavigationComponent {
             tab.addEventListener('click', () => {
                 const route = tab.dataset.route;
 
-                // Remover active de todos
                 navTabs.forEach(t => t.classList.remove('active'));
 
-                // Agregar active al clickeado
                 tab.classList.add('active');
 
-                // Navegar usando el router global
                 if (window.appRouter) {
                     window.appRouter.navigate(route);
                 } else {
-                    console.error('❌ Router no disponible');
+                    console.error('Router no disponible');
                 }
             });
         });
 
-        console.log('✅ Event listeners de navegación agregados');
+        console.log('Event listeners de navegación agregados');
     }
 }

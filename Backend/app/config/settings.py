@@ -5,9 +5,7 @@ log = logging.getLogger(__name__)
 
 
 class Settings:
-    """Configuración centralizada del sistema."""
 
-    # Google Cloud
     GCP_PROJECT_ID: str = os.environ.get("GCP_PROJECT_ID")
     GCP_LOCATION: str = os.environ.get("GCP_LOCATION")
     BUCKET_NAME: str = os.environ.get("GCS_BUCKET_NAME")
@@ -15,19 +13,15 @@ class Settings:
     QUEUE_LOCATION: str = os.environ.get("QUEUE_LOCATION", os.environ.get("GCP_LOCATION"))
     SERVICE_ACCOUNT_EMAIL: str = os.environ.get("SERVICE_ACCOUNT_EMAIL")
 
-    # Service URL
     SERVICE_URL: str = os.environ.get(
         "SERVICE_URL",
         "https://analitica-backend-511391059179.southamerica-east1.run.app"
     )
 
-    # API Keys
     RAPIDAPI_KEY: str = os.environ.get("RAPIDAPI_KEY")
 
-    # Database
     DATABASE_URL: str = os.environ.get("DATABASE_URL")
 
-    # ML Model
     MODEL_PATH: str = "/app/model"
 
     def __init__(self):

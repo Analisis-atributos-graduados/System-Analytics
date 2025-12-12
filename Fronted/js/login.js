@@ -9,7 +9,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const googleLoginButton = document.querySelector('.btn-google');
     const submitButton = loginForm.querySelector('button[type="submit"]');
 
-    // Toggle between login and register views
     goToRegisterLink.addEventListener('click', (e) => {
         e.preventDefault();
         loginView.style.display = 'none';
@@ -22,7 +21,6 @@ document.addEventListener('DOMContentLoaded', () => {
         registerView.style.display = 'none';
     });
 
-    // Handle the real login
     const handleLogin = async (e) => {
         e.preventDefault();
         const email = document.getElementById('email').value;
@@ -38,15 +36,12 @@ document.addEventListener('DOMContentLoaded', () => {
         submitButton.innerHTML = 'Iniciando sesión...';
 
         try {
-            // 1. Log in to get the token
             await AuthService.login(email, password);
 
-            // 2. Fetch user data (which also stores the user and role)
             const user = await AuthService.getMe();
             
             console.log(`Login exitoso. Usuario: ${user.nombre_completo}, Rol: ${user.rol}`);
 
-            // 3. Redirect to the main app
             window.location.href = 'index.html';
 
         } catch (error) {
@@ -59,7 +54,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     loginForm.addEventListener('submit', handleLogin);
 
-    // Temporarily disable Google Login
     googleLoginButton.addEventListener('click', (e) => {
         e.preventDefault();
         alert('El inicio de sesión con Google no está implementado todavía.');

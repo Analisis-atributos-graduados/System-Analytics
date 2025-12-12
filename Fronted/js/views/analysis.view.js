@@ -12,7 +12,7 @@ export class AnalysisView {
             semestre: null,
             curso: null,
             tema: null,
-            atributo: null // ✅ Nuevo filtro
+            atributo: null
         };
         this.availableFilters = {
             semestres: [],
@@ -23,12 +23,11 @@ export class AnalysisView {
                 nombre: `Atributo de Graduado ${i + 1}`
             }))
         };
-        this.allCursos = []; // ✅ Almacenar todos los cursos para filtrado local
+        this.allCursos = [];
         this.isLoading = false;
         this.isAnalyzing = false;
         this.pollingInterval = null;
 
-        // Cargar filtros iniciales
         this.loadInitialFilters();
     }
 
@@ -43,15 +42,13 @@ export class AnalysisView {
 
     async loadInitialFilters() {
         try {
-            // ✅ NUEVO: Verificar si hay un ID de evaluación en la URL
             const urlParams = new URLSearchParams(window.location.search);
             const evaluacionId = urlParams.get('evaluacionId');
 
             if (evaluacionId) {
-                console.log('🔗 Detectado evaluacionId en URL:', evaluacionId);
+                console.log('Detectado evaluacionId en URL:', evaluacionId);
                 await this.loadSpecificEvaluation(evaluacionId);
 
-                // Limpiar URL para no re-cargar al refrescar
                 window.history.replaceState({}, document.title, window.location.pathname);
                 return;
             }
@@ -74,10 +71,6 @@ export class AnalysisView {
 
     async loadSpecificEvaluation(evaluacionId) {
         try {
-            this.isLoading = true;
-            this.isAnalyzing = false; // Manejo más granular ahora
-            this.updateView();
-
             if (this.pollingInterval) {
                 clearInterval(this.pollingInterval);
                 this.pollingInterval = null;
@@ -89,40 +82,78 @@ export class AnalysisView {
                 throw new Error('Evaluación no encontrada');
             }
 
-            console.log('✅ Evaluación cargada:', evaluacion);
+            console.log('Evaluación cargada:', evaluacion);
 
-            // 1. Establecer filtros y cargar listas de filtros INMEDIATAMENTE
+            const nota = evaluacion.resultado_analisis ? Number(evaluacion.resultado_analisis.nota_final) : 0;
+            const isComplete = evaluacion.resultado_analisis && !isNaN(nota) && nota > 0;
+
+            if (!isComplete) {
+
+                console.log('Evaluación en proceso. Iniciando polling...');
+                this.isLoading = false;
+                this.isAnalyzing = true;
+                this.updateView();
+                showSuccessNotification('Analizando con IA... El dashboard se cargará automáticamente.');
+                this.startPolling(evaluacionId);
+                return;
+            }
+
+            this.isLoading = true;
+            this.isAnalyzing = false;
+            this.updateView();
+
             this.filters.semestre = evaluacion.semestre;
             this.filters.curso = evaluacion.codigo_curso;
             this.filters.tema = evaluacion.tema;
 
             this.availableFilters.semestres = await FiltrosService.getSemestres();
+
             if (this.filters.semestre) {
-                // await this.availableFilters.cursos = await FiltrosService.getCursos(this.filters.semestre);
-                // Usar loadCursos para poblar correctamente
-                await this.loadCursos();
+                const cursos = await FiltrosService.getCursos(this.filters.semestre);
+                const user = AuthService.getCurrentUser();
+
+                if (user && user.rol === 'AREA_CALIDAD') {
+                    const uniqueCursosMap = new Map();
+                    cursos.forEach(c => {
+                        if (!uniqueCursosMap.has(c.nombre)) {
+                            uniqueCursosMap.set(c.nombre, {
+                                codigo: c.nombre,
+                                nombre: c.nombre,
+                                atributos: new Set(c.atributos || [])
+                            });
+                        } else {
+                            const existing = uniqueCursosMap.get(c.nombre);
+                            if (c.atributos) {
+                                c.atributos.forEach(a => existing.atributos.add(a));
+                            }
+                        }
+                    });
+                    this.allCursos = Array.from(uniqueCursosMap.values()).map(c => ({
+                        ...c,
+                        atributos: Array.from(c.atributos)
+                    }));
+                } else {
+                    this.allCursos = cursos;
+                }
+
+                this.availableFilters.cursos = this.allCursos;
             }
+
             if (this.filters.semestre && this.filters.curso) {
                 this.availableFilters.temas = await FiltrosService.getTemas(this.filters.semestre, this.filters.curso);
             }
 
-            // 2. Cargar el dashboard (incluso si está vacío o pendiente)
-            // Esto renderizará la estructura y los filtros seleccionados.
             await this.viewThemeDashboard(this.filters.tema);
 
-            // 3. Verificar si la evaluación está completa y, si no, iniciar polling.
-            const nota = evaluacion.resultado_analisis ? Number(evaluacion.resultado_analisis.nota_final) : 0;
-            if (!evaluacion.resultado_analisis || isNaN(nota) || nota === 0) {
-                console.log('⏳ Evaluación en proceso. Los resultados se actualizarán automáticamente.');
-                showSuccessNotification('Análisis en curso... El dashboard se actualizará automáticamente.');
-                this.startPolling(evaluacionId); // El polling refrescará cuando esté listo.
-            }
+            console.log('Dashboard cargado con evaluación completa');
+            showSuccessNotification('✅ Evaluación completada');
 
         } catch (error) {
             console.error('Error cargando evaluación específica:', error);
             showErrorNotification('No se pudo cargar la evaluación solicitada');
             const semestres = await FiltrosService.getSemestres();
             this.availableFilters.semestres = semestres;
+        } finally {
             this.isLoading = false;
             this.updateView();
         }
@@ -132,14 +163,10 @@ export class AnalysisView {
         if (!this.filters.semestre) return;
 
         try {
-            // Solo cargar del backend si no tenemos datos o cambió el semestre
-            // Pero como loadCursos se llama al cambiar semestre, asumimos fetch
             const cursos = await FiltrosService.getCursos(this.filters.semestre);
 
-            // ✅ Lógica específica para Área de Calidad: Agrupar por nombre
             const user = AuthService.getCurrentUser();
             if (user && user.rol === 'AREA_CALIDAD') {
-                // Deduplicar por nombre y preservar atributos (union de atributos si hay duplicados)
                 const uniqueCursosMap = new Map();
 
                 cursos.forEach(c => {
@@ -150,7 +177,6 @@ export class AnalysisView {
                             atributos: new Set(c.atributos || [])
                         });
                     } else {
-                        // Merge attributes
                         const existing = uniqueCursosMap.get(c.nombre);
                         if (c.atributos) {
                             c.atributos.forEach(a => existing.atributos.add(a));
@@ -177,30 +203,16 @@ export class AnalysisView {
     applyCourseFilters() {
         let filtered = this.allCursos;
 
-        // Filtrar por atributo si está seleccionado
         if (this.filters.atributo) {
             filtered = filtered.filter(c => c.atributos && c.atributos.includes(this.filters.atributo));
         }
 
         this.availableFilters.cursos = filtered;
 
-        // Resetear selección de curso si el actual no está en la lista filtrada
         if (this.filters.curso && !filtered.find(c => c.codigo === this.filters.curso)) {
             this.filters.curso = null;
         }
 
-        // Auto-seleccionar si solo hay uno
-        /*
-        if (this.availableFilters.cursos.length === 1) {
-            this.filters.curso = this.availableFilters.cursos[0].codigo;
-            const user = AuthService.getCurrentUser();
-            if (user && user.rol === 'AREA_CALIDAD') {
-                this.viewQualityDashboard(this.filters.curso);
-            } else {
-                this.loadTemas();
-            }
-        }
-        */
     }
 
     async loadTemas() {
@@ -304,11 +316,9 @@ export class AnalysisView {
             `;
         }
 
-        // ✅ Detectar rol del usuario
         const user = AuthService.getCurrentUser();
         const isQualityArea = user && user.rol === 'AREA_CALIDAD';
 
-        // ✅ Dashboard del Área de Calidad (agregado)
         if (isQualityArea) {
             if (!this.filters.curso) {
                 return `
@@ -322,7 +332,6 @@ export class AnalysisView {
             return this.renderQualityDashboard();
         }
 
-        // ✅ Dashboard del Profesor (individual)
         if (!this.filters.curso) {
             return `
                 <div class="empty-state">
@@ -333,18 +342,12 @@ export class AnalysisView {
             `;
         }
 
-        // Si hay curso seleccionado pero no tema, mostrar lista de temas
         if (!this.filters.tema) {
             return this.renderThemesList();
         }
 
-        // Si hay tema seleccionado, mostrar Dashboard
         return this.renderDashboard();
     }
-
-    // =========================================
-    // DASHBOARD DEL ÁREA DE CALIDAD
-    // =========================================
 
     renderQualityDashboard() {
         if (!this.dashboardStats) return '';
@@ -382,7 +385,7 @@ export class AnalysisView {
     }
 
     renderPerformanceDistribution(criterios) {
-        // Asumimos que viene un solo criterio AG-07 o tomamos el primero
+
         const c = criterios[0] || { excelente: 0, bueno: 0, requiereMejora: 0, noAceptable: 0 };
 
         const total = c.excelente + c.bueno + c.requiereMejora + c.noAceptable;
@@ -653,14 +656,14 @@ export class AnalysisView {
     }
 
     attachEventListeners() {
-        // Filtros
+    
         const filterSemestre = document.getElementById('filterSemestre');
         if (filterSemestre) {
             filterSemestre.addEventListener('change', async (e) => {
                 this.filters.semestre = e.target.value || null;
                 this.filters.curso = null;
                 this.filters.tema = null;
-                this.filters.atributo = null; // Reset atributo
+                this.filters.atributo = null;
                 this.availableFilters.cursos = [];
                 this.availableFilters.temas = [];
                 if (this.filters.semestre) await this.loadCursos();
@@ -668,13 +671,12 @@ export class AnalysisView {
             });
         }
 
-        // ✅ Nuevo Listener para Atributo
         const filterAtributo = document.getElementById('filterAtributo');
         if (filterAtributo) {
             filterAtributo.addEventListener('change', async (e) => {
                 this.filters.atributo = e.target.value || null;
-                this.filters.curso = null; // Reset curso al cambiar atributo
-                this.applyCourseFilters(); // Re-filtrar cursos
+                this.filters.curso = null;
+                this.applyCourseFilters();
                 this.updateView();
             });
         }
@@ -688,21 +690,20 @@ export class AnalysisView {
 
                 const user = AuthService.getCurrentUser();
                 if (user && user.rol === 'AREA_CALIDAD') {
-                    // Si es calidad, cargamos dashboard directo
+
                     if (this.filters.curso) {
                         await this.viewQualityDashboard(this.filters.curso);
                     } else {
                         this.updateView();
                     }
                 } else {
-                    // Si es profesor, cargamos temas
+
                     if (this.filters.curso) await this.loadTemas();
                     this.updateView();
                 }
             });
         }
 
-        // Ver Dashboard de un tema
         document.querySelectorAll('[data-action="view-theme"]').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 const tema = e.target.dataset.tema;
@@ -710,7 +711,6 @@ export class AnalysisView {
             });
         });
 
-        // Volver a lista de temas
         const btnBack = document.getElementById('btnBackToThemes');
         if (btnBack) {
             btnBack.addEventListener('click', () => {
@@ -720,7 +720,6 @@ export class AnalysisView {
             });
         }
 
-        // Descargar Transcripciones
         const btnDownload = document.getElementById('btnDownloadTranscriptions');
         if (btnDownload) {
             btnDownload.addEventListener('click', () => this.downloadTranscriptions());
@@ -738,7 +737,7 @@ export class AnalysisView {
         } catch (error) {
             console.error('Error loading dashboard:', error);
             showErrorNotification(error);
-            this.filters.tema = null; // Volver atrás si falla
+            this.filters.tema = null;
         } finally {
             this.isLoading = false;
             this.updateView();
@@ -754,7 +753,7 @@ export class AnalysisView {
             const stats = await DocumentService.getQualityDashboardStats({
                 semestre: this.filters.semestre,
                 curso: curso,
-                atributo: this.filters.atributo // ✅ Pasar atributo seleccionado
+                atributo: this.filters.atributo
             });
             this.dashboardStats = stats;
         } catch (error) {
@@ -769,7 +768,6 @@ export class AnalysisView {
 
     async downloadTranscriptions() {
         try {
-            // Mostrar indicador de carga en el botón si fuera necesario
             await DocumentService.downloadTranscriptions(this.filters);
         } catch (error) {
             console.error('Error downloading:', error);
@@ -778,7 +776,7 @@ export class AnalysisView {
     }
     startPolling(evaluacionId) {
         let attempts = 0;
-        const maxAttempts = 60; // 5 minutos aprox
+        const maxAttempts = 60;
 
         this.pollingInterval = setInterval(async () => {
             attempts++;
@@ -788,13 +786,12 @@ export class AnalysisView {
                 console.log(`🔄 Polling intento ${attempts}: Nota ${nota}`);
 
                 if (nota > 0) {
-                    // Evaluación completada
+
                     clearInterval(this.pollingInterval);
                     this.pollingInterval = null;
                     this.isAnalyzing = false;
                     showSuccessNotification('✅ Evaluación completada');
 
-                    // Recargar vista completa
                     this.loadSpecificEvaluation(evaluacionId);
                 } else if (attempts >= maxAttempts) {
                     clearInterval(this.pollingInterval);

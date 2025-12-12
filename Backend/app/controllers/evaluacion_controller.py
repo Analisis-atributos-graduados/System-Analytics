@@ -30,16 +30,12 @@ async def get_dashboard_stats(
     current_user: Usuario = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """
-    Obtiene estadísticas agregadas para el dashboard.
-    """
+
     try:
         repo = EvaluacionRepository(db)
-        
-        # Determinar ID del profesor para filtrar
+
         profesor_id = current_user.id if current_user.rol == "PROFESOR" else None
-        
-        # Obtener evaluaciones con resultados
+
         evaluaciones = repo.get_by_filters(
             semestre=semestre,
             curso=curso,
@@ -55,14 +51,12 @@ async def get_dashboard_stats(
                 "estudiantes": []
             }
 
-        # Calcular estadísticas
         total = len(evaluaciones)
         notas = [e.resultado_analisis.nota_final for e in evaluaciones if e.resultado_analisis]
         promedio = sum(notas) / len(notas) if notas else 0
         aprobados = len([n for n in notas if n >= 10.5])
         desaprobados = total - aprobados
 
-        # Distribución
         dist = {"0-4": 0, "5-8": 0, "9-12": 0, "13-16": 0, "17-20": 0}
         for n in notas:
             if n <= 4: dist["0-4"] += 1
@@ -71,7 +65,6 @@ async def get_dashboard_stats(
             elif n <= 16: dist["13-16"] += 1
             else: dist["17-20"] += 1
 
-        # Promedios por criterio
         criterios_stats = {}
         
         for ev in evaluaciones:
@@ -84,10 +77,9 @@ async def get_dashboard_stats(
                     criterios_stats[crit_id]["sum"] += data.get("puntaje", 0)
                     criterios_stats[crit_id]["count"] += 1
 
-        # Enriquecer con nombres de criterios
         criterios_list = []
         if criterios_stats:
-            # Separar IDs numéricos de nombres en texto
+
             ids = []
             names_stats = {}
             
@@ -97,23 +89,19 @@ async def get_dashboard_stats(
                 else:
                     names_stats[k] = v
 
-            # Buscar criterios por ID
             db_criterios = []
             if ids:
                 db_criterios = db.query(Criterio).filter(Criterio.id.in_(ids)).all()
-            
-            # Buscar criterios por Nombre (si hay claves de texto)
+
             if names_stats:
                 names = list(names_stats.keys())
-                # Podríamos filtrar por rubrica_id si tuviéramos acceso fácil, pero por nombre debería bastar para stats
+
                 criterios_por_nombre = db.query(Criterio).filter(Criterio.nombre_criterio.in_(names)).all()
                 db_criterios.extend(criterios_por_nombre)
-            
-            # Crear mapas de búsqueda
+
             crit_map = {str(c.id): c for c in db_criterios}
             crit_name_map = {c.nombre_criterio: c for c in db_criterios}
 
-            # Procesar criterios por ID
             for crit_id in ids:
                 stats = criterios_stats.get(str(crit_id)) or criterios_stats.get(crit_id)
                 crit_obj = crit_map.get(str(crit_id))
@@ -133,18 +121,16 @@ async def get_dashboard_stats(
                         "porcentaje": round(percentage, 1)
                     })
 
-            # Procesar criterios por Nombre (fallback para legacy o generados dinámicamente sin ID)
             for name, stats in names_stats.items():
                 promedio_crit = stats["sum"] / stats["count"]
-                
-                # Intentar buscar max_score real por nombre
-                max_score = 4.0 # Default
+
+                max_score = 4.0
                 if name in crit_name_map:
                     crit_obj = crit_name_map[name]
                     if crit_obj.niveles:
                         max_score = max([n.puntaje_max for n in crit_obj.niveles])
                 elif promedio_crit > 4:
-                    max_score = 20.0 # Si el promedio es alto, asumimos escala vigesimal
+                    max_score = 20.0
 
                 percentage = (promedio_crit / max_score * 100)
                 
@@ -154,7 +140,6 @@ async def get_dashboard_stats(
                     "porcentaje": round(percentage, 1)
                 })
 
-        # Lista de estudiantes con detalles
         estudiantes = []
         for e in evaluaciones:
             student_data = {
@@ -168,17 +153,16 @@ async def get_dashboard_stats(
             if e.resultado_analisis and e.resultado_analisis.criterios_evaluados:
                 criterios_json = e.resultado_analisis.criterios_evaluados
                 for key, data in criterios_json.items():
-                    # Resolver nombre del criterio
+
                     nombre_crit = str(key)
-                    max_score = 4.0 # Default
-                    
-                    # Intentar buscar en mapa de IDs
+                    max_score = 4.0
+
                     if str(key).isdigit() and str(key) in crit_map:
                         crit_obj = crit_map[str(key)]
                         nombre_crit = crit_obj.nombre_criterio
                         if crit_obj.niveles:
                             max_score = max([n.puntaje_max for n in crit_obj.niveles])
-                    # Intentar buscar en mapa de Nombres
+
                     elif nombre_crit in crit_name_map:
                         crit_obj = crit_name_map[nombre_crit]
                         if crit_obj.niveles:
@@ -218,21 +202,14 @@ async def get_dashboard_stats(
 async def get_quality_dashboard_stats(
     semestre: str = Query(...),
     curso: Optional[str] = Query(None),
-    atributo: Optional[str] = Query(None), # ✅ Nuevo parámetro
+    atributo: Optional[str] = Query(None),
     current_user: Usuario = Depends(require_role("AREA_CALIDAD")),
     db: Session = Depends(get_db)
 ):
-    """
-    Obtiene estadísticas para el dashboard de calidad.
-    Agrega por curso (ignorando secciones) y usa buckets específicos.
-    """
+
     try:
         repo = EvaluacionRepository(db)
-        
-        # 1. Obtener todas las evaluaciones del semestre
-        # Si se especifica curso, intentamos filtrar por nombre si es posible, 
-        # pero como el repo filtra por código/ID, mejor traemos todo y filtramos en memoria
-        # para asegurar la agregación correcta por nombre de curso.
+
         evaluaciones = repo.get_by_filters(semestre=semestre)
         
         if not evaluaciones:
@@ -242,9 +219,8 @@ async def get_quality_dashboard_stats(
                 "criterios": []
             }
 
-        # 2. Filtrar por curso (Nombre) si se especifica
         if curso:
-            # Normalizar para comparación
+
             curso_norm = curso.lower().strip()
             evaluaciones = [
                 e for e in evaluaciones 
@@ -258,8 +234,6 @@ async def get_quality_dashboard_stats(
                 "criterios": []
             }
 
-        # 3. Calcular métricas
-        # Buckets: Excelente (16-20), Bueno (11-15), Mejora (6-10), No Aceptable (0-5)
         buckets = {
             "excelente": 0,
             "bueno": 0,
@@ -281,10 +255,7 @@ async def get_quality_dashboard_stats(
                 else:
                     buckets["noAceptable"] += 1
             else:
-                # Si no tiene nota (pendiente), cuenta como no aceptable o se ignora?
-                # Asumiremos que solo cuentan los evaluados.
-                # Si queremos ser estrictos: buckets["noAceptable"] += 1
-                # Pero mejor ignoramos los pendientes para no ensuciar la estadística
+
                 total_alumnos -= 1
 
         if total_alumnos == 0:
@@ -294,12 +265,9 @@ async def get_quality_dashboard_stats(
                 "criterios": []
             }
 
-        # Porcentaje de logro: (Excelente + Bueno) / Total
         logro_count = buckets["excelente"] + buckets["bueno"]
         porcentaje_logro = (logro_count / total_alumnos) * 100
 
-        # Estructura de respuesta
-        # Usamos el atributo solicitado o "AG-07" por defecto (legacy)
         attr_code = atributo if atributo else "AG-07"
         
         criterio_stats = {
@@ -329,9 +297,7 @@ async def download_transcriptions(
     current_user: Usuario = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """
-    Genera un ZIP con PDFs de las transcripciones de los exámenes.
-    """
+
     try:
         from reportlab.lib.pagesizes import letter
         from reportlab.pdfgen import canvas
@@ -350,63 +316,53 @@ async def download_transcriptions(
         if not evaluaciones:
             raise HTTPException(status_code=404, detail="No se encontraron evaluaciones")
 
-        # Crear ZIP en memoria
         zip_buffer = io.BytesIO()
         
         with zipfile.ZipFile(zip_buffer, "a", zipfile.ZIP_DEFLATED, False) as zip_file:
             for ev in evaluaciones:
-                # Obtener texto extraído
+
                 texto = ""
                 if ev.archivos_procesados:
-                    # Concatenar texto de todos los archivos (usualmente es 1 examen)
+
                     texto = "\n\n".join([ap.texto_extraido or "" for ap in ev.archivos_procesados])
                 
                 if not texto:
                     texto = "(No se encontró texto transcrito para esta evaluación)"
 
-                # Generar PDF en memoria
                 pdf_buffer = io.BytesIO()
                 c = canvas.Canvas(pdf_buffer, pagesize=letter)
                 width, height = letter
-                
-                # Encabezado
+
                 c.setFont("Helvetica-Bold", 12)
                 c.drawString(50, height - 50, f"Transcripción - {ev.nombre_alumno}")
                 c.setFont("Helvetica", 10)
-                # ✅ CORREGIDO: Usar ev.curso.nombre en lugar de ev.nombre_curso
                 nombre_curso = ev.curso.nombre if ev.curso else "Curso Desconocido"
                 c.drawString(50, height - 70, f"Curso: {nombre_curso} | Tema: {ev.tema}")
                 
                 y_position = height - 100
-                
-                # Iterar sobre archivos procesados (páginas)
+
                 if ev.archivos_procesados:
                     for idx, archivo in enumerate(ev.archivos_procesados, 1):
-                        # Nueva página si falta espacio para el encabezado
+
                         if y_position < 100:
                             c.showPage()
                             y_position = height - 50
-                            
-                        # Encabezado de página
+
                         c.setFont("Helvetica-Bold", 11)
                         c.drawString(50, y_position, f"--- Página {idx} ---")
                         y_position -= 20
                         
                         c.setFont("Helvetica", 10)
                         texto = archivo.texto_extraido or "[Sin texto]"
-                        
-                        # Manejo de líneas respetando saltos de línea originales
+
                         lines = texto.split('\n')
                         for line in lines:
-                            # Si la línea está vacía, solo avanzar cursor
                             if not line.strip():
                                 y_position -= 12
                                 continue
-                                
-                            # Dividir líneas muy largas pero respetando la estructura
+
                             wrapped_lines = simpleSplit(line, "Helvetica", 10, width - 100)
                             for wl in wrapped_lines:
-                                # Nueva página si se acaba el espacio
                                 if y_position < 50:
                                     c.showPage()
                                     y_position = height - 50
@@ -414,13 +370,12 @@ async def download_transcriptions(
                                 c.drawString(50, y_position, wl)
                                 y_position -= 12
                         
-                        y_position -= 20 # Espacio entre páginas
+                        y_position -= 20
                 else:
                     c.drawString(50, y_position, "(No se encontró texto transcrito para esta evaluación)")
 
                 c.save()
-                
-                # Agregar PDF al ZIP
+
                 filename = f"{ev.nombre_alumno.replace(' ', '_')}_transcripcion.pdf"
                 zip_file.writestr(filename, pdf_buffer.getvalue())
 
@@ -445,22 +400,16 @@ async def list_evaluaciones(
     current_user: Usuario = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """
-    Lista evaluaciones con filtros opcionales.
-    Respeta permisos según rol.
-    """
+
     try:
         repo = EvaluacionRepository(db)
         query = db.query(Evaluacion)
 
-        # ✅ FIX: Manejar rol como string o enum
         rol = str(current_user.rol.value) if hasattr(current_user.rol, 'value') else str(current_user.rol)
 
-        # Si es profesor, solo sus evaluaciones
         if rol == "PROFESOR":
             query = query.filter(Evaluacion.profesor_id == current_user.id)
-        
-        # Aplicar filtros
+
         if semestre:
             query = query.filter(Evaluacion.semestre == semestre)
         if curso:
@@ -483,9 +432,7 @@ async def get_evaluacion_detail(
     evaluacion_id: int,
     db: Session = Depends(get_db)
 ):
-    """
-    Obtiene detalles completos de una evaluación (con archivos y resultados).
-    """
+
     try:
         repo = EvaluacionRepository(db)
         evaluacion = repo.get_with_details(evaluacion_id)
@@ -509,10 +456,7 @@ async def enqueue_exam_batch(
     current_user: Usuario = Depends(require_role("PROFESOR")),
     orchestrator: OrchestratorService = Depends(get_orchestrator_service)
 ):
-    """
-    Orquestador principal: procesa un lote de exámenes o ensayos.
-    Ahora requiere autenticación y usa rubrica_id.
-    """
+
     try:
         log.info(f"Recibido lote de {current_user.nombre}: {len(request.pdf_files)} archivos")
 
@@ -521,7 +465,7 @@ async def enqueue_exam_batch(
             rubrica_id=request.rubrica_id,
             pdf_files=[f.dict() for f in request.pdf_files],
             student_list=request.student_list,
-            curso_id=request.curso_id,  # ✅ CAMBIO: curso_id
+            curso_id=request.curso_id,
             codigo_curso=request.codigo_curso,
             instructor=current_user.nombre,
             semestre=request.semestre,
@@ -542,9 +486,7 @@ async def delete_evaluacion(
     evaluacion_id: int,
     db: Session = Depends(get_db)
 ):
-    """
-    Elimina una evaluación (y sus archivos/resultados asociados por CASCADE).
-    """
+
     try:
         repo = EvaluacionRepository(db)
         deleted = repo.delete(evaluacion_id)

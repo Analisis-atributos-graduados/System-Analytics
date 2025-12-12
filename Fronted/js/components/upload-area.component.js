@@ -1,13 +1,8 @@
-/**
- * Componente de área de carga de archivos
- * Soporta drag & drop y selección manual
- */
-
 export class UploadAreaComponent {
     constructor(options = {}) {
         this.acceptedTypes = options.acceptedTypes || ['.pdf', '.doc', '.docx', '.txt'];
-        this.maxSize = options.maxSize || 10 * 1024 * 1024; // 10MB por defecto
-        this.multiple = options.multiple !== false; // true por defecto
+        this.maxSize = options.maxSize || 10 * 1024 * 1024;
+        this.multiple = options.multiple !== false;
         this.onFilesSelected = options.onFilesSelected || (() => {});
         this.onError = options.onError || ((error) => console.error(error));
     }
@@ -42,20 +37,16 @@ export class UploadAreaComponent {
             return;
         }
 
-        // Click para seleccionar archivos
         uploadArea.addEventListener('click', (e) => {
             e.stopPropagation();
             fileInput.click();
         });
 
-        // Cambio de input de archivos
         fileInput.addEventListener('change', (e) => {
             this.handleFileSelect(e.target.files);
-            // Limpiar input para permitir seleccionar el mismo archivo nuevamente
             e.target.value = '';
         });
 
-        // Prevenir comportamiento por defecto del navegador
         ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
             uploadArea.addEventListener(eventName, (e) => {
                 e.preventDefault();
@@ -63,7 +54,6 @@ export class UploadAreaComponent {
             });
         });
 
-        // Highlight cuando se arrastra sobre el área
         ['dragenter', 'dragover'].forEach(eventName => {
             uploadArea.addEventListener(eventName, () => {
                 uploadArea.classList.add('upload-area-dragover');
@@ -80,7 +70,6 @@ export class UploadAreaComponent {
             });
         });
 
-        // Drop de archivos
         uploadArea.addEventListener('drop', (e) => {
             const files = e.dataTransfer.files;
             this.handleFileSelect(files);
@@ -108,12 +97,10 @@ export class UploadAreaComponent {
             }
         });
 
-        // Reportar errores
         if (errors.length > 0) {
             this.handleErrors(errors);
         }
 
-        // Llamar callback con archivos válidos
         if (validFiles.length > 0) {
             this.onFilesSelected(validFiles);
         }
@@ -122,18 +109,15 @@ export class UploadAreaComponent {
     validateFile(file) {
         const errors = [];
 
-        // Validar extensión
         const extension = '.' + file.name.split('.').pop().toLowerCase();
         if (!this.acceptedTypes.includes(extension)) {
             errors.push(`Formato no permitido. Use: ${this.acceptedTypes.join(', ')}`);
         }
 
-        // Validar tamaño
         if (file.size > this.maxSize) {
             errors.push(`Tamaño excede el máximo (${this.formatSize(this.maxSize)})`);
         }
 
-        // Validar nombre (sin caracteres especiales peligrosos)
         if (/[<>:"/\\|?*]/.test(file.name)) {
             errors.push('El nombre contiene caracteres no permitidos');
         }

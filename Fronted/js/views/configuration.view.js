@@ -33,7 +33,7 @@ export class ConfigurationView {
                     id: Date.now(),
                     nombre_criterio: '',
                     descripcion_criterio: '',
-                    peso: 0.15,  // 15% por defecto
+                    peso: 0.15,
                     orden: 1,
                     niveles: [
                         {
@@ -69,7 +69,7 @@ export class ConfigurationView {
     async _loadExistingRubrics() {
         try {
             this.existingRubrics = await RubricaService.getAll();
-            console.log('✅ Rúbricas cargadas:', this.existingRubrics.length);
+            console.log('Rúbricas cargadas:', this.existingRubrics.length);
 
             if (this.currentStep === 2) {
                 this.render();
@@ -121,28 +121,21 @@ export class ConfigurationView {
         const user = AuthService.getCurrentUser();
         let courses = [];
         try {
-            // ✅ Cargar cursos habilitados desde el backend
+
             const CursoService = (await import('../services/curso.service.js')).CursoService;
             courses = await CursoService.getEnabled();
         } catch (error) {
             console.error('Error cargando cursos:', error);
             showErrorNotification('No se pudieron cargar los cursos. Usando lista local.');
-            // Fallback local si falla el backend
+
             courses = [
                 { id: 0, nombre: 'Cálculo Avanzado', codigo: 'MAT301' },
                 { id: 0, nombre: 'Física II', codigo: 'FIS202' }
             ];
         }
 
-        // Si courses viene vacío o nulo
         if (!courses) courses = [];
 
-        // Mapear a formato simple si es necesario, pero el backend devuelve objetos completos
-        // El select value será el ID del curso ahora, no el nombre
-        // Pero espera, el backend espera curso_id.
-        // Debemos guardar curso_id en configData.
-
-        // Generar HTML del select
         const options = courses.map(c => `
             <option value="${c.id}" 
                 ${this.configData.curso_id == c.id ? 'selected' : ''}
@@ -351,7 +344,6 @@ export class ConfigurationView {
     }
 
     renderCriterioItem(criterio, index) {
-        // ✅ ASEGURAR QUE niveles EXISTA
         if (!criterio.niveles || criterio.niveles.length === 0) {
             criterio.niveles = [
                 {
@@ -422,7 +414,7 @@ export class ConfigurationView {
 
 
     renderNivelItem(nivel, criterioIndex, nivelIndex) {
-        // ✅ ASEGURAR QUE descriptores EXISTA
+
         if (!nivel.descriptores || nivel.descriptores.length === 0) {
             nivel.descriptores = [''];
         }
@@ -506,7 +498,7 @@ export class ConfigurationView {
     }
 
     attachEventListeners() {
-        // Navegación
+
         const btnBack = document.getElementById('btnBack');
         const btnNext = document.getElementById('btnNext');
         const btnFinish = document.getElementById('btnFinish');
@@ -515,7 +507,6 @@ export class ConfigurationView {
         if (btnNext) btnNext.addEventListener('click', () => this.nextStep());
         if (btnFinish) btnFinish.addEventListener('click', () => this.finish());
 
-        // ✅ Sanitización y Lógica para Step 1: Nombre del curso
         if (this.currentStep === 0) {
             const courseSelect = document.getElementById('courseName');
             const courseCodeInput = document.getElementById('courseCode');
@@ -529,7 +520,7 @@ export class ConfigurationView {
 
                     if (cursoId) {
                         this.configData.curso_id = parseInt(cursoId);
-                        this.configData.courseName = nombre; // Mantener para compatibilidad visual si se necesita
+                        this.configData.courseName = nombre;
                         this.configData.courseCode = codigo;
 
                         if (courseCodeInput) {
@@ -547,7 +538,6 @@ export class ConfigurationView {
             }
         }
 
-        // ✅ Sanitización para Step 2: Tema y Descripción del tema
         if (this.currentStep === 1) {
             const topic = document.getElementById('topic');
             if (topic) {
@@ -576,7 +566,7 @@ export class ConfigurationView {
     }
 
     attachStep3Listeners() {
-        // Radio buttons
+
         document.querySelectorAll('input[name="rubricOption"]').forEach(radio => {
             radio.addEventListener('change', (e) => {
                 const value = e.target.value;
@@ -592,7 +582,6 @@ export class ConfigurationView {
             });
         });
 
-        // Selector de rúbrica existente
         const selectRubric = document.getElementById('selectRubric');
         if (selectRubric) {
             selectRubric.addEventListener('change', async (e) => {
@@ -606,7 +595,6 @@ export class ConfigurationView {
             });
         }
 
-        // Formulario de nueva rúbrica
         this.attachNewRubricListeners();
     }
 
@@ -616,7 +604,7 @@ export class ConfigurationView {
 
         if (rubricName) {
             rubricName.addEventListener('input', (e) => {
-                // ✅ Sanitizar nombre de rúbrica
+
                 const sanitized = ValidatorUtils.sanitizeText(e.target.value, true);
                 if (e.target.value !== sanitized) {
                     e.target.value = sanitized;
@@ -628,7 +616,7 @@ export class ConfigurationView {
 
         if (rubricDesc) {
             rubricDesc.addEventListener('input', (e) => {
-                // ✅ Sanitizar descripción (eliminar números, símbolos y múltiples espacios)
+
                 const sanitized = ValidatorUtils.sanitizeText(e.target.value);
                 if (e.target.value !== sanitized) {
                     e.target.value = sanitized;
@@ -638,17 +626,14 @@ export class ConfigurationView {
             });
         }
 
-        // Botón agregar criterio
         const addCriterio = document.getElementById('addCriterio');
         if (addCriterio) {
             addCriterio.addEventListener('click', () => this.addCriterio());
         }
 
-        // ✅ USAR EVENT DELEGATION PARA EVITAR DUPLICADOS
-        // Remover listener antiguo si existe
         const mainContent = document.getElementById('main-content');
         if (mainContent) {
-            // Crear una función nombrada para poder removerla
+
             if (this._inputHandler) {
                 mainContent.removeEventListener('input', this._inputHandler);
             }
@@ -656,10 +641,9 @@ export class ConfigurationView {
             this._inputHandler = (e) => {
                 const target = e.target;
 
-                // Nombre de criterio
                 if (target.classList.contains('criterio-nombre')) {
                     const index = parseInt(target.dataset.criterioIndex);
-                    // ✅ Sanitizar nombre de criterio
+
                     const sanitized = ValidatorUtils.sanitizeText(target.value, true);
                     if (target.value !== sanitized) {
                         target.value = sanitized;
@@ -668,10 +652,9 @@ export class ConfigurationView {
                     this.saveConfig();
                 }
 
-                // Descripción de criterio
                 if (target.classList.contains('criterio-descripcion')) {
                     const index = parseInt(target.dataset.criterioIndex);
-                    // ✅ Sanitizar descripción (eliminar números, símbolos y múltiples espacios)
+
                     const sanitized = ValidatorUtils.sanitizeText(target.value, true);
                     if (target.value !== sanitized) {
                         target.value = sanitized;
@@ -680,16 +663,13 @@ export class ConfigurationView {
                     this.saveConfig();
                 }
 
-                // Peso de criterio
                 if (target.classList.contains('criterio-peso') || target.classList.contains('peso-slider')) {
                     const index = parseInt(target.dataset.criterioIndex);
                     let val = parseFloat(target.value);
 
-                    // Validar rango 1-100
                     if (val < 1) val = 1;
                     if (val > 100) val = 100;
 
-                    // Actualizar valor en el input si fue corregido
                     if (parseFloat(target.value) !== val) {
                         target.value = val;
                     }
@@ -697,7 +677,6 @@ export class ConfigurationView {
                     const peso = val / 100;
                     this.configData.rubrica.criterios[index].peso = peso;
 
-                    // Sincronizar input y slider
                     const criterioBody = target.closest('.criterio-body');
                     if (criterioBody) {
                         const inputPeso = criterioBody.querySelector('.criterio-peso');
@@ -710,11 +689,10 @@ export class ConfigurationView {
                     this.saveConfig();
                 }
 
-                // Nombre de nivel
                 if (target.classList.contains('nivel-nombre')) {
                     const cIndex = parseInt(target.dataset.criterioIndex);
                     const nIndex = parseInt(target.dataset.nivelIndex);
-                    // ✅ Sanitizar nombre de nivel
+
                     const sanitized = ValidatorUtils.sanitizeText(target.value, true);
                     if (target.value !== sanitized) {
                         target.value = sanitized;
@@ -723,7 +701,6 @@ export class ConfigurationView {
                     this.saveConfig();
                 }
 
-                // Puntajes de nivel
                 if (target.classList.contains('nivel-puntaje-min')) {
                     const cIndex = parseInt(target.dataset.criterioIndex);
                     const nIndex = parseInt(target.dataset.nivelIndex);
@@ -748,7 +725,6 @@ export class ConfigurationView {
                     this.saveConfig();
                 }
 
-                // ✅ NUEVO: Sanitizar inputs numéricos (eliminar ceros a la izquierda)
                 if (target.type === 'number') {
                     const val = target.value;
                     if (val.length > 1 && val.startsWith('0') && !val.startsWith('0.')) {
@@ -756,12 +732,11 @@ export class ConfigurationView {
                     }
                 }
 
-                // Descriptores
                 if (target.classList.contains('descriptor-input')) {
                     const cIndex = parseInt(target.dataset.criterioIndex);
                     const nIndex = parseInt(target.dataset.nivelIndex);
                     const dIndex = parseInt(target.dataset.descriptorIndex);
-                    // ✅ Sanitizar descriptor (eliminar números, símbolos y múltiples espacios)
+
                     const sanitized = ValidatorUtils.sanitizeText(target.value, true);
                     if (target.value !== sanitized) {
                         target.value = sanitized;
@@ -773,7 +748,6 @@ export class ConfigurationView {
 
             mainContent.addEventListener('input', this._inputHandler);
 
-            // Event delegation para clicks
             if (this._clickHandler) {
                 mainContent.removeEventListener('click', this._clickHandler);
             }
@@ -790,7 +764,7 @@ export class ConfigurationView {
                 const nIndex = parseInt(target.dataset.nivelIndex);
                 const dIndex = parseInt(target.dataset.descriptorIndex);
 
-                console.log('🔘 Acción:', action, 'Criterio:', cIndex, 'Nivel:', nIndex);
+                console.log('Acción:', action, 'Criterio:', cIndex, 'Nivel:', nIndex);
 
                 switch (action) {
                     case 'delete-criterio':
@@ -817,10 +791,10 @@ export class ConfigurationView {
 
 
     addCriterio() {
-        console.log('➕ Agregando criterio');
+        console.log('Agregando criterio');
 
         const newCriterio = {
-            id: Date.now() + Math.random(), // ✅ ID único
+            id: Date.now() + Math.random(),
             nombre_criterio: '',
             descripcion_criterio: '',
             peso: 0.1,
@@ -839,7 +813,7 @@ export class ConfigurationView {
 
         this.configData.rubrica.criterios.push(newCriterio);
 
-        console.log('✅ Criterio agregado. Total criterios:', this.configData.rubrica.criterios.length);
+        console.log('Criterio agregado. Total criterios:', this.configData.rubrica.criterios.length);
 
         this.saveConfig();
         this.reRender();
@@ -866,7 +840,7 @@ export class ConfigurationView {
 
         const niveles = this.configData.rubrica.criterios[criterioIndex].niveles;
         const newNivel = {
-            id: Date.now() + Math.random(), // ✅ ID único
+            id: Date.now() + Math.random(),
             nombre_nivel: '',
             puntaje_min: 0,
             puntaje_max: 0,
@@ -876,7 +850,7 @@ export class ConfigurationView {
 
         niveles.push(newNivel);
 
-        console.log('✅ Nivel agregado. Total niveles:', niveles.length);
+        console.log('Nivel agregado. Total niveles:', niveles.length);
 
         this.saveConfig();
         this.reRender();
@@ -899,12 +873,10 @@ export class ConfigurationView {
     }
 
     addDescriptor(criterioIndex, nivelIndex) {
-        // Deshabilitado: Solo un descriptor por nivel
         console.warn('Solo se permite un descriptor por nivel');
     }
 
     deleteDescriptor(criterioIndex, nivelIndex, descriptorIndex) {
-        // Deshabilitado: No se puede eliminar el único descriptor
         console.warn('No se puede eliminar el descriptor único');
     }
 
@@ -931,13 +903,13 @@ export class ConfigurationView {
     }
 
     async reRender() {
-        console.log('🔄 Re-renderizando vista...');
+        console.log('Re-renderizando vista...');
 
         const container = document.getElementById('main-content');
         if (container) {
             container.innerHTML = await this.render();
             this.attachEventListeners();
-            console.log('✅ Vista re-renderizada');
+            console.log('Vista re-renderizada');
         }
     }
 
@@ -952,9 +924,7 @@ export class ConfigurationView {
     async nextStep() {
         if (!this.validateCurrentStep()) return;
 
-        // Guardar datos del paso actual
         if (this.currentStep === 0) {
-            // ✅ CORREGIDO: Obtener el TEXTO del curso, no el valor (ID)
             const courseSelect = document.getElementById('courseName');
             if (courseSelect && courseSelect.selectedIndex > 0) {
                 this.configData.courseName = courseSelect.options[courseSelect.selectedIndex].text;
@@ -975,7 +945,6 @@ export class ConfigurationView {
 
     validateCurrentStep() {
         if (this.currentStep === 0) {
-            // Validar que se haya seleccionado un curso
             const courseName = document.getElementById('courseName');
             if (!courseName?.value) {
                 showErrorNotification(new Error('Debe seleccionar un curso'));
@@ -983,7 +952,6 @@ export class ConfigurationView {
                 return false;
             }
 
-            // Validar Código del Curso
             const courseCode = document.getElementById('courseCode');
             if (!ValidatorUtils.isValidCourseCode(courseCode?.value)) {
                 showErrorNotification(new Error('Código de curso inválido: debe ser un número de 4 a 5 dígitos'));
@@ -991,10 +959,9 @@ export class ConfigurationView {
                 return false;
             }
 
-            // Validar Instructor (Ahora es read-only, pero validamos igual)
             const instructor = document.getElementById('instructor');
             if (!instructor.value.trim()) {
-                // Si está vacío, intentar llenarlo con el usuario actual
+
                 const user = AuthService.getCurrentUser();
                 if (user?.nombre) {
                     instructor.value = user.nombre;
@@ -1004,7 +971,6 @@ export class ConfigurationView {
                 }
             }
 
-            // Validar Semestre
             const semestre = document.getElementById('semestre');
             if (!ValidatorUtils.isValidSemester(semestre?.value)) {
                 showErrorNotification(new Error('Semestre inválido (ej: 2025-1)'));
@@ -1013,7 +979,7 @@ export class ConfigurationView {
             }
 
         } else if (this.currentStep === 1) {
-            // Validar Tema
+ 
             const topic = document.getElementById('topic');
             if (!ValidatorUtils.isValidDescription(topic?.value)) {
                 showErrorNotification(new Error('Tema inválido: solo letras y puntuación básica, sin números ni símbolos'));
@@ -1021,7 +987,6 @@ export class ConfigurationView {
                 return false;
             }
 
-            // Validar Descripción (OBLIGATORIO)
             const descripcion = document.getElementById('descripcion_tema');
             if (!ValidatorUtils.isValidDescription(descripcion?.value)) {
                 showErrorNotification(new Error('La descripción del tema es obligatoria y debe contener solo letras y puntuación básica'));
@@ -1050,7 +1015,6 @@ export class ConfigurationView {
                     return;
                 }
             } else {
-                // Validar rúbrica nueva
                 const rubrica = this.configData.rubrica;
 
                 if (!ValidatorUtils.isValidDescription(rubrica.nombre_rubrica)) {
@@ -1058,7 +1022,6 @@ export class ConfigurationView {
                     return;
                 }
 
-                // ✅ REQUERIR descripción de rúbrica
                 if (!rubrica.descripcion || !ValidatorUtils.isValidDescription(rubrica.descripcion)) {
                     showErrorNotification(new Error('La descripción de la rúbrica es obligatoria y debe contener solo letras y puntuación básica'));
                     return;
@@ -1069,7 +1032,6 @@ export class ConfigurationView {
                     return;
                 }
 
-                // Validar cada criterio
                 for (let i = 0; i < rubrica.criterios.length; i++) {
                     const criterio = rubrica.criterios[i];
 
@@ -1078,7 +1040,6 @@ export class ConfigurationView {
                         return;
                     }
 
-                    // ✅ REQUERIR descripción de criterio
                     if (!criterio.descripcion_criterio || !ValidatorUtils.isValidDescription(criterio.descripcion_criterio)) {
                         showErrorNotification(new Error(`La descripción del criterio "${criterio.nombre_criterio}" es obligatoria y debe contener solo letras y puntuación básica`));
                         return;
@@ -1089,7 +1050,6 @@ export class ConfigurationView {
                         return;
                     }
 
-                    // Validar niveles
                     for (let j = 0; j < criterio.niveles.length; j++) {
                         const nivel = criterio.niveles[j];
 
@@ -1098,16 +1058,13 @@ export class ConfigurationView {
                             return;
                         }
 
-                        // Filtrar descriptores vacíos y validar
                         nivel.descriptores = nivel.descriptores.filter(d => d.trim() !== '');
 
-                        // ✅ REQUERIR al menos un descriptor no vacío
                         if (nivel.descriptores.length === 0) {
                             showErrorNotification(new Error(`El nivel "${nivel.nombre_nivel}" en "${criterio.nombre_criterio}" debe tener al menos un descriptor`));
                             return;
                         }
 
-                        // ✅ Validar descriptores con isValidDescription
                         for (const desc of nivel.descriptores) {
                             if (!ValidatorUtils.isValidDescription(desc)) {
                                 showErrorNotification(new Error(`Descriptor inválido en nivel "${nivel.nombre_nivel}": debe contener solo letras y puntuación básica, sin números ni símbolos`));
@@ -1123,13 +1080,11 @@ export class ConfigurationView {
                     return;
                 }
 
-                // ✅ Todas las validaciones pasaron - AHORA bloquear el botón
                 if (btnFinish) {
                     btnFinish.disabled = true;
                     btnFinish.innerHTML = '⏳ Procesando...';
                 }
 
-                // Guardar rúbrica si está marcado
                 const saveRubric = document.getElementById('saveRubric');
                 if (saveRubric && saveRubric.checked) {
                     try {
@@ -1139,7 +1094,7 @@ export class ConfigurationView {
                     } catch (error) {
                         console.error('Error guardando rúbrica:', error);
                         showErrorNotification(error);
-                        // Reabilitar botón en caso de error
+
                         if (btnFinish) {
                             btnFinish.disabled = false;
                             btnFinish.innerHTML = '✅ Finalizar configuración';
@@ -1149,7 +1104,6 @@ export class ConfigurationView {
                 }
             }
 
-            // ✅ Si usó rúbrica existente, también bloquear aquí
             if (btnFinish && !btnFinish.disabled) {
                 btnFinish.disabled = true;
                 btnFinish.innerHTML = '⏳ Procesando...';
@@ -1166,7 +1120,7 @@ export class ConfigurationView {
         } catch (error) {
             console.error('Error en finish:', error);
             showErrorNotification(error);
-            // Reabilitar botón en caso de error
+
             if (btnFinish) {
                 btnFinish.disabled = false;
                 btnFinish.innerHTML = '✅ Finalizar configuración';

@@ -10,7 +10,6 @@ class ApiService {
     async request(endpoint, options = {}) {
         const url = (endpoint.startsWith('http') ? endpoint : this.baseURL + endpoint);
 
-        // Obtener token de Firebase (async)
         const token = await AuthService.getToken();
         const authHeaders = token ? { 'Authorization': `Bearer ${token}` } : {};
 
@@ -27,8 +26,8 @@ class ApiService {
             const response = await fetch(url, config);
 
             if (response.status === 401 || response.status === 403) {
-                // Token inválido o expirado
-                console.error('❌ Sesión expirada o sin permisos');
+
+                console.error('Sesión expirada o sin permisos');
                 await AuthService.logout();
                 window.location.href = '/login.html';
                 throw new Error('Sesión expirada. Por favor, inicie sesión de nuevo.');

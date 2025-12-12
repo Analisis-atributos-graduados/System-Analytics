@@ -14,7 +14,6 @@ log = logging.getLogger(__name__)
 
 
 class GCSClient:
-    """Cliente para interactuar con Google Cloud Storage."""
 
     def __init__(self):
         self.bucket_name = settings.BUCKET_NAME
@@ -28,16 +27,10 @@ class GCSClient:
             content_type: str = "application/pdf",
             expiration_minutes: int = 15
     ) -> dict:
-        """
-        Genera una URL firmada v4 para que el cliente suba directamente a GCS.
 
-        Returns:
-            dict con 'upload_url' y 'gcs_filename'
-        """
         try:
             blob = self.bucket.blob(filename)
 
-            # Generar URL firmada v4 para PUT
             url = blob.generate_signed_url(
                 version="v4",
                 expiration=datetime.timedelta(minutes=expiration_minutes),
@@ -59,9 +52,7 @@ class GCSClient:
             filename: str,
             expiration_minutes: int = 60
     ) -> str:
-        """
-        Genera una URL firmada para descargar un archivo de GCS.
-        """
+
         try:
             blob = self.bucket.blob(filename)
 
@@ -83,12 +74,7 @@ class GCSClient:
             destination_blob_name: str,
             content_type: str = "application/pdf"
     ) -> str:
-        """
-        Sube bytes directamente a GCS desde el servidor.
 
-        Returns:
-            URL pública del archivo subido
-        """
         try:
             blob = self.bucket.blob(destination_blob_name)
             blob.upload_from_string(source_bytes, content_type=content_type)
@@ -100,9 +86,7 @@ class GCSClient:
             raise
 
     def download_blob(self, source_blob_name: str) -> bytes:
-        """
-        Descarga un archivo de GCS como bytes.
-        """
+
         try:
             blob = self.bucket.blob(source_blob_name)
             content = blob.download_as_bytes()
@@ -114,7 +98,7 @@ class GCSClient:
             raise
 
     def blob_exists(self, blob_name: str) -> bool:
-        """Verifica si un blob existe en GCS."""
+
         try:
             blob = self.bucket.blob(blob_name)
             return blob.exists()
@@ -123,7 +107,7 @@ class GCSClient:
             return False
 
     def delete_blob(self, blob_name: str) -> bool:
-        """Elimina un blob de GCS."""
+
         try:
             blob = self.bucket.blob(blob_name)
             blob.delete()
@@ -134,7 +118,7 @@ class GCSClient:
             return False
 
     def list_blobs(self, prefix: str = None) -> list:
-        """Lista todos los blobs con un prefijo opcional."""
+
         try:
             blobs = self.storage_client.list_blobs(self.bucket_name, prefix=prefix)
             blob_names = [blob.name for blob in blobs]

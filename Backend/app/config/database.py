@@ -7,30 +7,35 @@ import os
 
 log = logging.getLogger(__name__)
 
-DATABASE_URL = os.environ.get("DATABASE_URL")
+DATABASE_URL = os.environ.get("DATABASE_URL", "postgresql://user:pass@localhost/db")
 
-# ✅ CONFIGURACIÓN MEJORADA para procesos largos
-engine = create_engine(
-    DATABASE_URL,
-    poolclass=NullPool,  # No usar pool para evitar conexiones muertas
-    pool_pre_ping=True,  # Verificar conexión antes de usar
-    pool_recycle=3600,  # Reciclar conexiones cada hora
-    connect_args={
+connect_args = {}
+
+if "sqlite" in DATABASE_URL:
+
+    connect_args = {"check_same_thread": False}
+else:
+
+    connect_args = {
         "keepalives": 1,
         "keepalives_idle": 30,
         "keepalives_interval": 10,
         "keepalives_count": 5,
     }
+
+engine = create_engine(
+    DATABASE_URL,
+    poolclass=NullPool,
+    pool_pre_ping=True,
+    pool_recycle=3600,
+    connect_args=connect_args
 )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
-
 def get_db():
-    """
-    Dependency que proporciona sesiones de base de datos con manejo de errores.
-    """
+
     db = SessionLocal()
     try:
         yield db

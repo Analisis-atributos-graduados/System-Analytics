@@ -5,7 +5,6 @@ log = logging.getLogger(__name__)
 
 
 class TaskService:
-    """Servicio para gestionar tareas de Cloud Tasks."""
 
     def __init__(self, task_client: TaskClient):
         self.task_client = task_client
@@ -18,9 +17,7 @@ class TaskService:
             tipo_documento: str,
             delay_seconds: int = 0
     ) -> str:
-        """
-        Crea una tarea para procesar un archivo.
-        """
+
         try:
             task_name = self.task_client.create_file_processing_task(
                 gcs_filename=gcs_filename,
@@ -41,9 +38,7 @@ class TaskService:
             evaluacion_id: int,
             delay_seconds: int = 5
     ) -> str:
-        """
-        Crea una tarea para evaluación final.
-        """
+
         try:
             task_name = self.task_client.create_evaluation_task(
                 evaluacion_id=evaluacion_id,

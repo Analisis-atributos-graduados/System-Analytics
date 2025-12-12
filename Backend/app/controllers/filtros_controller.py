@@ -18,13 +18,10 @@ async def get_semestres(
         current_user: Usuario = Depends(get_current_user),
         db: Session = Depends(get_db)
 ):
-    """
-    Obtiene lista de semestres disponibles según el rol del usuario.
-    """
+
     try:
         evaluacion_repo = EvaluacionRepository(db)
 
-        # ✅ CORREGIDO: Manejar rol como string o enum
         rol = str(current_user.rol) if hasattr(current_user.rol, 'value') else current_user.rol
 
         if rol == "PROFESOR":
@@ -34,7 +31,6 @@ async def get_semestres(
         else:
             raise HTTPException(status_code=403, detail="Rol no autorizado")
 
-        # Extraer semestres únicos
         semestres = sorted(list(set(
             ev.semestre for ev in evaluaciones if ev.semestre
         )), reverse=True)
@@ -53,35 +49,25 @@ async def get_cursos(
         current_user: Usuario = Depends(get_current_user),
         db: Session = Depends(get_db)
 ):
-    """
-    Devuelve lista de cursos para un semestre.
 
-    - PROFESOR: solo sus cursos en ese semestre
-    - AREA_CALIDAD: todos los cursos del semestre
-    """
     try:
-        # ✅ CORREGIDO: Manejar rol
         rol = str(current_user.rol) if hasattr(current_user.rol, 'value') else current_user.rol
 
-        # ✅ CAMBIO: Obtener cursos completos para acceder a atributos
-        # Primero obtenemos los IDs de cursos evaluados en el semestre
         subquery = db.query(distinct(Evaluacion.curso_id)).filter(Evaluacion.semestre == semestre)
         
         if rol == "PROFESOR":
             subquery = subquery.filter(Evaluacion.profesor_id == current_user.id)
             
         curso_ids = [r[0] for r in subquery.all()]
-        
-        # Luego consultamos los cursos con sus atributos
+
         from app.models.curso import Curso
         cursos_db = db.query(Curso).filter(Curso.id.in_(curso_ids)).all()
         
         cursos = []
         for c in cursos_db:
-            # Extraer códigos de atributos
             attr_codes = [a.atributo_codigo for a in c.atributos]
             cursos.append({
-                "codigo": c.nombre, # Usamos nombre como código según lógica existente
+                "codigo": c.nombre,
                 "nombre": c.nombre,
                 "atributos": attr_codes
             })
@@ -101,14 +87,8 @@ async def get_temas(
         current_user: Usuario = Depends(get_current_user),
         db: Session = Depends(get_db)
 ):
-    """
-    Devuelve lista de temas para un curso en un semestre.
 
-    - PROFESOR: solo sus temas
-    - AREA_CALIDAD: todos los temas
-    """
     try:
-        # ✅ CORREGIDO: Manejar rol
         rol = str(current_user.rol) if hasattr(current_user.rol, 'value') else current_user.rol
 
         query = db.query(distinct(Evaluacion.tema)).join(Evaluacion.curso).filter(

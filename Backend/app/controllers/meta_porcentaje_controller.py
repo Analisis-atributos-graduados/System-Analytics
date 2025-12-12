@@ -13,7 +13,6 @@ router = APIRouter(
 
 @router.get("", response_model=MetaPorcentajeSchema)
 def get_meta(db: Session = Depends(get_db)):
-    """Obtiene la meta de porcentaje actual."""
     service = MetaPorcentajeService(db)
     return service.get_meta()
 
@@ -23,7 +22,7 @@ def update_meta(
     db: Session = Depends(get_db),
     current_user = Depends(require_role("AREA_CALIDAD"))
 ):
-    """Actualiza la meta de porcentaje (Solo Área de Calidad)."""
+
     service = MetaPorcentajeService(db)
     try:
         return service.update_meta(meta)

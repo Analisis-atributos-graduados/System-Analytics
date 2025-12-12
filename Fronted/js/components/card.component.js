@@ -1,13 +1,12 @@
 export class CardComponent {
     /**
-     * Crear una tarjeta principal con icono
-     * @param {Object} options - Opciones de configuración
-     * @param {string} options.icon - Emoji o icono
-     * @param {string} options.iconClass - Clase CSS para el icono (blue-icon, green-icon, etc)
-     * @param {string} options.title - Título de la tarjeta
-     * @param {string} options.subtitle - Subtítulo de la tarjeta
-     * @param {string} options.content - Contenido HTML de la tarjeta
-     * @returns {string} HTML de la tarjeta
+     * @param {Object} options
+     * @param {string} options.icon
+     * @param {string} options.iconClass
+     * @param {string} options.title
+     * @param {string} options.subtitle
+     * @param {string} options.content
+     * @returns {string}
      */
     static mainCard(options) {
         const { icon, iconClass, title, subtitle, content } = options;
@@ -23,14 +22,13 @@ export class CardComponent {
     }
 
     /**
-     * Crear una tarjeta de estadística
-     * @param {Object} options - Opciones de configuración
-     * @param {string} options.icon - Emoji o icono
-     * @param {string} options.iconClass - Clase CSS para el icono
-     * @param {string} options.label - Etiqueta de la estadística
-     * @param {string} options.value - Valor de la estadística
-     * @param {string} options.valueClass - Clase CSS para el valor (opcional)
-     * @returns {string} HTML de la tarjeta
+     * @param {Object} options
+     * @param {string} options.icon
+     * @param {string} options.iconClass
+     * @param {string} options.label
+     * @param {string} options.value
+     * @param {string} options.valueClass
+     * @returns {string}
      */
     static statCard(options) {
         const { icon, iconClass, label, value, valueClass = '' } = options;
@@ -47,14 +45,14 @@ export class CardComponent {
     }
 
     /**
-     * Crear una tarjeta de resumen
-     * @param {Object} options - Opciones de configuración
-     * @param {string} options.icon - Emoji o icono
-     * @param {string} options.iconClass - Clase CSS para el icono
-     * @param {string} options.title - Título de la tarjeta
-     * @param {Array} options.items - Array de items {label, value}
-     * @param {string} options.gridColumn - Span de columnas (opcional)
-     * @returns {string} HTML de la tarjeta
+     * 
+     * @param {Object} options
+     * @param {string} options.icon
+     * @param {string} options.iconClass
+     * @param {string} options.title
+     * @param {Array} options.items
+     * @param {string} options.gridColumn
+     * @returns {string}
      */
     static summaryCard(options) {
         const { icon, iconClass, title, items, gridColumn = '' } = options;
@@ -78,14 +76,13 @@ export class CardComponent {
     }
 
     /**
-     * Crear una tarjeta de configuración/sección
-     * @param {Object} options - Opciones de configuración
-     * @param {string} options.icon - Emoji o icono
-     * @param {string} options.iconClass - Clase CSS para el icono
-     * @param {string} options.title - Título de la sección
-     * @param {Array} options.items - Array de items {label, value}
-     * @param {string} options.footerButton - HTML del botón de footer (opcional)
-     * @returns {string} HTML de la tarjeta
+     * @param {Object} options
+     * @param {string} options.icon
+     * @param {string} options.iconClass
+     * @param {string} options.title
+     * @param {Array} options.items
+     * @param {string} options.footerButton
+     * @returns {string}
      */
     static configCard(options) {
         const { icon, iconClass, title, items, footerButton = '' } = options;
@@ -110,12 +107,11 @@ export class CardComponent {
     }
 
     /**
-     * Crear una tarjeta de archivo
-     * @param {Object} options - Opciones de configuración
-     * @param {string} options.fileName - Nombre del archivo
-     * @param {string} options.fileSize - Tamaño del archivo
-     * @param {string} options.iconClass - Clase CSS para el icono (opcional)
-     * @returns {string} HTML de la tarjeta
+     * @param {Object} options
+     * @param {string} options.fileName
+     * @param {string} options.fileSize
+     * @param {string} options.iconClass
+     * @returns {string}
      */
     static fileCard(options) {
         const { fileName, fileSize, iconClass = 'orange-icon' } = options;
@@ -132,14 +128,13 @@ export class CardComponent {
     }
 
     /**
-     * Crear una tarjeta de métrica
-     * @param {Object} options - Opciones de configuración
-     * @param {string} options.icon - Emoji o icono
-     * @param {string} options.label - Etiqueta de la métrica
-     * @param {string} options.value - Valor de la métrica
-     * @param {string} options.valueClass - Clase CSS para el valor (opcional)
-     * @param {number} options.progress - Valor de 0-100 para barra de progreso (opcional)
-     * @returns {string} HTML de la tarjeta
+     * @param {Object} options
+     * @param {string} options.icon
+     * @param {string} options.label
+     * @param {string} options.value
+     * @param {string} options.valueClass
+     * @param {number} options.progress
+     * @returns {string}
      */
     static metricCard(options) {
         const { icon, label, value, valueClass = '', progress = null } = options;
@@ -160,13 +155,12 @@ export class CardComponent {
     }
 
     /**
-     * Crear un banner informativo
-     * @param {Object} options - Opciones de configuración
-     * @param {string} options.title - Título del banner
-     * @param {string} options.info - Información adicional
-     * @param {string} options.badge - Texto del badge (opcional)
-     * @param {string} options.badgeClass - Clase CSS para el badge (opcional)
-     * @returns {string} HTML del banner
+     * @param {Object} options
+     * @param {string} options.title
+     * @param {string} options.info
+     * @param {string} options.badge
+     * @param {string} options.badgeClass
+     * @returns {string}
      */
     static infoBanner(options) {
         const { title, info, badge = '', badgeClass = 'banner-badge' } = options;

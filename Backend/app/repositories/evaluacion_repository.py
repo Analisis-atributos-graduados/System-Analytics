@@ -9,19 +9,16 @@ log = logging.getLogger(__name__)
 
 
 class EvaluacionRepository(BaseRepository):
-    """
-    Repositorio para operaciones con evaluaciones.
-    """
 
     def __init__(self, db: Session):
         super().__init__(db, Evaluacion)
 
     def get_by_profesor(self, profesor_id: int) -> List[Evaluacion]:
-        """Obtiene todas las evaluaciones de un profesor."""
+
         try:
             return (
                 self.db.query(Evaluacion)
-                .options(joinedload(Evaluacion.curso))  # ✅ Cargar curso
+                .options(joinedload(Evaluacion.curso))
                 .filter(Evaluacion.profesor_id == profesor_id)
                 .order_by(Evaluacion.id.desc())
                 .all()
@@ -31,11 +28,10 @@ class EvaluacionRepository(BaseRepository):
             raise
 
     def get_all(self) -> List[Evaluacion]:
-        """Obtiene todas las evaluaciones (para AREA_CALIDAD)."""
         try:
             return (
                 self.db.query(Evaluacion)
-                .options(joinedload(Evaluacion.curso))  # ✅ Cargar curso
+                .options(joinedload(Evaluacion.curso))
                 .order_by(Evaluacion.id.desc())
                 .all()
             )
@@ -44,14 +40,14 @@ class EvaluacionRepository(BaseRepository):
             raise
 
     def get_with_resultados(self, evaluacion_id: int) -> Optional[Evaluacion]:
-        """Obtiene una evaluación con todos sus resultados."""
+
         try:
             return (
                 self.db.query(Evaluacion)
                 .options(
                     joinedload(Evaluacion.resultado_analisis),
                     joinedload(Evaluacion.archivos_procesados),
-                    joinedload(Evaluacion.curso)  # ✅ Cargar curso
+                    joinedload(Evaluacion.curso)
                 )
                 .filter(Evaluacion.id == evaluacion_id)
                 .first()
@@ -61,21 +57,15 @@ class EvaluacionRepository(BaseRepository):
             raise
 
     def get_with_details(self, evaluacion_id: int) -> Optional[Evaluacion]:
-        """
-        Obtiene una evaluación con todos sus detalles (archivos, resultados).
-        Alias de get_with_resultados para compatibilidad.
-        """
         return self.get_with_resultados(evaluacion_id)
 
     def get_by_filters(self, semestre: str = None, curso: str = None, tema: str = None, profesor_id: int = None) -> List[Evaluacion]:
-        """
-        Obtiene evaluaciones filtradas con sus resultados cargados (eager loading).
-        """
+
         try:
             query = self.db.query(Evaluacion).options(
                 joinedload(Evaluacion.resultado_analisis),
                 joinedload(Evaluacion.archivos_procesados),
-                joinedload(Evaluacion.curso)  # ✅ Cargar curso
+                joinedload(Evaluacion.curso)
             )
 
             if profesor_id:
@@ -83,9 +73,7 @@ class EvaluacionRepository(BaseRepository):
             if semestre:
                 query = query.filter(Evaluacion.semestre == semestre)
             if curso:
-                # Filtrar por código de curso (prioridad) o ID
                 if curso.isdigit():
-                    # Puede ser un ID o un código numérico (ej: "12345")
                     query = query.filter(
                         or_(
                             Evaluacion.curso_id == int(curso),
@@ -94,7 +82,6 @@ class EvaluacionRepository(BaseRepository):
                     )
                 else:
 
-                    # Filtrar por código O por nombre del curso
                     query = query.filter(
                         or_(
                             Evaluacion.codigo_curso == curso,

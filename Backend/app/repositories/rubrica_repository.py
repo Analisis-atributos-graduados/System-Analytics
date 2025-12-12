@@ -8,15 +8,12 @@ log = logging.getLogger(__name__)
 
 
 class RubricaRepository(BaseRepository):
-    """
-    Repositorio para operaciones de Rúbricas con Criterios y Niveles.
-    """
 
     def __init__(self, db: Session):
         super().__init__(db, Rubrica)
 
     def get_by_profesor(self, profesor_id: int) -> List[Rubrica]:
-        """Obtiene todas las rúbricas de un profesor (sin criterios)."""
+
         try:
             return (
                 self.db.query(Rubrica)
@@ -29,11 +26,8 @@ class RubricaRepository(BaseRepository):
             log.error(f"Error al obtener rúbricas del profesor {profesor_id}: {e}")
             raise
 
-    # ✅ NUEVO MÉTODO
     def get_by_profesor_with_criterios(self, profesor_id: int) -> List[Rubrica]:
-        """
-        Obtiene todas las rúbricas de un profesor CON criterios y niveles cargados.
-        """
+
         try:
             return (
                 self.db.query(Rubrica)
@@ -50,7 +44,7 @@ class RubricaRepository(BaseRepository):
             raise
 
     def get_with_criterios(self, rubrica_id: int) -> Optional[Rubrica]:
-        """Obtiene una rúbrica con todos sus criterios y niveles."""
+
         try:
             return (
                 self.db.query(Rubrica)
@@ -71,7 +65,7 @@ class RubricaRepository(BaseRepository):
             descripcion: str,
             criterios: List[dict]
     ) -> Rubrica:
-        """Crea una rúbrica con sus criterios y niveles."""
+
         try:
             log.info(f"Creando rúbrica: {nombre_rubrica}")
 
@@ -109,7 +103,7 @@ class RubricaRepository(BaseRepository):
             self.db.commit()
             self.db.refresh(rubrica)
 
-            log.info(f"✅ Rúbrica {rubrica.id} creada con {len(criterios)} criterios")
+            log.info(f"Rúbrica {rubrica.id} creada con {len(criterios)} criterios")
             return rubrica
 
         except Exception as e:

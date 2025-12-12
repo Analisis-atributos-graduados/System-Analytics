@@ -2,7 +2,7 @@ from pydantic import BaseModel, Field
 
 
 class GenerateUploadURLRequest(BaseModel):
-    """Define la estructura para solicitar una URL de subida a Google Cloud Storage."""
+
     filename: str = Field(..., description="Nombre del archivo que se va a subir.")
     content_type: str = Field(..., description="Tipo MIME del archivo (ej. 'application/pdf').")
 

@@ -17,11 +17,7 @@ def get_cursos(
     habilitados_only: bool = False,
     db: Session = Depends(get_db)
 ):
-    """
-    Obtiene la lista de cursos.
-    Si habilitados_only=True, devuelve solo los habilitados (para profesores).
-    Si no, devuelve todos (para admin/calidad).
-    """
+
     service = CursoService(db)
     if habilitados_only:
         return service.get_cursos_habilitados()
@@ -33,7 +29,7 @@ def create_curso(
     db: Session = Depends(get_db),
     current_user = Depends(require_role("AREA_CALIDAD"))
 ):
-    """Crea un nuevo curso (Solo Área de Calidad)."""
+
     service = CursoService(db)
     try:
         return service.create_curso(curso)
@@ -47,7 +43,7 @@ def update_curso(
     db: Session = Depends(get_db),
     current_user = Depends(require_role("AREA_CALIDAD"))
 ):
-    """Actualiza un curso (Solo Área de Calidad)."""
+
     service = CursoService(db)
     try:
         return service.update_curso(curso_id, curso)
@@ -60,7 +56,7 @@ def toggle_curso(
     db: Session = Depends(get_db),
     current_user = Depends(require_role("AREA_CALIDAD"))
 ):
-    """Habilita/Deshabilita un curso (Solo Área de Calidad)."""
+
     service = CursoService(db)
     try:
         return service.toggle_habilitado(curso_id)
@@ -73,7 +69,7 @@ def delete_curso(
     db: Session = Depends(get_db),
     current_user = Depends(require_role("AREA_CALIDAD"))
 ):
-    """Elimina un curso (Solo Área de Calidad)."""
+
     service = CursoService(db)
     try:
         service.delete_curso(curso_id)
@@ -86,10 +82,7 @@ def assign_attributes(
     db: Session = Depends(get_db),
     current_user = Depends(require_role("AREA_CALIDAD"))
 ):
-    """
-    Guarda la asignación de atributos a cursos.
-    Recibe un payload con la meta y la lista de asignaciones.
-    """
+
     from app.services.meta_porcentaje_service import MetaPorcentajeService
     from app.schemas.meta_porcentaje_schemas import MetaPorcentajeUpdate
     
@@ -97,12 +90,9 @@ def assign_attributes(
     meta_service = MetaPorcentajeService(db)
     
     try:
-        # 1. Actualizar Meta
         update_data = MetaPorcentajeUpdate(porcentaje=payload.meta)
         meta_service.update_meta(update_data)
-        
-        # 2. Actualizar Asignaciones
-        # Convertir a dict para pasar al servicio
+
         assignments_dicts = [a.dict() for a in payload.asignaciones]
         curso_service.bulk_assign_attributes(assignments_dicts)
         

@@ -2,10 +2,7 @@ from pydantic import BaseModel, Field, field_validator
 from typing import List, Optional
 
 class NivelSchema(BaseModel):
-    """
-    Nivel de desempeño dentro de un criterio.
-    Ejemplo: Excelente (3 pts), Regular (1-2 pts), Insuficiente (0 pts)
-    """
+
     nombre_nivel: str = Field(..., description="Nombre del nivel, ej: 'Excelente', 'Bueno', 'Regular', 'Insuficiente'")
     puntaje_min: float = Field(..., ge=0, description="Puntaje mínimo del rango")
     puntaje_max: float = Field(..., ge=0, description="Puntaje máximo del rango")
@@ -29,7 +26,7 @@ class NivelSchema(BaseModel):
 
 
 class NivelDetailSchema(NivelSchema):
-    """Nivel con ID (para respuestas)"""
+
     id: int
     criterio_id: int
 
@@ -38,9 +35,7 @@ class NivelDetailSchema(NivelSchema):
 
 
 class CriterioCreateSchema(BaseModel):
-    """
-    Schema para crear un criterio con sus niveles.
-    """
+
     nombre_criterio: str = Field(..., description="Nombre del criterio a evaluar")
     descripcion_criterio: str = Field(default="", description="Descripción detallada del criterio")
     peso: float = Field(..., ge=0, le=1, description="Peso del criterio en la nota final (0-1)")
@@ -55,7 +50,7 @@ class CriterioCreateSchema(BaseModel):
 
 
 class CriterioDetailSchema(BaseModel):
-    """Criterio completo con niveles (para respuestas)"""
+
     id: int
     rubrica_id: int
     nombre_criterio: str
@@ -69,9 +64,7 @@ class CriterioDetailSchema(BaseModel):
 
 
 class RubricaCreateRequest(BaseModel):
-    """
-    Request para crear una rúbrica completa con criterios y niveles.
-    """
+
     nombre_rubrica: str = Field(..., description="Nombre descriptivo de la rúbrica")
     descripcion: str = Field(default="", description="Descripción del propósito de la rúbrica")
     criterios: List[CriterioCreateSchema] = Field(..., min_length=1, description="Debe tener al menos un criterio")
@@ -81,7 +74,6 @@ class RubricaCreateRequest(BaseModel):
         if not v or len(v) == 0:
             raise ValueError('Debe definir al menos un criterio')
 
-        # Validar que la suma de pesos sea aproximadamente 1.0
         suma_pesos = sum(c.peso for c in v)
         if abs(suma_pesos - 1.0) > 0.01:
             raise ValueError(f'La suma de los pesos debe ser 1.0 (actual: {suma_pesos:.2f})')
@@ -90,7 +82,6 @@ class RubricaCreateRequest(BaseModel):
 
 
 class RubricaDetailSchema(BaseModel):
-    """Rúbrica completa con todos sus criterios y niveles"""
     id: int
     profesor_id: int
     nombre_rubrica: str
@@ -103,7 +94,6 @@ class RubricaDetailSchema(BaseModel):
 
 
 class RubricaListSchema(BaseModel):
-    """Rúbrica resumida para listados"""
     id: int
     nombre_rubrica: str
     descripcion: Optional[str]

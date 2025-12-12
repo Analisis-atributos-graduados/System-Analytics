@@ -1,16 +1,8 @@
-/**
- * Utilidades para manejo de API
- */
-
-/**
- * Maneja errores de API de forma consistente
- */
 export const handleApiError = (error, context = '') => {
     console.error(`API Error ${context}:`, error);
 
     const errorMessage = error.message || (typeof error === 'string' ? error : 'Error desconocido');
 
-    // Errores de red
     if (errorMessage.includes('Failed to fetch')) {
         return {
             title: 'Error de Conexión',
@@ -19,7 +11,6 @@ export const handleApiError = (error, context = '') => {
         };
     }
 
-    // Errores de autenticación
     if (errorMessage.includes('Sesión')) {
         return {
             title: 'Sesión Expirada',
@@ -28,7 +19,6 @@ export const handleApiError = (error, context = '') => {
         };
     }
 
-    // Errores de validación
     if (errorMessage.includes('requerido') || errorMessage.includes('debe')) {
         return {
             title: 'Datos Inválidos',
@@ -37,7 +27,6 @@ export const handleApiError = (error, context = '') => {
         };
     }
 
-    // Error genérico
     return {
         title: 'Error',
         message: errorMessage || 'Ocurrió un error inesperado',
@@ -45,9 +34,6 @@ export const handleApiError = (error, context = '') => {
     };
 };
 
-/**
- * Muestra una notificación de error en la UI
- */
 export const showErrorNotification = (error, duration = 5000) => {
     const errorInfo = handleApiError(error);
 
@@ -63,12 +49,10 @@ export const showErrorNotification = (error, duration = 5000) => {
 
     document.body.appendChild(notification);
 
-    // Auto-cerrar
     const timeout = setTimeout(() => {
         notification.remove();
     }, duration);
 
-    // Cerrar manualmente
     notification.querySelector('.close-btn').addEventListener('click', () => {
         clearTimeout(timeout);
         notification.remove();
@@ -77,9 +61,6 @@ export const showErrorNotification = (error, duration = 5000) => {
     return notification;
 };
 
-/**
- * Muestra una notificación de éxito
- */
 export const showSuccessNotification = (message, duration = 3000) => {
     const notification = document.createElement('div');
     notification.className = 'notification success';

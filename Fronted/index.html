@@ -13,7 +13,7 @@
         <div id="header"></div>
         <div id="navigation"></div>
         <div id="main-content" class="container">
-            <!-- Loader mientras verifica autenticación -->
+
             <div id="auth-loader" style="text-align: center; padding: 100px 20px;">
                 <div style="font-size: 48px; margin-bottom: 20px;">🔐</div>
                 <p style="color: var(--secondary-text);">Verificando autenticación...</p>
@@ -25,15 +25,14 @@
         import { initializeFirebase } from './js/config/firebase.config.js';
         import AuthService from './js/services/auth.service.js';
 
-        const APP_VERSION = '1.0.3'; // Increment this on every deploy
+        const APP_VERSION = '1.0.3';
 
         async function checkVersion() {
             const storedVersion = localStorage.getItem('appVersion');
             if (storedVersion !== APP_VERSION) {
-                console.log(`🔄 Nueva versión detectada: ${APP_VERSION} (Anterior: ${storedVersion})`);
-                console.log('🧹 Limpiando caché y recargando...');
+                console.log(`Nueva versión detectada: ${APP_VERSION} (Anterior: ${storedVersion})`);
+                console.log('Limpiando caché y recargando...');
 
-                // Limpiar caches
                 if ('caches' in window) {
                     try {
                         const keys = await caches.keys();
@@ -43,11 +42,9 @@
                     }
                 }
 
-                // Limpiar localStorage (excepto items críticos si los hubiera)
                 localStorage.clear();
                 localStorage.setItem('appVersion', APP_VERSION);
 
-                // Recargar forzosamente
                 window.location.reload(true);
                 return false;
             }
@@ -58,48 +55,43 @@
             try {
                 if (!(await checkVersion())) return;
 
-                console.log('🔄 Iniciando aplicación...');
+                console.log('Iniciando aplicación...');
 
-                // 1. Inicializar Firebase
                 await initializeFirebase();
-                console.log('✅ Firebase inicializado');
+                console.log('Firebase inicializado');
 
-                // 2. Esperar a que Firebase Auth cargue el usuario
-                console.log('⏳ Esperando autenticación de Firebase...');
+                console.log('Esperando autenticación de Firebase...');
                 const isAuthReady = await AuthService.waitForAuth();
 
                 if (!isAuthReady) {
-                    console.warn('⚠️ No hay sesión activa, redirigiendo a login...');
+                    console.warn('No hay sesión activa, redirigiendo a login...');
                     window.location.href = './login.html';
                     return;
                 }
 
-                // 3. Verificar que tenemos usuario completo
                 const currentUser = AuthService.getCurrentUser();
-                console.log('✅ Usuario autenticado:', currentUser.email, '- Rol:', currentUser.rol);
+                console.log('Usuario autenticado:', currentUser.email, '- Rol:', currentUser.rol);
 
-                // 4. Ocultar loader (VERIFICAR QUE EXISTE)
                 const loader = document.getElementById('auth-loader');
                 if (loader) {
                     loader.style.display = 'none';
-                    console.log('✅ Loader ocultado');
+                    console.log('Loader ocultado');
                 } else {
-                    console.warn('⚠️ Elemento auth-loader no encontrado');
+                    console.warn('Elemento auth-loader no encontrado');
                 }
 
-                // 5. Cargar aplicación
-                console.log('📦 Cargando módulo main.js...');
+                console.log('Cargando módulo main.js...');
                 const { default: mainApp } = await import(`./js/main.js?v=${APP_VERSION}`);
 
                 if (typeof mainApp === 'function') {
-                    console.log('🚀 Ejecutando mainApp()...');
+                    console.log('Ejecutando mainApp()...');
                     mainApp();
                 } else {
-                    console.error('❌ main.js no exporta una función por defecto');
+                    console.error('main.js no exporta una función por defecto');
                 }
 
             } catch (error) {
-                console.error('❌ Error fatal:', error);
+                console.error('Error fatal:', error);
 
                 const loader = document.getElementById('auth-loader');
                 if (loader) {
@@ -113,7 +105,6 @@
                         </div>
                     `;
                 } else {
-                    // Si no existe el loader, mostrar error en consola
                     alert('Error al cargar la aplicación: ' + error.message);
                 }
             }

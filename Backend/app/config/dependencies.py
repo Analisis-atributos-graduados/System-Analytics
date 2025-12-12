@@ -25,7 +25,6 @@ from app.services import (
     TaskService
 )
 
-# Clients (singleton)
 @lru_cache()
 def get_gcs_client() -> GCSClient:
     return GCSClient()
@@ -42,7 +41,6 @@ def get_gemini_client() -> GeminiClient:
 def get_rapidapi_client() -> RapidAPIClient:
     return RapidAPIClient()
 
-# Extractors (singleton)
 @lru_cache()
 def get_text_extractor() -> TextExtractor:
     return TextExtractor()
@@ -55,12 +53,10 @@ def get_image_extractor() -> ImageExtractor:
 def get_student_matcher() -> StudentNameMatcher:
     return StudentNameMatcher()
 
-# Analyzers (singleton)
 @lru_cache()
 def get_gemini_analyzer() -> GeminiAnalyzer:
     return GeminiAnalyzer()
 
-# Services
 def get_task_service(
     task_client: TaskClient = Depends(get_task_client)
 ) -> TaskService:
@@ -123,18 +119,14 @@ def get_orchestrator_service(
         student_matcher=student_matcher
     )
 
-
-# ============= AUTENTICACIÓN =============
-
 async def get_token_from_header(authorization: Optional[str] = Header(None)) -> str:
-    """Extrae el token del header Authorization."""
+
     if not authorization:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="No se proporcionó token de autenticación"
         )
 
-    # Espera formato: "Bearer <token>"
     parts = authorization.split()
     if len(parts) != 2 or parts[0].lower() != "bearer":
         raise HTTPException(
@@ -149,13 +141,9 @@ async def get_current_user(
         token: str = Depends(get_token_from_header),
         db: Session = Depends(get_db)
 ) -> Usuario:
-    """
-    Dependency que valida el token de Firebase y devuelve el usuario actual.
-    """
-    # Verificar token con Firebase
+
     firebase_user = FirebaseAuth.verify_token(token)
 
-    # Buscar usuario en BD
     usuario_repo = UsuarioRepository(db)
     usuario = usuario_repo.get_by_firebase_uid(firebase_user["uid"])
 
@@ -175,9 +163,6 @@ async def get_current_user(
 
 
 def require_role(*allowed_roles):
-    """
-    Dependency para requerir roles específicos.
-    """
 
     async def role_checker(
             current_user: Usuario = Depends(get_current_user)
@@ -190,9 +175,6 @@ def require_role(*allowed_roles):
         return current_user
 
     return role_checker
-
-
-# ============= REPOSITORIES =============
 
 def get_usuario_repository(db: Session = Depends(get_db)) -> UsuarioRepository:
     return UsuarioRepository(db)

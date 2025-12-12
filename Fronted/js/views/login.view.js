@@ -65,18 +65,16 @@ export class LoginView {
     }
 
     attachEventListeners() {
-        // Login form
+
         document.getElementById('login-form').addEventListener('submit', (e) => {
             e.preventDefault();
             this.handleLogin();
         });
 
-        // Google login
         document.getElementById('btn-google-login').addEventListener('click', () => {
             this.handleGoogleLogin();
         });
 
-        // Toggle password visibility
         document.getElementById('toggle-password').addEventListener('click', function () {
             const passwordInput = document.getElementById('login-password');
             const eyeOpen = this.querySelector('.eye-open');
@@ -93,7 +91,6 @@ export class LoginView {
             }
         });
 
-        // Forgot password link
         document.getElementById('forgot-password-link').addEventListener('click', (e) => {
             e.preventDefault();
             this.showPasswordResetModal();
@@ -181,10 +178,10 @@ export class LoginView {
 
         try {
             await AuthService.loginWithEmail(email, password);
-            console.log('✅ Login exitoso, redirigiendo...');
+            console.log('Login exitoso, redirigiendo...');
             window.location.href = '/index.html';
         } catch (error) {
-            console.error('❌ Error en login:', error);
+            console.error('Error en login:', error);
             this.showError('login', error.message);
         } finally {
             this.setLoading(false, 'login');
@@ -198,18 +195,17 @@ export class LoginView {
         try {
             const user = await AuthService.loginWithGoogle();
 
-            // Si es la primera vez con Google, redirigir a completar registro
             if (!user) {
                 console.log('Usuario nuevo con Google, completar registro');
-                // Aquí podrías mostrar un modal para seleccionar el rol
+
                 this.showError('login', 'Por favor completa tu registro seleccionando un rol');
                 return;
             }
 
-            console.log('✅ Login con Google exitoso, redirigiendo...');
+            console.log('Login con Google exitoso, redirigiendo...');
             window.location.href = '/index.html';
         } catch (error) {
-            console.error('❌ Error en login con Google:', error);
+            console.error('Error en login con Google:', error);
             this.showError('login', error.message);
         } finally {
             this.setLoading(false, 'login');
@@ -277,7 +273,6 @@ export class LoginView {
 
             document.body.appendChild(modal);
 
-            // Add password toggle functionality to the modal
             modal.querySelectorAll('.toggle-password-btn').forEach(btn => {
                 btn.addEventListener('click', function () {
                     const targetId = this.dataset.target;

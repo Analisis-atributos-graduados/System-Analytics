@@ -1,6 +1,3 @@
-/* ============================================
-   LOGIN PAGE STYLES (Split Screen)
-   ============================================ */
 
 body {
     margin: 0;
@@ -14,7 +11,6 @@ body {
     width: 100vw;
 }
 
-/* --- Left Side: Brand & Image --- */
 .login-brand {
     flex: 1;
     position: relative;
@@ -60,7 +56,6 @@ body {
     line-height: 1.6;
 }
 
-/* --- Right Side: Form --- */
 .login-form-container {
     flex: 1;
     display: flex;
@@ -93,7 +88,6 @@ body {
     font-weight: 700;
 }
 
-/* --- Tabs --- */
 .tabs {
     display: flex;
     margin-bottom: 2rem;
@@ -143,7 +137,6 @@ body {
     }
 }
 
-/* --- Form Elements --- */
 .form-group {
     margin-bottom: 1.5rem;
 }
@@ -229,7 +222,6 @@ body {
     margin-left: 10px;
 }
 
-/* --- Error Messages --- */
 .error-message {
     background: rgba(239, 68, 68, 0.1);
     color: #ef4444;
@@ -246,7 +238,6 @@ body {
     content: '⚠️';
 }
 
-/* --- Loader --- */
 .loader {
     display: flex;
     flex-direction: column;
@@ -272,11 +263,9 @@ body {
     }
 }
 
-/* --- Responsive --- */
 @media (max-width: 900px) {
     .login-brand {
         display: none;
-        /* Hide brand on smaller screens or make it a top banner */
     }
 
     .login-header-mobile {

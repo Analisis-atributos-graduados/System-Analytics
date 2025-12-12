@@ -8,20 +8,15 @@ log = logging.getLogger(__name__)
 
 
 class MetaPorcentajeRepository(BaseRepository):
-    """
-    Repositorio para operaciones de MetaPorcentaje.
-    Patrón Singleton - solo debe existir 1 registro.
-    """
 
     def __init__(self, db: Session):
         super().__init__(db, MetaPorcentaje)
 
     def get_meta(self) -> Optional[MetaPorcentaje]:
-        """Obtiene la meta de porcentaje (único registro)."""
+
         try:
             meta = self.db.query(MetaPorcentaje).first()
-            
-            # Si no existe, crear con valor por defecto
+
             if not meta:
                 log.info("No existe meta de porcentaje, creando con valor por defecto (80)")
                 meta = MetaPorcentaje(porcentaje=80)
@@ -35,7 +30,7 @@ class MetaPorcentajeRepository(BaseRepository):
             raise
 
     def update_meta(self, porcentaje: int) -> MetaPorcentaje:
-        """Actualiza el porcentaje objetivo."""
+
         try:
             meta = self.get_meta()
             meta.porcentaje = porcentaje

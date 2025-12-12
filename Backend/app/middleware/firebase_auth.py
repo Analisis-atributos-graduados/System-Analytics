@@ -8,50 +8,33 @@ log = logging.getLogger(__name__)
 
 
 class FirebaseAuth:
-    """Manejo de autenticación con Firebase."""
 
     _initialized = False
 
     @classmethod
     def initialize(cls):
-        """Inicializa Firebase Admin SDK (solo una vez)."""
         if cls._initialized:
             return
 
         try:
-            # Intentar usar credenciales de archivo (desarrollo local)
             cred_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS", "credentials.json")
             if os.path.exists(cred_path):
                 cred = credentials.Certificate(cred_path)
                 firebase_admin.initialize_app(cred)
                 log.info("Firebase inicializado con archivo de credenciales")
             else:
-                # Usar credenciales por defecto (Cloud Run)
                 firebase_admin.initialize_app()
                 log.info("Firebase inicializado con credenciales por defecto")
 
             cls._initialized = True
         except Exception as e:
             log.critical(f"Error CRÍTICO al inicializar Firebase: {e}")
-            # Lanzar excepción para detener el inicio de la aplicación si Firebase es crucial
             raise RuntimeError(f"Fallo al inicializar Firebase Admin SDK: {e}")
 
     @staticmethod
     def verify_token(token: str) -> dict:
-        """
-        Verifica el token de Firebase y devuelve los datos del usuario.
 
-        Args:
-            token: ID Token de Firebase
-
-        Returns:
-            dict con: uid, email, name
-
-        Raises:
-            HTTPException: Si el token es inválido
-        """
         try:
-            # Verificar token con Firebase
             decoded_token = auth.verify_id_token(token)
 
             return {

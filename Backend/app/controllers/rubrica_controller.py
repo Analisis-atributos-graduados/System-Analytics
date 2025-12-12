@@ -19,14 +19,10 @@ async def create_rubrica(
         current_user: Usuario = Depends(require_role("PROFESOR")),
         db: Session = Depends(get_db)
 ):
-    """
-    Crea una nueva rúbrica con sus criterios.
-    Solo profesores pueden crear rúbricas.
-    """
+
     try:
         rubrica_repo = RubricaRepository(db)
 
-        # Validar que la suma de pesos sea ~1.0
         suma_pesos = sum(c.peso for c in rubrica_data.criterios)
         if abs(suma_pesos - 1.0) > 0.01:
             raise HTTPException(
@@ -34,7 +30,6 @@ async def create_rubrica(
                 detail=f"La suma de los pesos debe ser 1.0 (actual: {suma_pesos:.2f})"
             )
 
-        # Crear rúbrica
         criterios_dict = [c.dict() for c in rubrica_data.criterios]
         rubrica = rubrica_repo.create_rubrica_con_criterios(
             profesor_id=current_user.id,
@@ -43,7 +38,6 @@ async def create_rubrica(
             criterios=criterios_dict
         )
 
-        # Recargar con criterios
         rubrica = rubrica_repo.get_with_criterios(rubrica.id)
 
         log.info(f"Rúbrica creada: ID={rubrica.id}, Profesor={current_user.nombre}")
@@ -61,12 +55,9 @@ async def list_rubricas(
         current_user: Usuario = Depends(require_role("PROFESOR")),
         db: Session = Depends(get_db)
 ):
-    """
-    Lista todas las rúbricas del profesor actual CON criterios.
-    """
+
     try:
         rubrica_repo = RubricaRepository(db)
-        # ✅ CAMBIO: Usar método que carga criterios
         rubricas = rubrica_repo.get_by_profesor_with_criterios(current_user.id)
 
         log.info(f"Listadas {len(rubricas)} rúbricas del profesor {current_user.nombre}")
@@ -77,17 +68,13 @@ async def list_rubricas(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-
 @router.get("/{rubrica_id}", response_model=RubricaResponse)
 async def get_rubrica(
         rubrica_id: int,
         current_user: Usuario = Depends(require_role("PROFESOR")),
         db: Session = Depends(get_db)
 ):
-    """
-    Obtiene una rúbrica con todos sus criterios.
-    Solo el profesor dueño puede verla.
-    """
+
     try:
         rubrica_repo = RubricaRepository(db)
         rubrica = rubrica_repo.get_with_criterios(rubrica_id)
@@ -95,7 +82,6 @@ async def get_rubrica(
         if not rubrica:
             raise HTTPException(status_code=404, detail="Rúbrica no encontrada")
 
-        # Verificar que el profesor sea dueño
         if rubrica.profesor_id != current_user.id:
             raise HTTPException(status_code=403, detail="No tienes permiso para ver esta rúbrica")
 
@@ -114,9 +100,7 @@ async def delete_rubrica(
         current_user: Usuario = Depends(require_role("PROFESOR")),
         db: Session = Depends(get_db)
 ):
-    """
-    Desactiva (soft delete) una rúbrica.
-    """
+
     try:
         rubrica_repo = RubricaRepository(db)
         rubrica = rubrica_repo.get_by_id(rubrica_id)

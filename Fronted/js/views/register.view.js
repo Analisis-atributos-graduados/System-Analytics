@@ -63,7 +63,6 @@ export class RegisterView {
 
             const password = document.getElementById('password').value;
 
-            // Validación de Contraseña Segura usando ValidatorUtils
             if (!ValidatorUtils.isValidStrongPassword(password)) {
                 showErrorNotification(new Error('La contraseña debe tener al menos 8 caracteres, una mayúscula, una minúscula, un número y un carácter especial (@$!%*?&_.,-)'));
                 return;

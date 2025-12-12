@@ -8,7 +8,7 @@ export class UploadView {
     constructor(router) {
         this.router = router;
         this.courseData = StorageUtils.load('configData') || {};
-        this.selectedFiles = []; // ✅ Archivos seleccionados pero NO subidos
+        this.selectedFiles = [];
         this.studentList = '';
         this.documentType = null;
     }
@@ -16,7 +16,6 @@ export class UploadView {
     render() {
         this.courseData = StorageUtils.load('configData') || {};
 
-        // Validar que haya configuración
         if (!this.courseData.courseName || !this.courseData.rubrica_id) {
             return this.renderMissingConfig();
         }
@@ -118,7 +117,6 @@ export class UploadView {
     }
 
     renderFilesList() {
-        // ✅ CAMBIO: Mostrar selectedFiles en lugar de uploadedFiles
         if (this.selectedFiles.length === 0) {
             return '';
         }
@@ -195,9 +193,8 @@ export class UploadView {
     }
 
     attachEventListeners() {
-        console.log('📎 Adjuntando event listeners de upload view...');
+        console.log('Adjuntando event listeners de upload view...');
 
-        // Botón editar configuración
         const btnEditConfig = document.getElementById('btnEditConfig');
         if (btnEditConfig) {
             btnEditConfig.addEventListener('click', () => {
@@ -205,7 +202,6 @@ export class UploadView {
             });
         }
 
-        // Botón ir a configuración
         const btnGoToConfig = document.getElementById('btnGoToConfig');
         if (btnGoToConfig) {
             btnGoToConfig.addEventListener('click', () => {
@@ -213,32 +209,28 @@ export class UploadView {
             });
         }
 
-        // Selección de tipo de documento
         const btnTypeExam = document.getElementById('btn-type-exam');
         const btnTypeEssay = document.getElementById('btn-type-essay');
 
         if (btnTypeExam) {
             btnTypeExam.addEventListener('click', () => {
-                console.log('📝 Tipo de documento seleccionado: examen');
+                console.log('Tipo de documento seleccionado: examen');
                 this.selectDocumentType('examen');
             });
         }
 
         if (btnTypeEssay) {
             btnTypeEssay.addEventListener('click', () => {
-                console.log('📄 Tipo de documento seleccionado: ensayo/informe');
+                console.log('Tipo de documento seleccionado: ensayo/informe');
                 this.selectDocumentType('ensayo/informe');
             });
         }
 
-        // Upload de archivos
         this.attachUploadListeners();
 
-        // Lista de estudiantes
         const studentListInput = document.getElementById('studentListInput');
         if (studentListInput) {
             studentListInput.addEventListener('input', (e) => {
-                // ✅ Sanitizar cada línea de la lista de estudiantes
                 const lines = e.target.value.split('\n');
                 const sanitizedLines = lines.map(line => ValidatorUtils.sanitizeText(line, true));
                 const sanitized = sanitizedLines.join('\n');
@@ -252,13 +244,11 @@ export class UploadView {
             });
         }
 
-        // Botón iniciar evaluación
         const btnStartEvaluation = document.getElementById('btnStartEvaluation');
         if (btnStartEvaluation) {
             btnStartEvaluation.addEventListener('click', () => this.startEvaluation());
         }
 
-        // Botones eliminar archivo
         document.querySelectorAll('.btn-delete').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 const index = parseInt(e.target.closest('[data-index]').dataset.index);
@@ -266,19 +256,18 @@ export class UploadView {
             });
         });
 
-        console.log('✅ Event listeners adjuntados');
+        console.log('Event listeners adjuntados');
     }
 
     selectDocumentType(type) {
-        console.log('🔄 Cambiando tipo de documento a:', type);
+        console.log('Cambiando tipo de documento a:', type);
         this.documentType = type;
 
-        // Re-renderizar
         const container = document.getElementById('main-content');
         if (container) {
             container.innerHTML = this.render();
             this.attachEventListeners();
-            console.log('✅ Vista re-renderizada con tipo:', type);
+            console.log('Vista re-renderizada con tipo:', type);
         }
     }
 
@@ -288,20 +277,18 @@ export class UploadView {
         const btnSelectFiles = document.getElementById('btnSelectFiles');
 
         if (!uploadArea || !fileInput) {
-            console.log('⚠️ Área de upload no disponible todavía');
+            console.log('Área de upload no disponible todavía');
             return;
         }
 
-        console.log('📤 Configurando listeners de upload...');
+        console.log('Configurando listeners de upload...');
 
-        // Click en área de upload
         uploadArea.addEventListener('click', (e) => {
             if (e.target.id !== 'btnSelectFiles') {
                 fileInput.click();
             }
         });
 
-        // Click en botón
         if (btnSelectFiles) {
             btnSelectFiles.addEventListener('click', (e) => {
                 e.stopPropagation();
@@ -309,7 +296,6 @@ export class UploadView {
             });
         }
 
-        // Drag & Drop
         uploadArea.addEventListener('dragover', (e) => {
             e.preventDefault();
             uploadArea.classList.add('drag-over');
@@ -333,17 +319,15 @@ export class UploadView {
             this.handleFiles(files);
         });
 
-        // Selección de archivos
         fileInput.addEventListener('change', (e) => {
             const files = Array.from(e.target.files);
             this.handleFiles(files);
             fileInput.value = '';
         });
 
-        console.log('✅ Listeners de upload configurados');
+        console.log('Listeners de upload configurados');
     }
 
-    // ✅ CAMBIO PRINCIPAL: Solo guardar archivos, NO subirlos
     handleFiles(files) {
         if (files.length === 0) return;
 
@@ -356,7 +340,6 @@ export class UploadView {
             return;
         }
 
-        // ✅ VALIDACIÓN DE NOMBRES PARA EXÁMENES
         if (this.documentType === 'examen') {
             const regex = /^cara_(\d+)(\.[a-zA-Z0-9]+)?$/i;
             const invalidNames = files.filter(f => !regex.test(f.name));
@@ -368,7 +351,6 @@ export class UploadView {
                 return;
             }
 
-            // Validar duplicados (en la selección actual y en los nuevos)
             const currentNames = new Set(this.selectedFiles.map(f => f.name));
             const newNames = new Set();
             const duplicates = [];
@@ -388,14 +370,12 @@ export class UploadView {
             }
         }
 
-        console.log(`📁 ${files.length} archivo(s) seleccionado(s)`);
+        console.log(`${files.length} archivo(s) seleccionado(s)`);
 
-        // ✅ Solo agregar a la lista, NO subir
         this.selectedFiles.push(...files);
 
         showSuccessNotification(`✅ ${files.length} archivo(s) seleccionado(s)`);
 
-        // Re-renderizar
         const container = document.getElementById('main-content');
         if (container) {
             container.innerHTML = this.render();
@@ -406,7 +386,6 @@ export class UploadView {
     removeFile(index) {
         this.selectedFiles.splice(index, 1);
 
-        // Re-renderizar
         const container = document.getElementById('main-content');
         if (container) {
             container.innerHTML = this.render();
@@ -421,10 +400,9 @@ export class UploadView {
         }
     }
 
-    // ✅ CAMBIO: Subir archivos AQUÍ, no antes
     async startEvaluation() {
         try {
-            console.log('🚀 Iniciando evaluación...');
+            console.log('Iniciando evaluación...');
 
             if (!this.courseData.rubrica_id) {
                 throw new Error('No se ha seleccionado una rúbrica. Ve a configuración.');
@@ -436,19 +414,16 @@ export class UploadView {
 
             this.showLoading();
 
-            // ✅ VALIDACIÓN DE SECUENCIA PARA EXÁMENES
             if (this.documentType === 'examen') {
                 const caras = this.selectedFiles.map(f => {
                     const match = f.name.match(/^cara_(\d+)/i);
                     return match ? parseInt(match[1]) : 0;
                 }).sort((a, b) => a - b);
 
-                // Verificar que empiece en 1
                 if (caras[0] !== 1) {
                     throw new Error('Falta la cara_1. Los exámenes deben comenzar por la cara 1.');
                 }
 
-                // Verificar secuencia sin huecos
                 for (let i = 0; i < caras.length - 1; i++) {
                     if (caras[i + 1] !== caras[i] + 1) {
                         throw new Error(`Falta la cara_${caras[i] + 1}. La secuencia de caras debe estar completa (1, 2, 3...).`);
@@ -456,14 +431,12 @@ export class UploadView {
                 }
             }
 
-            // ✅ SUBIR ARCHIVOS AHORA
-            console.log(`📤 Subiendo ${this.selectedFiles.length} archivos...`);
+            console.log(`Subiendo ${this.selectedFiles.length} archivos...`);
             const uploadedFiles = [];
 
             for (const file of this.selectedFiles) {
                 try {
-                    console.log(`  📤 Subiendo: ${file.name}`);
-                    // Pasamos el tipo de documento para validación en backend
+                    console.log(`Subiendo: ${file.name}`);
                     const result = await DocumentService.uploadFileProxy(file, this.documentType);
 
                     uploadedFiles.push({
@@ -471,21 +444,20 @@ export class UploadView {
                         original_filename: result.original_filename || file.name
                     });
 
-                    console.log(`  ✅ Subido: ${result.gcs_filename}`);
+                    console.log(` Subido: ${result.gcs_filename}`);
                 } catch (error) {
-                    console.error(`  ❌ Error subiendo ${file.name}:`, error);
+                    console.error(`Error subiendo ${file.name}:`, error);
                     throw new Error(`Error subiendo ${file.name}: ${error.message}`);
                 }
             }
 
-            console.log(`✅ Todos los archivos subidos (${uploadedFiles.length})`);
+            console.log(`Todos los archivos subidos (${uploadedFiles.length})`);
 
-            // Preparar payload
             const evaluationData = {
                 pdf_files: uploadedFiles,
                 student_list: this.studentList.trim(),
                 rubrica_id: this.courseData.rubrica_id,
-                curso_id: this.courseData.curso_id, // ✅ AGREGADO: ID del curso
+                curso_id: this.courseData.curso_id,
                 nombre_curso: this.courseData.courseName,
                 codigo_curso: this.courseData.courseCode,
                 instructor: this.courseData.instructor,
@@ -495,21 +467,19 @@ export class UploadView {
                 tipo_documento: this.documentType
             };
 
-            console.log('📤 Enviando evaluación:', evaluationData);
+            console.log('Enviando evaluación:', evaluationData);
 
             const response = await DocumentService.enqueueExamBatch(evaluationData);
 
-            console.log('✅ Respuesta del servidor:', response);
+            console.log('Respuesta del servidor:', response);
 
             showSuccessNotification(`✅ Evaluación iniciada: ${response.total || uploadedFiles.length} documento(s) en proceso`);
 
-            // Limpiar y redirigir
-            // Limpiar y redirigir
             setTimeout(() => {
                 this.selectedFiles = [];
                 this.studentList = '';
                 this.documentType = null;
-                // Redirigir con el ID de la evaluación para auto-selección
+
                 let evaluacionId = response.id || response.evaluacion_id;
                 if (!evaluacionId && response.evaluaciones_creadas && response.evaluaciones_creadas.length > 0) {
                     const firstItem = response.evaluaciones_creadas[0];
@@ -524,7 +494,7 @@ export class UploadView {
             }, 1500);
 
         } catch (error) {
-            console.error('❌ Error al iniciar evaluación:', error);
+            console.error('Error al iniciar evaluación:', error);
             showErrorNotification(error);
             this.hideLoading();
         }

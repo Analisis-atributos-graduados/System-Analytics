@@ -10,7 +10,6 @@ class ArchivoProcesado(Base):
     nombre_archivo_original = Column(String, nullable=False)
     texto_extraido = Column(Text)
     evaluacion_id = Column(Integer, ForeignKey("evaluaciones.id"), nullable=False)
-    analisis_visual = Column(Text)  # JSON serializado
+    analisis_visual = Column(Text)
 
-    # Relación
     evaluacion = relationship("Evaluacion", back_populates="archivos_procesados")

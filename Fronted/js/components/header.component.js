@@ -31,7 +31,7 @@ export class HeaderComponent {
     }
 
     attachEventListeners() {
-        // Botón de tema
+
         const themeToggle = document.getElementById('theme-toggle');
         if (themeToggle) {
             themeToggle.addEventListener('click', () => {
@@ -41,7 +41,6 @@ export class HeaderComponent {
                 localStorage.setItem('theme', isLight ? 'light' : 'dark');
             });
             
-            // Cargar tema guardado
             const savedTheme = localStorage.getItem('theme');
             if (savedTheme === 'light') {
                 document.body.classList.add('light-theme');
@@ -49,7 +48,6 @@ export class HeaderComponent {
             }
         }
 
-        // Botón de logout
         const logoutBtn = document.getElementById('logout-btn');
         if (logoutBtn) {
             logoutBtn.addEventListener('click', async () => {
@@ -65,7 +63,6 @@ export class HeaderComponent {
             });
         }
 
-        // Botón de universidad (info del usuario)
         const universityBtn = document.getElementById('university-btn');
         if (universityBtn) {
             universityBtn.addEventListener('click', () => {

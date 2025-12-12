@@ -3,9 +3,6 @@ import AuthService from './auth.service.js';
 import { getEndpoint, buildURL } from '../config/api.config.js';
 
 class DocumentService {
-    /**
-     * Solicita una URL firmada para subir un archivo directamente a GCS.
-     */
     async getUploadUrl(filename, contentType) {
         try {
             const endpoint = getEndpoint('GENERATE_UPLOAD_URL');
@@ -20,9 +17,6 @@ class DocumentService {
         }
     }
 
-    /**
-     * Sube un archivo usando el proxy del backend
-     */
     async uploadFileProxy(file, tipoDocumento) {
         try {
             const formData = new FormData();
@@ -55,9 +49,6 @@ class DocumentService {
         }
     }
 
-    /**
-     * Obtiene todas las evaluaciones (con filtros opcionales)
-     */
     async getAllEvaluations(filters = {}) {
         try {
             const endpoint = buildURL(getEndpoint('EVALUACIONES'), filters);
@@ -67,9 +58,7 @@ class DocumentService {
             throw error;
         }
     }
-    /**
-     * Obtiene estadísticas del dashboard
-     */
+   
     async getDashboardStats(filters) {
         try {
             const endpoint = buildURL(getEndpoint('DASHBOARD_STATS'), filters);
@@ -81,9 +70,6 @@ class DocumentService {
         }
     }
 
-    /**
-     * Obtiene estadísticas del dashboard de calidad (AG-07)
-     */
     async getQualityDashboardStats(filters) {
         try {
             const endpoint = buildURL(getEndpoint('QUALITY_DASHBOARD_STATS'), filters);
@@ -95,9 +81,6 @@ class DocumentService {
         }
     }
 
-    /**
-     * Descarga transcripciones
-     */
     async downloadTranscriptions(filters) {
         try {
             const endpoint = buildURL(getEndpoint('DOWNLOAD_TRANSCRIPTIONS'), filters);
@@ -129,9 +112,6 @@ class DocumentService {
         }
     }
 
-    /**
-     * Encola un lote de exámenes para procesamiento
-     */
     async enqueueExamBatch(evaluationData) {
         try {
             const endpoint = getEndpoint('ENQUEUE_BATCH');
@@ -150,9 +130,6 @@ class DocumentService {
         }
     }
 
-    /**
-     * Obtiene una evaluación por ID
-     */
     async getEvaluacion(evaluacionId) {
         try {
             const endpoint = getEndpoint('EVALUACION_DETAIL', evaluacionId);
@@ -163,9 +140,6 @@ class DocumentService {
         }
     }
 
-    /**
-     * Elimina una evaluación
-     */
     async deleteEvaluacion(evaluacionId) {
         try {
             const endpoint = getEndpoint('EVALUACION_DETAIL', evaluacionId);

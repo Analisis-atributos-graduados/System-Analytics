@@ -8,18 +8,9 @@ log = logging.getLogger(__name__)
 
 
 class TextExtractor:
-    """Extrae texto de archivos PDF y DOCX."""
 
     def extract_text_from_pdf(self, pdf_bytes: bytes) -> Optional[str]:
-        """
-        Extrae texto de un PDF usando pdfplumber.
 
-        Args:
-            pdf_bytes: Bytes del archivo PDF
-
-        Returns:
-            Texto extraído o None si no hay texto
-        """
         try:
             texto_completo = []
 
@@ -48,15 +39,7 @@ class TextExtractor:
             return None
 
     def extract_text_from_docx(self, docx_bytes: bytes) -> Optional[str]:
-        """
-        Extrae texto de un archivo DOCX usando python-docx.
 
-        Args:
-            docx_bytes: Bytes del archivo DOCX
-
-        Returns:
-            Texto extraído o None si no hay texto
-        """
         try:
             doc = Document(io.BytesIO(docx_bytes))
 
@@ -79,16 +62,7 @@ class TextExtractor:
             file_bytes: bytes,
             file_extension: str
     ) -> bool:
-        """
-        Detecta si un archivo tiene texto extraíble directamente.
 
-        Args:
-            file_bytes: Bytes del archivo
-            file_extension: Extensión del archivo ('.pdf' o '.docx')
-
-        Returns:
-            True si tiene texto extraíble, False si necesita OCR
-        """
         try:
             if file_extension.lower() == '.pdf':
                 texto = self.extract_text_from_pdf(file_bytes)
@@ -98,7 +72,6 @@ class TextExtractor:
                 log.warning(f"Extensión no soportada: {file_extension}")
                 return False
 
-            # Considerar que tiene texto si extrae al menos 50 caracteres
             has_text = texto is not None and len(texto.strip()) > 50
 
             log.info(f"Archivo {'tiene' if has_text else 'NO tiene'} texto extraíble")
@@ -109,22 +82,12 @@ class TextExtractor:
             return False
 
     def clean_text(self, texto: str) -> str:
-        """
-        Limpia texto extraído (elimina espacios extra, saltos de línea múltiples, etc.).
 
-        Args:
-            texto: Texto a limpiar
-
-        Returns:
-            Texto limpio
-        """
         if not texto:
             return ""
 
-        # Eliminar espacios múltiples
         texto = " ".join(texto.split())
 
-        # Eliminar saltos de línea múltiples
         lineas = [l.strip() for l in texto.split("\n") if l.strip()]
         texto_limpio = "\n".join(lineas)
 
