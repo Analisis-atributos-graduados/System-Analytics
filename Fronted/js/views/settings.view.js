@@ -220,18 +220,39 @@ export class SettingsView {
             this.attributeMapping.forEach((courseIds, attrCode) => {
                 const zone = document.querySelector(`.attribute-zone[data-attr="${attrCode}"]`);
                 if (zone) {
-                    courseIds.forEach(courseId => {
-                        const course = this.courses.find(c => c.id === courseId);
-                        if (course) {
-                            zone.insertAdjacentHTML('beforeend', this.renderDraggableCourse(course, true));
-                        }
-                    });
+                    if (courseIds.size === 0) {
+                        zone.innerHTML = '<div class="empty-courses-msg">Sin cursos asignados</div>';
+                    } else {
+                        courseIds.forEach(courseId => {
+                            const course = this.courses.find(c => c.id === courseId);
+                            if (course) {
+                                zone.insertAdjacentHTML('beforeend', this.renderStaticCourse(course));
+                            }
+                        });
+                    }
                 }
             });
 
-            this.updateCounts();
+            const unassignedZone = document.getElementById('unassigned-courses-zone');
+            if (unassignedZone) {
+                const assignedCourseIds = new Set();
+                this.attributeMapping.forEach((courseIds) => {
+                    courseIds.forEach(id => assignedCourseIds.add(id));
+                });
+
+                const unassignedCourses = this.courses.filter(c => !assignedCourseIds.has(c.id));
+
+                if (unassignedCourses.length === 0) {
+                    unassignedZone.innerHTML = '<span style="font-size: 13px; color: var(--secondary-text); font-style: italic;">Todos los cursos en Supabase están asignados a un AG.</span>';
+                } else {
+                    unassignedZone.innerHTML = '';
+                    unassignedCourses.forEach(course => {
+                        unassignedZone.insertAdjacentHTML('beforeend', this.renderStaticCourse(course));
+                    });
+                }
+            }
+
             this.attachEvents();
-            this.initDragAndDrop();
         } catch (error) {
             console.error('Error cargando configuración:', error);
             showErrorNotification('Error al cargar la configuración');
@@ -566,137 +587,109 @@ export class SettingsView {
         return `
             <div class="config-section">
                 <div class="section-header" style="justify-content: flex-start;">
-                    <div class="section-icon">🔗</div>
-                    <h3 class="section-title">Asignación de Cursos a Atributos</h3>
+                    <div class="section-icon">📚</div>
+                    <h3 class="section-title">Cursos por Atributo de Graduado</h3>
                 </div>
-                <p style="color: var(--secondary-text); margin-bottom: 20px; font-size: 14px;">
-                    Arrastra los cursos desde el panel izquierdo a los atributos. Un curso puede estar en múltiples atributos.
+                <p style="color: var(--secondary-text); margin-bottom: 24px; font-size: 14px; line-height: 1.5;">
+                    Visualización en tiempo real de los cursos asignados a cada Atributo de Graduado (AG).
                 </p>
-                <div class="dnd-container">
-                    <!-- Pool de Cursos Disponibles -->
-                    <div class="pool-section">
-                        <div class="pool-header">
-                            <span>Todos los Cursos</span>
-                            <span class="badge-count" id="pool-count">${this.courses.length}</span>
-                        </div>
-                        ${this.courses.map(curso => this.renderDraggableCourse(curso, false)).join('')}
+                
+                <div style="margin-bottom: 20px; padding: 15px; background: var(--input-bg); border-radius: var(--radius-sm); border: 1px dashed var(--card-border);">
+                    <h4 style="margin: 0 0 10px 0; color: var(--secondary-text); font-size: 14px;">Cursos Sin Asignar</h4>
+                    <div id="unassigned-courses-zone" style="display: flex; flex-wrap: wrap; gap: 10px;">
+                        <span style="font-size: 13px; color: var(--secondary-text); font-style: italic;">Cargando...</span>
                     </div>
+                </div>
 
-                    <!-- Zonas de Atributos -->
-                    <div class="attributes-section">
-                        ${this.attributes.map(attr => `
-                            <div class="attribute-card">
-                                <div class="attribute-header">
-                                    <span>${attr.codigo}</span>
-                                </div>
-                                <div class="drop-zone attribute-zone" data-type="attribute" data-attr="${attr.codigo}">
-                                    <!-- Aquí se renderizarán los cursos asignados -->
-                                </div>
+                <div class="attributes-section-view">
+                    ${this.attributes.map(attr => `
+                        <div class="attribute-card-view">
+                            <div class="attribute-header-view">
+                                <span>${attr.codigo}</span>
+                                <span style="font-size: 12px; font-weight: normal; color: var(--secondary-text);">${attr.nombre}</span>
                             </div>
-                        `).join('')}
-                    </div>
-                </div>
-                <div style="text-align: right; margin-top: 20px;">
-                    <button id="save-assignments-btn" class="btn btn-primary">Guardar Asignaciones</button>
+                            <div class="course-list-static attribute-zone" data-attr="${attr.codigo}">
+                                <!-- Los cursos asignados se renderizan estáticamente aquí -->
+                            </div>
+                        </div>
+                    `).join('')}
                 </div>
             </div>
+            
+            <style>
+                .attributes-section-view {
+                    display: grid;
+                    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+                    gap: 20px;
+                    margin-top: 15px;
+                }
+                .attribute-card-view {
+                    background: var(--card-bg);
+                    border: 1px solid var(--card-border);
+                    border-radius: var(--radius-lg);
+                    padding: 20px;
+                    transition: all 0.2s ease;
+                    box-shadow: var(--shadow-sm);
+                }
+                .attribute-card-view:hover {
+                    transform: translateY(-2px);
+                    box-shadow: var(--shadow-md);
+                    border-color: var(--primary-color);
+                }
+                .attribute-header-view {
+                    font-weight: 700;
+                    color: var(--primary-color);
+                    margin-bottom: 15px;
+                    font-size: 15px;
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    border-bottom: 1px solid var(--card-border);
+                    padding-bottom: 10px;
+                }
+                .course-list-static {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 10px;
+                    min-height: 40px;
+                }
+                .course-badge-static {
+                    background: var(--input-bg);
+                    border: 1px solid var(--card-border);
+                    border-left: 4px solid var(--primary-color);
+                    padding: 10px 14px;
+                    border-radius: var(--radius-sm);
+                    font-size: 13.5px;
+                    color: var(--text-color);
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                    box-shadow: var(--shadow-sm);
+                    font-weight: 500;
+                }
+                .empty-courses-msg {
+                    color: var(--secondary-text);
+                    font-size: 13px;
+                    font-style: italic;
+                    text-align: center;
+                    padding: 15px 0;
+                }
+            </style>
         `;
     }
 
-    renderDraggableCourse(curso, isAssigned = false) {
+    renderStaticCourse(curso) {
         return `
-            <div class="draggable-course" draggable="true" data-id="${curso.id}" data-name="${curso.nombre}">
-                <span>${curso.nombre}</span>
-                ${isAssigned ? '<span class="remove-btn" title="Quitar">×</span>' : '<small>⋮⋮</small>'}
+            <div class="course-badge-static" data-id="${curso.id}">
+                <span>📖 ${curso.nombre}</span>
             </div>
         `;
-    }
-
-    initDragAndDrop() {
-        document.addEventListener('dragstart', (e) => {
-            if (e.target.classList.contains('draggable-course')) {
-                e.target.classList.add('dragging');
-                e.dataTransfer.setData('text/plain', JSON.stringify({
-                    id: e.target.dataset.id,
-                    name: e.target.dataset.name,
-                    source: e.target.parentElement.dataset.type
-                }));
-            }
-        });
-
-        document.addEventListener('dragend', (e) => {
-            if (e.target.classList.contains('draggable-course')) {
-                e.target.classList.remove('dragging');
-            }
-        });
-
-        document.addEventListener('click', (e) => {
-            if (e.target.classList.contains('remove-btn')) {
-                const card = e.target.closest('.draggable-course');
-                const zone = card.closest('.attribute-zone');
-                if (zone) {
-                    card.remove();
-                    this.updateCounts();
-                }
-            }
-        });
-
-        const dropZones = document.querySelectorAll('.drop-zone');
-        dropZones.forEach(zone => {
-            zone.addEventListener('dragover', e => {
-                e.preventDefault();
-                if (zone.dataset.type === 'attribute') {
-                    zone.classList.add('drag-over');
-                }
-            });
-
-            zone.addEventListener('dragleave', () => {
-                zone.classList.remove('drag-over');
-            });
-
-            zone.addEventListener('drop', (e) => {
-                e.preventDefault();
-                zone.classList.remove('drag-over');
-
-                if (zone.dataset.type !== 'attribute') return;
-
-                const data = JSON.parse(e.dataTransfer.getData('text/plain'));
-                const courseId = data.id;
-                const courseName = data.name;
-
-                const existing = zone.querySelector(`.draggable-course[data-id="${courseId}"]`);
-                if (existing) {
-                    showErrorNotification('El curso ya está asignado a este atributo');
-                    return;
-                }
-
-                const newCardHTML = this.renderDraggableCourse({ id: courseId, nombre: courseName }, true);
-                zone.insertAdjacentHTML('beforeend', newCardHTML);
-
-                this.updateCounts();
-            });
-        });
-    }
-
-    updateCounts() {
-        const poolCount = document.getElementById('pool-count');
-        if (poolCount) {
-            poolCount.textContent = this.courses.length;
-        }
-
-        this.attributes.forEach(attr => {
-            const zone = document.querySelector(`.attribute-zone[data-attr="${attr.codigo}"]`);
-            const countSpan = document.getElementById(`count-${attr.codigo}`);
-            if (zone && countSpan) {
-                countSpan.textContent = zone.children.length;
-            }
-        });
     }
 
     async _saveConfiguration(payload) {
         try {
             await ApiService.post('/cursos/assign-attributes', payload);
-            showSuccessNotification('Configuración guardada correctamente');
+            showSuccessNotification('Configuración de meta guardada correctamente');
         } catch (error) {
             showErrorNotification('Error al guardar la configuración');
             console.error(error);
@@ -705,42 +698,14 @@ export class SettingsView {
 
     _getGoalPayload() {
         const input = document.getElementById('goal-input');
-        return parseInt(input.value);
-    }
-
-    _getAssignmentsPayload() {
-        const asignaciones = [];
-        document.querySelectorAll('.attribute-zone').forEach(zone => {
-            const attrCode = zone.dataset.attr;
-            const courseIds = [];
-            zone.querySelectorAll('.draggable-course').forEach(card => {
-                courseIds.push(parseInt(card.dataset.id));
-            });
-
-            if (courseIds.length > 0) {
-                asignaciones.push({
-                    atributo: attrCode,
-                    cursos: courseIds
-                });
-            }
-        });
-        return asignaciones;
+        return parseInt(input.value) || 80;
     }
 
     async saveGoal() {
         console.log('Guardando meta...');
         const payload = {
             meta: this._getGoalPayload(),
-            asignaciones: this._getAssignmentsPayload()
-        };
-        await this._saveConfiguration(payload);
-    }
-
-    async saveAssignments() {
-        console.log('Guardando asignaciones...');
-        const payload = {
-            meta: this._getGoalPayload(),
-            asignaciones: this._getAssignmentsPayload()
+            asignaciones: []
         };
         await this._saveConfiguration(payload);
     }
@@ -763,11 +728,6 @@ export class SettingsView {
         const saveGoalBtn = document.getElementById('save-goal-btn');
         if (saveGoalBtn) {
             saveGoalBtn.addEventListener('click', () => this.saveGoal());
-        }
-
-        const saveAssignmentsBtn = document.getElementById('save-assignments-btn');
-        if (saveAssignmentsBtn) {
-            saveAssignmentsBtn.addEventListener('click', () => this.saveAssignments());
         }
 
         const addUserBtn = document.getElementById('add-user-btn');

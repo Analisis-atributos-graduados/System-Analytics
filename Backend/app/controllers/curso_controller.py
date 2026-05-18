@@ -86,17 +86,13 @@ def assign_attributes(
     from app.services.meta_porcentaje_service import MetaPorcentajeService
     from app.schemas.meta_porcentaje_schemas import MetaPorcentajeUpdate
     
-    curso_service = CursoService(db)
     meta_service = MetaPorcentajeService(db)
     
     try:
         update_data = MetaPorcentajeUpdate(porcentaje=payload.meta)
         meta_service.update_meta(update_data)
-
-        assignments_dicts = [a.dict() for a in payload.asignaciones]
-        curso_service.bulk_assign_attributes(assignments_dicts)
         
-        return {"message": "Configuración guardada correctamente"}
+        return {"message": "Meta de aprobación guardada correctamente."}
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error al guardar configuración: {str(e)}")

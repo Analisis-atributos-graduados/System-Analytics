@@ -7,15 +7,13 @@ import os
 
 log = logging.getLogger(__name__)
 
-DATABASE_URL = os.environ.get("DATABASE_URL", "postgresql://user:pass@localhost/db")
+DATABASE_URL = os.environ.get("DATABASE_URL", "postgresql://postgres:963852741.@localhost:5432/Analitica_Datos?client_encoding=utf8")
 
 connect_args = {}
 
 if "sqlite" in DATABASE_URL:
-
     connect_args = {"check_same_thread": False}
 else:
-
     connect_args = {
         "keepalives": 1,
         "keepalives_idle": 30,
@@ -35,7 +33,6 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
 def get_db():
-
     db = SessionLocal()
     try:
         yield db

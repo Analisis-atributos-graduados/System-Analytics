@@ -13,11 +13,50 @@ class CursoService:
     def __init__(self, db: Session):
         self.curso_repo = CursoRepository(db)
 
-    def get_all_cursos(self) -> List[Curso]:
-        return self.curso_repo.get_all()
+    def get_all_cursos(self) -> List[dict]:
+        """Obtiene la lista de todos los cursos directamente desde Supabase sin usar la base de datos local."""
+        from app.clients.supabase_client import SupabaseClient
+        
+        try:
+            supabase = SupabaseClient()
+            supabase_cursos = supabase.get_cursos()
+            supabase_relaciones = supabase.get_curso_ags()
+            
+            relaciones_por_curso = {}
+            for rel in supabase_relaciones:
+                id_curso = rel.get('id_curso')
+                id_ag = rel.get('id_ag')
+                if id_curso and id_ag:
+                    if id_curso not in relaciones_por_curso:
+                        relaciones_por_curso[id_curso] = []
+                    relaciones_por_curso[id_curso].append(f"AG-{str(id_ag).zfill(2)}")
+            
+            result = []
+            for s_curso in supabase_cursos:
+                id_curso = s_curso.get('id_curso')
+                nombre = s_curso.get('nombre')
+                if not id_curso or not nombre:
+                    continue
+                
+                atributos_codigos = relaciones_por_curso.get(id_curso, [])
+                habilitado = len(atributos_codigos) > 0
+                
+                result.append({
+                    "id": id_curso,
+                    "nombre": nombre,
+                    "habilitado": habilitado,
+                    "atributos": [{"atributo_codigo": code} for code in atributos_codigos]
+                })
+            
+            return result
+        except Exception as e:
+            log.error(f"CursoService.get_all_cursos: Error al obtener datos directamente de Supabase: {e}")
+            return []
 
-    def get_cursos_habilitados(self) -> List[Curso]:
-        return self.curso_repo.get_habilitados()
+    def get_cursos_habilitados(self) -> List[dict]:
+        """Obtiene la lista de cursos habilitados directamente desde Supabase."""
+        todos = self.get_all_cursos()
+        return [c for c in todos if c.get("habilitado") is True]
 
     def get_curso(self, curso_id: int) -> Curso:
         curso = self.curso_repo.get_by_id(curso_id)

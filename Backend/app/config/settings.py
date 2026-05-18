@@ -22,6 +22,9 @@ class Settings:
 
     DATABASE_URL: str = os.environ.get("DATABASE_URL")
 
+    SUPABASE_URL: str = os.environ.get("SUPABASE_URL")
+    SUPABASE_KEY: str = os.environ.get("SUPABASE_KEY")
+
     MODEL_PATH: str = "/app/model"
 
     def __init__(self):
