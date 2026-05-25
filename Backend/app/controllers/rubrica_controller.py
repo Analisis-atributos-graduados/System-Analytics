@@ -1,10 +1,10 @@
 import logging
-from typing import List
-from fastapi import APIRouter, Depends, HTTPException
+from typing import List, Optional
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.models import get_db, Usuario
-from app.schemas import RubricaCreate, RubricaResponse, RubricaListResponse
+from app.schemas import RubricaCreate, RubricaResponse, RubricaListResponse, RubricaRevisionSchema
 from app.repositories import RubricaRepository
 from app.config.dependencies import get_current_user, require_role
 
@@ -16,12 +16,19 @@ router = APIRouter(prefix="/rubricas", tags=["Rúbricas"])
 @router.post("", response_model=RubricaResponse)
 async def create_rubrica(
         rubrica_data: RubricaCreate,
-        current_user: Usuario = Depends(require_role("PROFESOR")),
+        current_user: Usuario = Depends(require_role("COMITE_ACADEMICO")),
         db: Session = Depends(get_db)
 ):
-
     try:
         rubrica_repo = RubricaRepository(db)
+
+        if rubrica_data.nrc_id:
+            existing = rubrica_repo.get_by_nrc_with_criterios(rubrica_data.nrc_id)
+            if existing:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Ya existe una rúbrica para el NRC {rubrica_data.nrc_id}."
+                )
 
         suma_pesos = sum(c.peso for c in rubrica_data.criterios)
         if abs(suma_pesos - 1.0) > 0.01:
@@ -32,15 +39,14 @@ async def create_rubrica(
 
         criterios_dict = [c.dict() for c in rubrica_data.criterios]
         rubrica = rubrica_repo.create_rubrica_con_criterios(
-            profesor_id=current_user.id,
             nombre_rubrica=rubrica_data.nombre_rubrica,
             descripcion=rubrica_data.descripcion,
+            nrc_id=rubrica_data.nrc_id,
             criterios=criterios_dict
         )
 
         rubrica = rubrica_repo.get_with_criterios(rubrica.id)
-
-        log.info(f"Rúbrica creada: ID={rubrica.id}, Profesor={current_user.nombre}")
+        log.info(f"Rúbrica creada para NRC {rubrica.nrc_id}: ID={rubrica.id}, Comité={current_user.nombre}")
         return rubrica
 
     except HTTPException:
@@ -50,17 +56,68 @@ async def create_rubrica(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("", response_model=List[RubricaListResponse])
-async def list_rubricas(
-        current_user: Usuario = Depends(require_role("PROFESOR")),
+@router.put("/{rubrica_id}", response_model=RubricaResponse)
+async def update_rubrica(
+        rubrica_id: int,
+        rubrica_data: RubricaCreate,
+        current_user: Usuario = Depends(require_role("COMITE_ACADEMICO")),
         db: Session = Depends(get_db)
 ):
-
     try:
         rubrica_repo = RubricaRepository(db)
-        rubricas = rubrica_repo.get_by_profesor_with_criterios(current_user.id)
+        rubrica = rubrica_repo.get_with_criterios(rubrica_id)
+        if not rubrica:
+            raise HTTPException(status_code=404, detail="Rúbrica no encontrada")
 
-        log.info(f"Listadas {len(rubricas)} rúbricas del profesor {current_user.nombre}")
+        suma_pesos = sum(c.peso for c in rubrica_data.criterios)
+        if abs(suma_pesos - 1.0) > 0.01:
+            raise HTTPException(
+                status_code=400,
+                detail=f"La suma de los pesos debe ser 1.0 (actual: {suma_pesos:.2f})"
+            )
+
+        criterios_dict = [c.dict() for c in rubrica_data.criterios]
+        updated_rubrica = rubrica_repo.update_rubrica_con_criterios(
+            rubrica_id=rubrica_id,
+            nombre_rubrica=rubrica_data.nombre_rubrica,
+            descripcion=rubrica_data.descripcion,
+            nrc_id=rubrica_data.nrc_id,
+            criterios=criterios_dict
+        )
+
+        return updated_rubrica
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        log.error(f"Error al actualizar rúbrica {rubrica_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("", response_model=List[RubricaListResponse])
+async def list_rubricas(
+        nrc_id: Optional[int] = None,
+        current_user: Usuario = Depends(require_role("PROFESOR", "COMITE_ACADEMICO", "DOCENTE_CIAC", "DIRECTOR_ESCUELA")),
+        db: Session = Depends(get_db)
+):
+    try:
+        rubrica_repo = RubricaRepository(db)
+        
+        if nrc_id:
+            rubrica = rubrica_repo.get_by_nrc_with_criterios(nrc_id)
+            if not rubrica:
+                return []
+
+            if current_user.rol == "PROFESOR":
+                if rubrica.estado_ciac != 'aprobado' or rubrica.estado_director != 'aprobado':
+                    return []
+            return [rubrica]
+
+        if current_user.rol in ["COMITE_ACADEMICO", "DOCENTE_CIAC", "DIRECTOR_ESCUELA"]:
+            rubricas = rubrica_repo.get_all_with_criterios()
+        else:
+            rubricas = rubrica_repo.get_all_active_with_criterios()
+
         return rubricas
 
     except Exception as e:
@@ -71,10 +128,9 @@ async def list_rubricas(
 @router.get("/{rubrica_id}", response_model=RubricaResponse)
 async def get_rubrica(
         rubrica_id: int,
-        current_user: Usuario = Depends(require_role("PROFESOR")),
+        current_user: Usuario = Depends(require_role("PROFESOR", "COMITE_ACADEMICO", "DOCENTE_CIAC", "DIRECTOR_ESCUELA")),
         db: Session = Depends(get_db)
 ):
-
     try:
         rubrica_repo = RubricaRepository(db)
         rubrica = rubrica_repo.get_with_criterios(rubrica_id)
@@ -82,8 +138,9 @@ async def get_rubrica(
         if not rubrica:
             raise HTTPException(status_code=404, detail="Rúbrica no encontrada")
 
-        if rubrica.profesor_id != current_user.id:
-            raise HTTPException(status_code=403, detail="No tienes permiso para ver esta rúbrica")
+        if current_user.rol == "PROFESOR":
+            if rubrica.estado_ciac != 'aprobado' or rubrica.estado_director != 'aprobado':
+                raise HTTPException(status_code=403, detail="La rúbrica no está aprobada para su uso")
 
         return rubrica
 
@@ -94,13 +151,62 @@ async def get_rubrica(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.post("/{rubrica_id}/aprobar-ciac")
+async def aprobar_ciac(
+        rubrica_id: int,
+        payload: RubricaRevisionSchema,
+        current_user: Usuario = Depends(require_role("DOCENTE_CIAC")),
+        db: Session = Depends(get_db)
+):
+    try:
+        rubrica_repo = RubricaRepository(db)
+        rubrica = rubrica_repo.get_by_id(rubrica_id)
+        if not rubrica:
+            raise HTTPException(status_code=404, detail="Rúbrica no encontrada")
+
+        rubrica.estado_ciac = 'aprobado' if payload.aprobado else 'rechazado'
+        rubrica.mensaje_ciac = payload.mensaje
+        db.commit()
+        log.info(f"Rúbrica {rubrica_id} revisada por Docente CIAC: {rubrica.estado_ciac}")
+        return {"message": f"Rúbrica {rubrica.estado_ciac} correctamente por el Docente CIAC"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        log.error(f"Error al aprobar CIAC para rúbrica {rubrica_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/{rubrica_id}/aprobar-director")
+async def aprobar_director(
+        rubrica_id: int,
+        payload: RubricaRevisionSchema,
+        current_user: Usuario = Depends(require_role("DIRECTOR_ESCUELA")),
+        db: Session = Depends(get_db)
+):
+    try:
+        rubrica_repo = RubricaRepository(db)
+        rubrica = rubrica_repo.get_by_id(rubrica_id)
+        if not rubrica:
+            raise HTTPException(status_code=404, detail="Rúbrica no encontrada")
+
+        rubrica.estado_director = 'aprobado' if payload.aprobado else 'rechazado'
+        rubrica.mensaje_director = payload.mensaje
+        db.commit()
+        log.info(f"Rúbrica {rubrica_id} revisada por Director de Escuela: {rubrica.estado_director}")
+        return {"message": f"Rúbrica {rubrica.estado_director} correctamente por el Director de Escuela"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        log.error(f"Error al aprobar Director para rúbrica {rubrica_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.delete("/{rubrica_id}")
 async def delete_rubrica(
         rubrica_id: int,
-        current_user: Usuario = Depends(require_role("PROFESOR")),
+        current_user: Usuario = Depends(require_role("COMITE_ACADEMICO")),
         db: Session = Depends(get_db)
 ):
-
     try:
         rubrica_repo = RubricaRepository(db)
         rubrica = rubrica_repo.get_by_id(rubrica_id)
@@ -108,13 +214,10 @@ async def delete_rubrica(
         if not rubrica:
             raise HTTPException(status_code=404, detail="Rúbrica no encontrada")
 
-        if rubrica.profesor_id != current_user.id:
-            raise HTTPException(status_code=403, detail="No tienes permiso para eliminar esta rúbrica")
-
-        rubrica.activo = False
+        db.delete(rubrica)
         db.commit()
 
-        log.info(f"Rúbrica {rubrica_id} desactivada por profesor {current_user.nombre}")
+        log.info(f"Rúbrica {rubrica_id} eliminada por comité {current_user.nombre}")
         return {"message": "Rúbrica eliminada exitosamente"}
 
     except HTTPException:

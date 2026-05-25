@@ -10,13 +10,19 @@ export class AnalysisView {
         this.dashboardStats = null;
         this.filters = {
             semestre: null,
+            facultad_id: null,
+            escuela_id: null,
             curso: null,
+            nrc: null,
             tema: null,
             atributo: null
         };
         this.availableFilters = {
             semestres: [],
+            facultades: [],
+            escuelas: [],
             cursos: [],
+            nrcs: [],
             temas: [],
             atributos: Array.from({ length: 12 }, (_, i) => ({
                 codigo: `AG-${String(i + 1).padStart(2, '0')}`,
@@ -56,9 +62,19 @@ export class AnalysisView {
             const semestres = await FiltrosService.getSemestres();
             this.availableFilters.semestres = semestres;
 
+            const user = AuthService.getCurrentUser();
+            const isDirac = user && user.rol === 'DIRAC';
+            if (isDirac) {
+                const facultades = await FiltrosService.getFacultades();
+                this.availableFilters.facultades = facultades;
+            }
+
             if (semestres.length === 1) {
                 this.filters.semestre = semestres[0];
                 await this.loadCursos();
+                if (isDirac) {
+                    await this.viewQualityDashboard(this.filters.curso);
+                }
             }
 
             this.updateView();
@@ -107,12 +123,16 @@ export class AnalysisView {
             this.filters.tema = evaluacion.tema;
 
             this.availableFilters.semestres = await FiltrosService.getSemestres();
+            const user = AuthService.getCurrentUser();
+            const isDirac = user && user.rol === 'DIRAC';
+            if (isDirac) {
+                this.availableFilters.facultades = await FiltrosService.getFacultades();
+            }
 
             if (this.filters.semestre) {
                 const cursos = await FiltrosService.getCursos(this.filters.semestre);
-                const user = AuthService.getCurrentUser();
 
-                if (user && user.rol === 'AREA_CALIDAD') {
+                if (user && ['DOCENTE_CIAC', 'DIRECTOR_ESCUELA', 'DIRAC'].includes(user.rol)) {
                     const uniqueCursosMap = new Map();
                     cursos.forEach(c => {
                         if (!uniqueCursosMap.has(c.nombre)) {
@@ -159,14 +179,43 @@ export class AnalysisView {
         }
     }
 
+    async loadEscuelas() {
+        if (!this.filters.facultad_id) {
+            this.availableFilters.escuelas = [];
+            return;
+        }
+        try {
+            const escuelas = await FiltrosService.getEscuelas(this.filters.facultad_id);
+            this.availableFilters.escuelas = escuelas;
+        } catch (error) {
+            console.error('Error cargando escuelas:', error);
+        }
+    }
+
+    async loadNrcs() {
+        if (!this.filters.semestre || !this.filters.curso) {
+            this.availableFilters.nrcs = [];
+            return;
+        }
+        try {
+            const nrcs = await FiltrosService.getNrcs(this.filters.semestre, this.filters.curso);
+            this.availableFilters.nrcs = nrcs;
+        } catch (error) {
+            console.error('Error cargando NRCs:', error);
+        }
+    }
+
     async loadCursos() {
         if (!this.filters.semestre) return;
 
         try {
-            const cursos = await FiltrosService.getCursos(this.filters.semestre);
-
             const user = AuthService.getCurrentUser();
-            if (user && user.rol === 'AREA_CALIDAD') {
+            const isDirac = user && user.rol === 'DIRAC';
+            const escuelaId = isDirac ? this.filters.escuela_id : null;
+
+            const cursos = await FiltrosService.getCursos(this.filters.semestre, escuelaId);
+
+            if (user && ['DOCENTE_CIAC', 'DIRECTOR_ESCUELA', 'DIRAC'].includes(user.rol)) {
                 const uniqueCursosMap = new Map();
 
                 cursos.forEach(c => {
@@ -231,7 +280,8 @@ export class AnalysisView {
 
     render() {
         const user = AuthService.getCurrentUser();
-        const isQualityArea = user && user.rol === 'AREA_CALIDAD';
+        const isQualityArea = user && ['DOCENTE_CIAC', 'DIRECTOR_ESCUELA', 'DIRAC'].includes(user.rol);
+        const isDirac = user && user.rol === 'DIRAC';
 
         return `
             <div class="page-title">
@@ -243,6 +293,87 @@ export class AnalysisView {
 
             <!-- Filtros Superiores -->
             <div class="filters-card">
+                ${isDirac ? `
+                <div class="filters-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">
+                    <!-- Semestre -->
+                    <div class="filter-group">
+                        <label for="filterSemestre">Ciclo / Semestre</label>
+                        <select id="filterSemestre" class="form-control">
+                            <option value="">Seleccionar ciclo</option>
+                            ${this.availableFilters.semestres.map(s => `
+                                <option value="${s}" ${this.filters.semestre === s ? 'selected' : ''}>
+                                    ${s}
+                                </option>
+                            `).join('')}
+                        </select>
+                    </div>
+
+                    <!-- Facultad -->
+                    <div class="filter-group">
+                        <label for="filterFacultad">Facultad</label>
+                        <select id="filterFacultad" class="form-control" ${!this.filters.semestre ? 'disabled' : ''}>
+                            <option value="">Todas las facultades</option>
+                            ${(this.availableFilters.facultades || []).map(f => `
+                                <option value="${f.id}" ${Number(this.filters.facultad_id) === Number(f.id) ? 'selected' : ''}>
+                                    ${f.nombre}
+                                </option>
+                            `).join('')}
+                        </select>
+                    </div>
+
+                    <!-- Escuela -->
+                    <div class="filter-group">
+                        <label for="filterEscuela">Escuela</label>
+                        <select id="filterEscuela" class="form-control" ${!this.filters.semestre || !this.filters.facultad_id ? 'disabled' : ''}>
+                            <option value="">Todas las escuelas</option>
+                            ${(this.availableFilters.escuelas || []).map(e => `
+                                <option value="${e.id}" ${Number(this.filters.escuela_id) === Number(e.id) ? 'selected' : ''}>
+                                    ${e.nombre}
+                                </option>
+                            `).join('')}
+                        </select>
+                    </div>
+
+                    <!-- Atributo -->
+                    <div class="filter-group">
+                        <label for="filterAtributo">Atributo</label>
+                        <select id="filterAtributo" class="form-control" ${!this.filters.semestre ? 'disabled' : ''}>
+                            <option value="">Seleccionar atributo</option>
+                            ${this.availableFilters.atributos.map(a => `
+                                <option value="${a.codigo}" ${this.filters.atributo === a.codigo ? 'selected' : ''}>
+                                    ${a.codigo} - ${a.nombre}
+                                </option>
+                            `).join('')}
+                        </select>
+                    </div>
+
+                    <!-- Curso -->
+                    <div class="filter-group">
+                        <label for="filterCurso">Curso</label>
+                        <select id="filterCurso" class="form-control" ${!this.filters.semestre ? 'disabled' : ''}>
+                            <option value="">Todos los cursos</option>
+                            ${this.availableFilters.cursos.map(c => `
+                                <option value="${c.codigo}" ${this.filters.curso === c.codigo ? 'selected' : ''}>
+                                    ${c.nombre}
+                                </option>
+                            `).join('')}
+                        </select>
+                    </div>
+
+                    <!-- NRC -->
+                    <div class="filter-group">
+                        <label for="filterNrc">NRC</label>
+                        <select id="filterNrc" class="form-control" ${!this.filters.semestre || !this.filters.curso ? 'disabled' : ''}>
+                            <option value="">Todos los NRCs</option>
+                            ${(this.availableFilters.nrcs || []).map(n => `
+                                <option value="${n}" ${Number(this.filters.nrc) === Number(n) ? 'selected' : ''}>
+                                    ${n}
+                                </option>
+                            `).join('')}
+                        </select>
+                    </div>
+                </div>
+                ` : `
                 <div class="filters-row">
                     <!-- Semestre -->
                     <div class="filter-group">
@@ -286,6 +417,7 @@ export class AnalysisView {
                         </select>
                     </div>
                 </div>
+                `}
             </div>
 
             <!-- Contenido Principal -->
@@ -317,17 +449,30 @@ export class AnalysisView {
         }
 
         const user = AuthService.getCurrentUser();
-        const isQualityArea = user && user.rol === 'AREA_CALIDAD';
+        const isQualityArea = user && ['DOCENTE_CIAC', 'DIRECTOR_ESCUELA', 'DIRAC'].includes(user.rol);
+        const isDirac = user && user.rol === 'DIRAC';
 
         if (isQualityArea) {
-            if (!this.filters.curso) {
-                return `
-                    <div class="empty-state">
-                        <div class="empty-icon">👆</div>
-                        <h3>Selecciona un curso</h3>
-                        <p>Para ver el rendimiento agregado (todos los códigos/secciones).</p>
-                    </div>
-                `;
+            if (isDirac) {
+                if (!this.filters.semestre) {
+                    return `
+                        <div class="empty-state">
+                            <div class="empty-icon">📅</div>
+                            <h3>Selecciona un ciclo / semestre</h3>
+                            <p>Para ver las estadísticas de calidad a nivel global, facultad o escuela.</p>
+                        </div>
+                    `;
+                }
+            } else {
+                if (!this.filters.curso) {
+                    return `
+                        <div class="empty-state">
+                            <div class="empty-icon">👆</div>
+                            <h3>Selecciona un curso</h3>
+                            <p>Para ver el rendimiento agregado (todos los códigos/secciones).</p>
+                        </div>
+                    `;
+                }
             }
             return this.renderQualityDashboard();
         }
@@ -353,13 +498,34 @@ export class AnalysisView {
         if (!this.dashboardStats) return '';
 
         const stats = this.dashboardStats;
+        const user = AuthService.getCurrentUser();
+        const isDirac = user && user.rol === 'DIRAC';
+
+        let dashboardTitle = this.filters.curso ? `${this.filters.curso}` : 'Global';
+        let subDetails = [];
+
+        if (isDirac) {
+            if (this.filters.facultad_id) {
+                const fac = this.availableFilters.facultades.find(f => Number(f.id) === Number(this.filters.facultad_id));
+                if (fac) subDetails.push(`Facultad: ${fac.nombre}`);
+            }
+            if (this.filters.escuela_id) {
+                const esc = this.availableFilters.escuelas.find(e => Number(e.id) === Number(this.filters.escuela_id));
+                if (esc) subDetails.push(`Escuela: ${esc.nombre}`);
+            }
+            if (this.filters.nrc) {
+                subDetails.push(`NRC: ${this.filters.nrc}`);
+            }
+        }
+
+        const subtitle = subDetails.length > 0 ? subDetails.join(' | ') : 'Vista agregada de rendimiento académico';
 
         return `
             <div class="quality-dashboard">
                 <!-- Header informativo -->
                 <div class="dashboard-header">
-                    <h3 class="section-title">📊 Dashboard de Calidad - ${this.filters.curso}</h3>
-                    <p class="section-subtitle">Vista agregada de rendimiento académico (AG-07)</p>
+                    <h3 class="section-title">📊 Dashboard de Calidad - ${dashboardTitle}</h3>
+                    <p class="section-subtitle">${subtitle} (${this.filters.atributo || 'AG-07'})</p>
                 </div>
 
                 <!-- Grid de métricas -->
@@ -646,6 +812,8 @@ export class AnalysisView {
                     </div>
                 </div>
             </div>
+
+            ${this.renderGlobalFeedbackSection(stats)}
         `;
     }
 
@@ -655,53 +823,220 @@ export class AnalysisView {
         return 'bg-green';
     }
 
+    renderGlobalFeedbackSection(stats) {
+        const user = AuthService.getCurrentUser();
+        if (!user) return '';
+
+        const feedback = stats.feedback_global || { hallazgos: '', fortalezas: '', oportunidades: '' };
+        const hasFeedback = !!(feedback.hallazgos?.trim() || feedback.fortalezas?.trim() || feedback.oportunidades?.trim());
+
+        const isProfessor = user.rol === 'PROFESOR';
+        const isQualityViewer = ['DOCENTE_CIAC', 'DIRAC', 'DIRECTOR_ESCUELA'].includes(user.rol);
+
+        if (!isProfessor && !isQualityViewer) {
+            return '';
+        }
+
+        if (isQualityViewer) {
+            if (!hasFeedback) {
+                return `
+                    <div class="main-card" style="margin-top: 2rem; margin-bottom: 2rem;">
+                        <div class="card-header">
+                            <h4>📝 Resultado de la Evaluación</h4>
+                        </div>
+                        <div class="card-body">
+                            <p class="text-muted" style="text-align: center; margin: 1rem 0;">El profesor aún no ha registrado los resultados globales de esta evaluación.</p>
+                        </div>
+                    </div>
+                `;
+            }
+
+            return `
+                <div class="main-card" style="margin-top: 2rem; margin-bottom: 2rem;">
+                    <div class="card-header">
+                        <h4>📝 Resultado de la Evaluación (Vista de Observación)</h4>
+                    </div>
+                    <div class="card-body">
+                        <div class="feedback-item" style="margin-bottom: 1.5rem;">
+                            <h5 style="font-weight: 600; margin-bottom: 0.5rem; color: #a78bfa;">Hallazgos</h5>
+                            <p style="white-space: pre-wrap; background: rgba(255,255,255,0.03); padding: 1rem; border-radius: 6px; border: 1px solid rgba(255,255,255,0.08); margin: 0; color: var(--text-color);">${feedback.hallazgos || 'Ninguno registrado'}</p>
+                        </div>
+                        <div class="feedback-item" style="margin-bottom: 1.5rem;">
+                            <h5 style="font-weight: 600; margin-bottom: 0.5rem; color: #a78bfa;">Fortalezas logradas por los estudiantes</h5>
+                            <p style="white-space: pre-wrap; background: rgba(255,255,255,0.03); padding: 1rem; border-radius: 6px; border: 1px solid rgba(255,255,255,0.08); margin: 0; color: var(--text-color);">${feedback.fortalezas || 'Ninguna registrada'}</p>
+                        </div>
+                        <div class="feedback-item" style="margin-bottom: 1.5rem;">
+                            <h5 style="font-weight: 600; margin-bottom: 0.5rem; color: #a78bfa;">Oportunidades de mejora</h5>
+                            <p style="white-space: pre-wrap; background: rgba(255,255,255,0.03); padding: 1rem; border-radius: 6px; border: 1px solid rgba(255,255,255,0.08); margin: 0; color: var(--text-color);">${feedback.oportunidades || 'Ninguna registrada'}</p>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        return `
+            <!-- Resultado de la Evaluación -->
+            <div class="main-card" style="margin-top: 2rem; margin-bottom: 2rem;">
+                <div class="card-header">
+                    <h4>📝 Resultado de la Evaluación</h4>
+                </div>
+                <div class="card-body">
+                    <form id="global-feedback-form">
+                        <div class="form-group" style="margin-bottom: 1.5rem;">
+                            <label for="feedbackHallazgos" style="font-weight: 600; display: block; margin-bottom: 0.5rem;">Hallazgos</label>
+                            <textarea id="feedbackHallazgos" class="form-control" rows="3" placeholder="Describe los hallazgos encontrados..." style="width: 100%; border-radius: 6px; padding: 0.75rem; border: 1px solid #d1d5db; box-sizing: border-box;">${feedback.hallazgos || ''}</textarea>
+                        </div>
+                        <div class="form-group" style="margin-bottom: 1.5rem;">
+                            <label for="feedbackFortalezas" style="font-weight: 600; display: block; margin-bottom: 0.5rem;">Fortalezas logradas por los estudiantes</label>
+                            <textarea id="feedbackFortalezas" class="form-control" rows="3" placeholder="Describe las fortalezas demostradas..." style="width: 100%; border-radius: 6px; padding: 0.75rem; border: 1px solid #d1d5db; box-sizing: border-box;">${feedback.fortalezas || ''}</textarea>
+                        </div>
+                        <div class="form-group" style="margin-bottom: 1.5rem;">
+                            <label for="feedbackOportunidades" style="font-weight: 600; display: block; margin-bottom: 0.5rem;">Oportunidades de mejora</label>
+                            <textarea id="feedbackOportunidades" class="form-control" rows="3" placeholder="Describe las oportunidades de mejora identificadas..." style="width: 100%; border-radius: 6px; padding: 0.75rem; border: 1px solid #d1d5db; box-sizing: border-box;">${feedback.oportunidades || ''}</textarea>
+                        </div>
+                        <div style="margin-top: 1.5rem;">
+                            <button type="submit" class="btn ${hasFeedback ? 'btn-primary' : 'btn-success'}" id="btnSaveGlobalFeedback" data-action="${hasFeedback ? 'update' : 'upload'}" style="border-radius: 6px; font-weight: 600; padding: 0.5rem 1.5rem; display: flex; align-items: center; gap: 8px;">
+                                ${hasFeedback ? '🔄 Actualizar' : '📤 Subir'}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        `;
+    }
+
     attachEventListeners() {
-    
-        const filterSemestre = document.getElementById('filterSemestre');
-        if (filterSemestre) {
-            filterSemestre.addEventListener('change', async (e) => {
-                this.filters.semestre = e.target.value || null;
-                this.filters.curso = null;
-                this.filters.tema = null;
-                this.filters.atributo = null;
-                this.availableFilters.cursos = [];
-                this.availableFilters.temas = [];
-                if (this.filters.semestre) await this.loadCursos();
-                this.updateView();
-            });
-        }
+        const user = AuthService.getCurrentUser();
+        const isDirac = user && user.rol === 'DIRAC';
 
-        const filterAtributo = document.getElementById('filterAtributo');
-        if (filterAtributo) {
-            filterAtributo.addEventListener('change', async (e) => {
-                this.filters.atributo = e.target.value || null;
-                this.filters.curso = null;
-                this.applyCourseFilters();
-                this.updateView();
-            });
-        }
-
-        const filterCurso = document.getElementById('filterCurso');
-        if (filterCurso) {
-            filterCurso.addEventListener('change', async (e) => {
-                this.filters.curso = e.target.value || null;
-                this.filters.tema = null;
-                this.availableFilters.temas = [];
-
-                const user = AuthService.getCurrentUser();
-                if (user && user.rol === 'AREA_CALIDAD') {
-
-                    if (this.filters.curso) {
+        if (isDirac) {
+            const filterSemestre = document.getElementById('filterSemestre');
+            if (filterSemestre) {
+                filterSemestre.addEventListener('change', async (e) => {
+                    this.filters.semestre = e.target.value || null;
+                    this.filters.facultad_id = null;
+                    this.filters.escuela_id = null;
+                    this.filters.curso = null;
+                    this.filters.nrc = null;
+                    this.availableFilters.escuelas = [];
+                    this.availableFilters.cursos = [];
+                    this.availableFilters.nrcs = [];
+                    if (this.filters.semestre) {
+                        await this.loadCursos();
+                    }
+                    if (this.filters.semestre) {
                         await this.viewQualityDashboard(this.filters.curso);
                     } else {
+                        this.dashboardStats = null;
                         this.updateView();
                     }
-                } else {
+                });
+            }
 
-                    if (this.filters.curso) await this.loadTemas();
+            const filterFacultad = document.getElementById('filterFacultad');
+            if (filterFacultad) {
+                filterFacultad.addEventListener('change', async (e) => {
+                    this.filters.facultad_id = e.target.value ? Number(e.target.value) : null;
+                    this.filters.escuela_id = null;
+                    this.filters.curso = null;
+                    this.filters.nrc = null;
+                    this.availableFilters.escuelas = [];
+                    this.availableFilters.cursos = [];
+                    this.availableFilters.nrcs = [];
+                    if (this.filters.facultad_id) {
+                        await this.loadEscuelas();
+                    }
+                    await this.loadCursos();
+                    await this.viewQualityDashboard(this.filters.curso);
+                });
+            }
+
+            const filterEscuela = document.getElementById('filterEscuela');
+            if (filterEscuela) {
+                filterEscuela.addEventListener('change', async (e) => {
+                    this.filters.escuela_id = e.target.value ? Number(e.target.value) : null;
+                    this.filters.curso = null;
+                    this.filters.nrc = null;
+                    this.availableFilters.cursos = [];
+                    this.availableFilters.nrcs = [];
+                    await this.loadCursos();
+                    await this.viewQualityDashboard(this.filters.curso);
+                });
+            }
+
+            const filterAtributo = document.getElementById('filterAtributo');
+            if (filterAtributo) {
+                filterAtributo.addEventListener('change', async (e) => {
+                    this.filters.atributo = e.target.value || null;
+                    await this.viewQualityDashboard(this.filters.curso);
+                });
+            }
+
+            const filterCurso = document.getElementById('filterCurso');
+            if (filterCurso) {
+                filterCurso.addEventListener('change', async (e) => {
+                    this.filters.curso = e.target.value || null;
+                    this.filters.nrc = null;
+                    this.availableFilters.nrcs = [];
+                    if (this.filters.curso) {
+                        await this.loadNrcs();
+                    }
+                    await this.viewQualityDashboard(this.filters.curso);
+                });
+            }
+
+            const filterNrc = document.getElementById('filterNrc');
+            if (filterNrc) {
+                filterNrc.addEventListener('change', async (e) => {
+                    this.filters.nrc = e.target.value || null;
+                    await this.viewQualityDashboard(this.filters.curso);
+                });
+            }
+        } else {
+            const filterSemestre = document.getElementById('filterSemestre');
+            if (filterSemestre) {
+                filterSemestre.addEventListener('change', async (e) => {
+                    this.filters.semestre = e.target.value || null;
+                    this.filters.curso = null;
+                    this.filters.tema = null;
+                    this.filters.atributo = null;
+                    this.availableFilters.cursos = [];
+                    this.availableFilters.temas = [];
+                    if (this.filters.semestre) await this.loadCursos();
                     this.updateView();
-                }
-            });
+                });
+            }
+
+            const filterAtributo = document.getElementById('filterAtributo');
+            if (filterAtributo) {
+                filterAtributo.addEventListener('change', async (e) => {
+                    this.filters.atributo = e.target.value || null;
+                    this.filters.curso = null;
+                    this.applyCourseFilters();
+                    this.updateView();
+                });
+            }
+
+            const filterCurso = document.getElementById('filterCurso');
+            if (filterCurso) {
+                filterCurso.addEventListener('change', async (e) => {
+                    this.filters.curso = e.target.value || null;
+                    this.filters.tema = null;
+                    this.availableFilters.temas = [];
+
+                    const user = AuthService.getCurrentUser();
+                    if (user && ['DOCENTE_CIAC', 'DIRECTOR_ESCUELA', 'DIRAC'].includes(user.rol)) {
+                        if (this.filters.curso) {
+                            await this.viewQualityDashboard(this.filters.curso);
+                        } else {
+                            this.updateView();
+                        }
+                    } else {
+                        if (this.filters.curso) await this.loadTemas();
+                        this.updateView();
+                    }
+                });
+            }
         }
 
         document.querySelectorAll('[data-action="view-theme"]').forEach(btn => {
@@ -723,6 +1058,61 @@ export class AnalysisView {
         const btnDownload = document.getElementById('btnDownloadTranscriptions');
         if (btnDownload) {
             btnDownload.addEventListener('click', () => this.downloadTranscriptions());
+        }
+
+        const formFeedback = document.getElementById('global-feedback-form');
+        if (formFeedback) {
+            formFeedback.addEventListener('submit', async (e) => {
+                e.preventDefault();
+
+                const stats = this.dashboardStats;
+                if (!stats || !stats.estudiantes || stats.estudiantes.length === 0) {
+                    showErrorNotification('No hay evaluaciones en este grupo para actualizar.');
+                    return;
+                }
+
+                const targetEvaluacionId = stats.estudiantes[0].id;
+
+                const payload = {
+                    hallazgos: document.getElementById('feedbackHallazgos').value.trim(),
+                    fortalezas: document.getElementById('feedbackFortalezas').value.trim(),
+                    oportunidades: document.getElementById('feedbackOportunidades').value.trim()
+                };
+
+                if (!payload.hallazgos && !payload.fortalezas && !payload.oportunidades) {
+                    showErrorNotification('Por favor escribe algo antes de guardar el resultado.');
+                    return;
+                }
+
+                const btnSave = document.getElementById('btnSaveGlobalFeedback');
+                const actionType = btnSave.dataset.action;
+
+                btnSave.disabled = true;
+                btnSave.innerHTML = '⏳ Guardando...';
+
+                try {
+                    await DocumentService.updateFeedbackProfesor(targetEvaluacionId, payload);
+
+                    const isUpload = actionType === 'upload';
+                    showSuccessNotification(isUpload
+                        ? '✅ Resultado de evaluación subido correctamente.'
+                        : '✅ Resultado de evaluación actualizado correctamente.'
+                    );
+
+                    if (this.dashboardStats) {
+                        this.dashboardStats.feedback_global = payload;
+                    }
+
+                    btnSave.dataset.action = 'update';
+                    btnSave.className = 'btn btn-primary';
+                    btnSave.innerHTML = '🔄 Actualizar';
+                } catch (error) {
+                    console.error('Error al guardar feedback global:', error);
+                    showErrorNotification('Error al guardar: ' + error.message);
+                } finally {
+                    btnSave.disabled = false;
+                }
+            });
         }
     }
 
@@ -749,17 +1139,30 @@ export class AnalysisView {
         this.isLoading = true;
         this.updateView();
 
+        const user = AuthService.getCurrentUser();
+        const isDirac = user && user.rol === 'DIRAC';
+
         try {
-            const stats = await DocumentService.getQualityDashboardStats({
+            const payload = {
                 semestre: this.filters.semestre,
-                curso: curso,
-                atributo: this.filters.atributo
-            });
+                curso: curso || null,
+                atributo: this.filters.atributo || null
+            };
+
+            if (isDirac) {
+                if (this.filters.facultad_id) payload.facultad_id = this.filters.facultad_id;
+                if (this.filters.escuela_id) payload.escuela_id = this.filters.escuela_id;
+                if (this.filters.nrc) payload.nrc = this.filters.nrc;
+            }
+
+            const stats = await DocumentService.getQualityDashboardStats(payload);
             this.dashboardStats = stats;
         } catch (error) {
             console.error('Error loading quality dashboard:', error);
-            showErrorNotification(error);
-            this.filters.curso = null;
+            showErrorNotification(error.message || error);
+            if (!isDirac) {
+                this.filters.curso = null;
+            }
         } finally {
             this.isLoading = false;
             this.updateView();

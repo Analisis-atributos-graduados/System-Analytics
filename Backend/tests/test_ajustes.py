@@ -4,20 +4,32 @@ from app.models import Usuario, MetaPorcentaje, Curso
 from main import app
 
 @pytest.fixture
+def ciac_user(db_session):
+    user = Usuario(
+        nombre="Docente CIAC",
+        email="ciac@upao.edu.pe",
+        rol="DOCENTE_CIAC",
+        firebase_uid="ciac_uid"
+    )
+    db_session.add(user)
+    db_session.commit()
+    return user
+
+@pytest.fixture
 def admin_user(db_session):
     user = Usuario(
-        nombre="Admin Calidad",
-        email="calidad@upao.edu.pe",
-        rol="AREA_CALIDAD",
+        nombre="Admin",
+        email="admin@upao.edu.pe",
+        rol="ADMINISTRADOR",
         firebase_uid="admin_uid"
     )
     db_session.add(user)
     db_session.commit()
     return user
 
-def test_update_meta_aprobacion(client, db_session, admin_user):
+def test_update_meta_aprobacion(client, db_session, ciac_user):
     # 5.1 Actualizar meta de aprobación
-    admin_user.firebase_uid = "test_user_id"
+    ciac_user.firebase_uid = "test_user_id"
     db_session.commit()
     
     # Crear meta inicial
@@ -98,9 +110,9 @@ def test_delete_user(client, db_session, admin_user):
         assert db_session.query(Usuario).filter_by(id=user_to_delete.id).first() is None
 
 
-def test_assign_attributes(client, db_session, admin_user):
+def test_assign_attributes(client, db_session, ciac_user):
     # 5.4 Asignacion de cursos a atributos
-    admin_user.firebase_uid = "test_user_id"
+    ciac_user.firebase_uid = "test_user_id"
     db_session.commit()
     c1 = Curso(nombre="C1", habilitado=True)
     db_session.add(c1)

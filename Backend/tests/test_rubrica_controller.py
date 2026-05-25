@@ -7,7 +7,7 @@ def professor_user(db_session):
     user = Usuario(
         nombre="Profesor Rubrica",
         email="prof_rubrica@upao.edu.pe",
-        rol="PROFESOR",
+        rol="COMITE_ACADEMICO",
         firebase_uid="prof_rubrica_uid"
     )
     db_session.add(user)

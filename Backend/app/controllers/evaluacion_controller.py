@@ -5,13 +5,15 @@ import zipfile
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import Response
 from sqlalchemy.orm import Session
+from sqlalchemy import or_
 
-from app.models import get_db, Usuario, Evaluacion, Criterio
+from app.models import get_db, Usuario, Evaluacion, Criterio, Curso
 from app.schemas import (
     EvaluacionSchema,
     EvaluacionDetailSchema,
     ExamBatchRequest,
-    QualityDashboardStats
+    QualityDashboardStats,
+    EvaluacionFeedbackProfesorUpdateSchema
 )
 from app.repositories import EvaluacionRepository
 from app.services import OrchestratorService
@@ -180,6 +182,21 @@ async def get_dashboard_stats(
             
             estudiantes.append(student_data)
 
+        feedback_global = {
+            "hallazgos": "",
+            "fortalezas": "",
+            "oportunidades": ""
+        }
+        for ev in evaluaciones:
+            if ev.resultado_analisis and ev.resultado_analisis.resultado_evaluacion:
+                re = ev.resultado_analisis.resultado_evaluacion
+                feedback_global = {
+                    "hallazgos": re.hallazgos or "",
+                    "fortalezas": re.fortalezas or "",
+                    "oportunidades": re.oportunidades or ""
+                }
+                break
+
         return {
             "general": {
                 "total": total,
@@ -190,7 +207,8 @@ async def get_dashboard_stats(
             "distribucion": dist,
             "criterios": criterios_list,
             "estudiantes": estudiantes,
-            "tipo_documento": evaluaciones[0].tipo_documento if evaluaciones else "desconocido"
+            "tipo_documento": evaluaciones[0].tipo_documento if evaluaciones else "desconocido",
+            "feedback_global": feedback_global
         }
 
     except Exception as e:
@@ -202,15 +220,27 @@ async def get_dashboard_stats(
 async def get_quality_dashboard_stats(
     semestre: str = Query(...),
     curso: Optional[str] = Query(None),
+    nrc: Optional[str] = Query(None),
     atributo: Optional[str] = Query(None),
-    current_user: Usuario = Depends(require_role("AREA_CALIDAD")),
+    facultad_id: Optional[int] = Query(None),
+    escuela_id: Optional[int] = Query(None),
+    current_user: Usuario = Depends(require_role("DOCENTE_CIAC", "DIRECTOR_ESCUELA", "DIRAC")),
     db: Session = Depends(get_db)
 ):
 
     try:
         repo = EvaluacionRepository(db)
 
-        evaluaciones = repo.get_by_filters(semestre=semestre)
+        nrc_val = None
+        if nrc and nrc.isdigit():
+            nrc_val = int(nrc)
+
+        evaluaciones = repo.get_by_filters(
+            semestre=semestre,
+            facultad_id=facultad_id,
+            escuela_id=escuela_id,
+            nrc=nrc_val
+        )
         
         if not evaluaciones:
             return {
@@ -278,10 +308,23 @@ async def get_quality_dashboard_stats(
             "noAceptable": buckets["noAceptable"]
         }
 
+        feedback_global = None
+        for ev in evaluaciones:
+            if ev.resultado_analisis and ev.resultado_analisis.resultado_evaluacion:
+                res_ev = ev.resultado_analisis.resultado_evaluacion
+                if res_ev.hallazgos or res_ev.fortalezas or res_ev.oportunidades:
+                    feedback_global = {
+                        "hallazgos": res_ev.hallazgos,
+                        "fortalezas": res_ev.fortalezas,
+                        "oportunidades": res_ev.oportunidades
+                    }
+                    break
+
         return {
             "total_alumnos": total_alumnos,
             "porcentaje_logro": round(porcentaje_logro, 1),
-            "criterios": [criterio_stats]
+            "criterios": [criterio_stats],
+            "feedback_global": feedback_global
         }
 
     except Exception as e:
@@ -413,7 +456,16 @@ async def list_evaluaciones(
         if semestre:
             query = query.filter(Evaluacion.semestre == semestre)
         if curso:
-            query = query.filter(Evaluacion.codigo_curso == curso)
+            if curso.isdigit():
+                curso_val = int(curso)
+                query = query.filter(
+                    or_(
+                        Evaluacion.curso_id == curso_val,
+                        Evaluacion.codigo_curso == curso_val
+                    )
+                )
+            else:
+                query = query.join(Evaluacion.curso).filter(Curso.nombre == curso)
         if tema:
             query = query.filter(Evaluacion.tema == tema)
 
@@ -502,3 +554,73 @@ async def delete_evaluacion(
     except Exception as e:
         log.error(f"Error al eliminar evaluación {evaluacion_id}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.patch("/{evaluacion_id}/feedback-profesor")
+async def update_evaluacion_feedback_profesor(
+    evaluacion_id: int,
+    payload: EvaluacionFeedbackProfesorUpdateSchema,
+    current_user: Usuario = Depends(require_role("PROFESOR", "DOCENTE_CIAC")),
+    db: Session = Depends(get_db)
+):
+    try:
+        from app.repositories import ResultadoRepository
+        from app.models.resultado_evaluacion import ResultadoEvaluacion
+        
+        repo = EvaluacionRepository(db)
+        evaluacion = repo.get_by_id(evaluacion_id)
+        if not evaluacion:
+            raise HTTPException(status_code=404, detail="Evaluación no encontrada")
+
+        if current_user.rol == "PROFESOR" and evaluacion.profesor_id != current_user.id:
+            raise HTTPException(status_code=403, detail="No tienes permiso para actualizar esta evaluación")
+
+        evaluaciones_grupo = db.query(Evaluacion).filter(
+            Evaluacion.curso_id == evaluacion.curso_id,
+            Evaluacion.semestre == evaluacion.semestre,
+            Evaluacion.tema == evaluacion.tema,
+            Evaluacion.profesor_id == evaluacion.profesor_id
+        ).all()
+
+        resultado_evaluacion = None
+        for ev in evaluaciones_grupo:
+            if ev.resultado_analisis and ev.resultado_analisis.resultado_evaluacion:
+                resultado_evaluacion = ev.resultado_analisis.resultado_evaluacion
+                break
+
+        if not resultado_evaluacion:
+            resultado_evaluacion = ResultadoEvaluacion()
+            db.add(resultado_evaluacion)
+            db.flush()
+
+        if payload.hallazgos is not None:
+            resultado_evaluacion.hallazgos = payload.hallazgos
+        if payload.fortalezas is not None:
+            resultado_evaluacion.fortalezas = payload.fortalezas
+        if payload.oportunidades is not None:
+            resultado_evaluacion.oportunidades = payload.oportunidades
+
+        resultado_repo = ResultadoRepository(db)
+        resultado = resultado_repo.get_by_evaluacion(evaluacion_id)
+        if not resultado:
+            resultado = resultado_repo.create(
+                evaluacion_id=evaluacion_id,
+                criterios_json={},
+                nota_final=0.0
+            )
+
+        for ev in evaluaciones_grupo:
+            if ev.resultado_analisis:
+                ev.resultado_analisis.resultado_evaluacion_id = resultado_evaluacion.id
+
+        db.commit()
+
+        log.info(f"Feedback global de profesor actualizado para el grupo de evaluación ID={evaluacion_id}")
+        return {"success": True}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        log.error(f"Error al actualizar feedback de profesor: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+

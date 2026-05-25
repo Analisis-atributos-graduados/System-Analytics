@@ -23,6 +23,13 @@ engine = create_engine(
 )
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
+from sqlalchemy import event
+@event.listens_for(engine, "connect")
+def connect(dbapi_connection, connection_record):
+    cursor = dbapi_connection.cursor()
+    cursor.execute("ATTACH DATABASE ':memory:' AS universidad;")
+    cursor.close()
+
 @pytest.fixture(scope="function")
 def db_session():
 

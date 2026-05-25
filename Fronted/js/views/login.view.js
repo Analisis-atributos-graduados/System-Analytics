@@ -177,7 +177,23 @@ export class LoginView {
         this.setLoading(true, 'login');
 
         try {
-            await AuthService.loginWithEmail(email, password);
+            const user = await AuthService.loginWithEmail(email, password);
+            if (user) {
+                const roles = user.roles || [];
+                if (roles.length > 1) {
+                    this.setLoading(false, 'login');
+                    const selectedRole = await this.promptRoleSelection(user);
+                    if (selectedRole) {
+                        localStorage.setItem('activeRole', selectedRole);
+                    } else {
+                        localStorage.setItem('activeRole', roles[0]);
+                    }
+                } else if (roles.length === 1) {
+                    localStorage.setItem('activeRole', roles[0]);
+                } else {
+                    localStorage.setItem('activeRole', user.rol || 'PROFESOR');
+                }
+            }
             console.log('Login exitoso, redirigiendo...');
             window.location.href = '/index.html';
         } catch (error) {
@@ -200,6 +216,21 @@ export class LoginView {
 
                 this.showError('login', 'Por favor completa tu registro seleccionando un rol');
                 return;
+            }
+
+            const roles = user.roles || [];
+            if (roles.length > 1) {
+                this.setLoading(false, 'login');
+                const selectedRole = await this.promptRoleSelection(user);
+                if (selectedRole) {
+                    localStorage.setItem('activeRole', selectedRole);
+                } else {
+                    localStorage.setItem('activeRole', roles[0]);
+                }
+            } else if (roles.length === 1) {
+                localStorage.setItem('activeRole', roles[0]);
+            } else {
+                localStorage.setItem('activeRole', user.rol || 'PROFESOR');
             }
 
             console.log('Login con Google exitoso, redirigiendo...');
@@ -318,6 +349,178 @@ export class LoginView {
                     removeModal();
                     reject(new Error('Vinculación de cuenta cancelada por el usuario.'));
                 }
+            });
+        });
+    }
+
+    promptRoleSelection(user) {
+        return new Promise((resolve) => {
+            const modal = document.createElement('div');
+            modal.id = 'role-selection-modal';
+            modal.style.cssText = `
+                position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+                background: rgba(10, 7, 18, 0.85);
+                backdrop-filter: blur(12px);
+                display: flex; align-items: center; justify-content: center;
+                z-index: 10000;
+                opacity: 0;
+                transition: opacity 0.3s ease;
+            `;
+
+            const style = document.createElement('style');
+            style.textContent = `
+                .role-selector-card {
+                    background: linear-gradient(145deg, rgba(30, 24, 47, 0.95) 0%, rgba(20, 15, 33, 0.95) 100%);
+                    border: 1px solid rgba(139, 92, 246, 0.2);
+                    padding: 40px;
+                    border-radius: 20px;
+                    max-width: 650px;
+                    width: 90%;
+                    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5), 0 0 30px rgba(139, 92, 246, 0.1);
+                    transform: translateY(20px);
+                    transition: transform 0.3s ease;
+                    text-align: center;
+                }
+                .role-grid {
+                    display: grid;
+                    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+                    gap: 16px;
+                    margin-top: 30px;
+                }
+                .role-option-btn {
+                    background: rgba(255, 255, 255, 0.03);
+                    border: 1px solid rgba(255, 255, 255, 0.08);
+                    border-radius: 12px;
+                    padding: 20px;
+                    cursor: pointer;
+                    text-align: left;
+                    display: flex;
+                    align-items: flex-start;
+                    gap: 16px;
+                    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+                }
+                .role-option-btn:hover {
+                    background: rgba(139, 92, 246, 0.08);
+                    border-color: rgba(139, 92, 246, 0.5);
+                    transform: translateY(-2px);
+                    box-shadow: 0 8px 24px rgba(139, 92, 246, 0.15);
+                }
+                .role-option-icon {
+                    background: rgba(139, 92, 246, 0.15);
+                    color: #a78bfa;
+                    padding: 10px;
+                    border-radius: 10px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    flex-shrink: 0;
+                }
+                .role-option-btn:hover .role-option-icon {
+                    background: rgba(139, 92, 246, 0.25);
+                    color: #c4b5fd;
+                }
+                .role-option-info {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 4px;
+                }
+                .role-option-title {
+                    font-weight: 600;
+                    color: #f3f4f6;
+                    font-size: 16px;
+                }
+                .role-option-desc {
+                    font-size: 12px;
+                    color: #9ca3af;
+                    line-height: 1.4;
+                }
+            `;
+            document.head.appendChild(style);
+
+            const roleDetailsMap = {
+                'PROFESOR': {
+                    name: 'Profesor',
+                    desc: 'Accede a tus cursos, gestiona rúbricas y realiza evaluaciones.',
+                    icon: '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>'
+                },
+                'DOCENTE_CIAC': {
+                    name: 'Docente CIAC',
+                    desc: 'Visualiza resultados globales y realiza observaciones de calidad.',
+                    icon: '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4M21 12a9 9 0 1 1-9-9"/></svg>'
+                },
+                'DIRECTOR_ESCUELA': {
+                    name: 'Director de Escuela',
+                    desc: 'Monitorea el avance de la escuela y revisa reportes detallados.',
+                    icon: '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="2" width="16" height="20" rx="2" ry="2"/><line x1="9" y1="22" x2="9" y2="16"/><line x1="15" y1="22" x2="15" y2="16"/><path d="M9 16h6"/><path d="M8 6h2M8 10h2M14 6h2M14 10h2"/></svg>'
+                },
+                'COMITE_ACADEMICO': {
+                    name: 'Comité Académico',
+                    desc: 'Revisa métricas generales de acreditación y calidad educativa.',
+                    icon: '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>'
+                },
+                'DIRAC': {
+                    name: 'Director DIRAC',
+                    desc: 'Supervisión integral de calidad, reportes globales y usuarios.',
+                    icon: '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>'
+                },
+                'ADMINISTRADOR': {
+                    name: 'Administrador',
+                    desc: 'Configuración total del sistema y gestión integral de accesos.',
+                    icon: '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>'
+                }
+            };
+
+            const roleOptionsHtml = user.roles.map(role => {
+                const details = roleDetailsMap[role] || {
+                    name: role,
+                    desc: 'Acceso a las funciones correspondientes de este rol.',
+                    icon: '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/></svg>'
+                };
+                return `
+                    <button class="role-option-btn" data-role="${role}">
+                        <div class="role-option-icon">
+                            ${details.icon}
+                        </div>
+                        <div class="role-option-info">
+                            <span class="role-option-title">${details.name}</span>
+                            <span class="role-option-desc">${details.desc}</span>
+                        </div>
+                    </button>
+                `;
+            }).join('');
+
+            modal.innerHTML = `
+                <div class="role-selector-card">
+                    <h3 style="margin: 0 0 10px 0; color: #f3f4f6; font-size: 24px; font-weight: 700;">Selecciona tu Rol de Sesión</h3>
+                    <p style="margin: 0; color: #9ca3af; font-size: 14px;">Tu cuenta posee múltiples roles asignados. Elige con cuál deseas operar en esta sesión.</p>
+                    <div class="role-grid">
+                        ${roleOptionsHtml}
+                    </div>
+                </div>
+            `;
+
+            document.body.appendChild(modal);
+
+            setTimeout(() => {
+                modal.style.opacity = '1';
+                modal.querySelector('.role-selector-card').style.transform = 'translateY(0)';
+            }, 50);
+
+            const cleanUp = () => {
+                modal.style.opacity = '0';
+                modal.querySelector('.role-selector-card').style.transform = 'translateY(20px)';
+                setTimeout(() => {
+                    document.body.removeChild(modal);
+                    document.head.removeChild(style);
+                }, 300);
+            };
+
+            modal.querySelectorAll('.role-option-btn').forEach(btn => {
+                btn.onclick = () => {
+                    const role = btn.dataset.role;
+                    cleanUp();
+                    resolve(role);
+                };
             });
         });
     }

@@ -67,6 +67,7 @@ class RubricaCreateRequest(BaseModel):
 
     nombre_rubrica: str = Field(..., description="Nombre descriptivo de la rúbrica")
     descripcion: str = Field(default="", description="Descripción del propósito de la rúbrica")
+    nrc_id: Optional[int] = Field(default=None, description="NRC al que se asocia la rúbrica")
     criterios: List[CriterioCreateSchema] = Field(..., min_length=1, description="Debe tener al menos un criterio")
 
     @field_validator('criterios')
@@ -83,10 +84,13 @@ class RubricaCreateRequest(BaseModel):
 
 class RubricaDetailSchema(BaseModel):
     id: int
-    profesor_id: int
     nombre_rubrica: str
     descripcion: Optional[str]
-    activo: bool
+    nrc_id: Optional[int] = None
+    estado_ciac: str
+    mensaje_ciac: Optional[str] = None
+    estado_director: str
+    mensaje_director: Optional[str] = None
     criterios: List[CriterioDetailSchema]
 
     class Config:
@@ -97,8 +101,18 @@ class RubricaListSchema(BaseModel):
     id: int
     nombre_rubrica: str
     descripcion: Optional[str]
-    activo: bool
+    nrc_id: Optional[int] = None
+    estado_ciac: str
+    mensaje_ciac: Optional[str] = None
+    estado_director: str
+    mensaje_director: Optional[str] = None
     criterios: List[CriterioDetailSchema] = []
 
     class Config:
         from_attributes = True
+
+
+class RubricaRevisionSchema(BaseModel):
+    aprobado: bool
+    mensaje: Optional[str] = None
+

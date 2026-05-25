@@ -29,7 +29,8 @@ class AuthService {
 
     setupAuthListener() {
         if (!auth) {
-            console.error('Firebase Auth no está inicializado');
+            console.warn('Firebase Auth no está inicializado en setupAuthListener, reintentando en 100ms...');
+            setTimeout(() => this.setupAuthListener(), 100);
             return;
         }
 
@@ -50,6 +51,7 @@ class AuthService {
                 this.authToken = null;
                 this.currentUser = null;
                 StorageUtils.remove(USER_KEY);
+                localStorage.removeItem('configCompleted');
                 console.log('Usuario no autenticado');
             }
         });
@@ -242,10 +244,10 @@ class AuthService {
                         transition: all 0.3s;
                     " onmouseover="this.style.borderColor='#667eea'; this.style.background='#f8f9ff'" 
                        onmouseout="this.style.borderColor='#e0e0e0'; this.style.background='white'">
-                        <input type="radio" name="role" value="AREA_CALIDAD" style="margin-right: 12px;">
-                        <strong style="color: #333; font-size: 16px;">📊 Área de Calidad</strong>
+                        <input type="radio" name="role" value="DOCENTE_CIAC" style="margin-right: 12px;">
+                        <strong style="color: #333; font-size: 16px;">📊 Docente CIAC</strong>
                         <p style="margin: 8px 0 0 28px; color: #666; font-size: 13px;">
-                            Ver y analizar todas las evaluaciones de la institución
+                            Ver y analizar todas las evaluaciones de la institución y configurar el sistema
                         </p>
                     </label>
                 </div>
@@ -372,7 +374,14 @@ class AuthService {
             this.currentUser = backendUser;
             StorageUtils.save(USER_KEY, backendUser);
 
-            console.log('Usuario sincronizado:', backendUser.email, '- Rol:', backendUser.rol);
+            let activeRole = localStorage.getItem('activeRole');
+            const allowedRoles = backendUser.roles || [];
+            if (!activeRole || !allowedRoles.includes(activeRole)) {
+                activeRole = allowedRoles.length > 0 ? allowedRoles[0] : 'PROFESOR';
+                localStorage.setItem('activeRole', activeRole);
+            }
+
+            console.log('Usuario sincronizado:', backendUser.email, '- Rol Activo:', activeRole);
             return backendUser;
 
         } catch (error) {
@@ -395,6 +404,7 @@ class AuthService {
             this.authToken = null;
             this.currentUser = null;
             StorageUtils.remove(USER_KEY);
+            localStorage.removeItem('configCompleted');
             console.log('Logout exitoso');
         } catch (error) {
             console.error('Error en logout:', error);
@@ -461,15 +471,24 @@ class AuthService {
     }
 
     getCurrentUser() {
+        let user = null;
         if (this.currentUser) {
-            return this.currentUser;
+            user = this.currentUser;
+        } else {
+            const storedUser = StorageUtils.load(USER_KEY);
+            if (storedUser) {
+                this.currentUser = storedUser;
+                console.log('Usuario recuperado de localStorage:', storedUser.email);
+                user = storedUser;
+            }
         }
 
-        const storedUser = StorageUtils.load(USER_KEY);
-        if (storedUser) {
-            this.currentUser = storedUser;
-            console.log('Usuario recuperado de localStorage:', storedUser.email);
-            return storedUser;
+        if (user) {
+            const activeRole = localStorage.getItem('activeRole');
+            if (activeRole) {
+                return { ...user, rol: activeRole };
+            }
+            return user;
         }
 
         console.warn('No hay usuario actual disponible');
@@ -477,7 +496,8 @@ class AuthService {
     }
 
     hasRole(rol) {
-        return this.currentUser?.rol === rol;
+        const user = this.getCurrentUser();
+        return user?.rol === rol;
     }
 
     handleAuthError(error) {

@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, Float, DateTime, ForeignKey, Boolean, JSON
+from sqlalchemy import Column, Integer, String, Text, Float, DateTime, ForeignKey, Boolean, JSON, BigInteger
 from sqlalchemy.orm import relationship
 from app.config.database import Base
 
@@ -7,12 +7,14 @@ class Rubrica(Base):
     __tablename__ = "rubricas"
 
     id = Column(Integer, primary_key=True, index=True)
-    profesor_id = Column(Integer, ForeignKey("usuarios.id"), nullable=False)
     nombre_rubrica = Column(String, nullable=False)
     descripcion = Column(Text)
-    activo = Column(Boolean, default=True)
+    nrc_id = Column(BigInteger, index=True, nullable=True)
+    estado_ciac = Column(String(50), default="pendiente")
+    mensaje_ciac = Column(Text, nullable=True)
+    estado_director = Column(String(50), default="pendiente")
+    mensaje_director = Column(Text, nullable=True)
 
-    profesor = relationship("Usuario", back_populates="rubricas")
     criterios = relationship("Criterio", back_populates="rubrica", cascade="all, delete-orphan",
                              order_by="Criterio.orden")
     evaluaciones = relationship("Evaluacion", back_populates="rubrica")

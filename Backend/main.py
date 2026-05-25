@@ -1,5 +1,8 @@
 from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
+from dotenv import load_dotenv
+load_dotenv()
+
 from app.config.database import engine, Base
 from app.controllers import (
     auth_controller,
@@ -18,6 +21,14 @@ from app.middleware import FirebaseAuth
 FirebaseAuth.initialize()
 
 Base.metadata.create_all(bind=engine)
+
+try:
+    from sqlalchemy import text
+    with engine.begin() as conn:
+        conn.execute(text("ALTER TABLE resultados_analisis ADD COLUMN IF NOT EXISTS resultado_evaluacion_id INTEGER REFERENCES resultados_evaluacion(id) ON DELETE SET NULL;"))
+    print("Base de datos: Columna resultado_evaluacion_id verificada/creada.")
+except Exception as db_err:
+    print(f"Error al verificar/crear columna en la base de datos: {db_err}")
 
 app = FastAPI(title="Analítica Académica API", version="1.0.0")
 

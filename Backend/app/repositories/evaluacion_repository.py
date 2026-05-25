@@ -59,7 +59,16 @@ class EvaluacionRepository(BaseRepository):
     def get_with_details(self, evaluacion_id: int) -> Optional[Evaluacion]:
         return self.get_with_resultados(evaluacion_id)
 
-    def get_by_filters(self, semestre: str = None, curso: str = None, tema: str = None, profesor_id: int = None) -> List[Evaluacion]:
+    def get_by_filters(
+        self,
+        semestre: str = None,
+        curso: str = None,
+        tema: str = None,
+        profesor_id: int = None,
+        facultad_id: int = None,
+        escuela_id: int = None,
+        nrc: int = None
+    ) -> List[Evaluacion]:
 
         try:
             query = self.db.query(Evaluacion).options(
@@ -74,25 +83,29 @@ class EvaluacionRepository(BaseRepository):
                 query = query.filter(Evaluacion.semestre == semestre)
             if curso:
                 if curso.isdigit():
+                    curso_val = int(curso)
                     query = query.filter(
                         or_(
-                            Evaluacion.curso_id == int(curso),
-                            Evaluacion.codigo_curso == curso
+                            Evaluacion.curso_id == curso_val,
+                            Evaluacion.codigo_curso == curso_val
                         )
                     )
                 else:
-
                     query = query.filter(
-                        or_(
-                            Evaluacion.codigo_curso == curso,
-                            Evaluacion.curso.has(nombre=curso)
-                        )
+                        Evaluacion.curso.has(nombre=curso)
                     )
             if tema:
                 query = query.filter(Evaluacion.tema == tema)
+            if escuela_id:
+                query = query.filter(Evaluacion.curso.has(escuela=escuela_id))
+            if facultad_id:
+                from app.models.curso import Curso
+                query = query.filter(Evaluacion.curso.has(Curso.escuela_rel.has(facultad=facultad_id)))
+            if nrc:
+                query = query.filter(Evaluacion.codigo_curso == nrc)
 
             results = query.order_by(Evaluacion.id.desc()).all()
-            log.info(f"DEBUG: get_by_filters(semestre={semestre}, curso={curso}, tema={tema}, prof={profesor_id}) -> {len(results)} resultados")
+            log.info(f"DEBUG: get_by_filters(semestre={semestre}, curso={curso}, tema={tema}, prof={profesor_id}, fac={facultad_id}, esc={escuela_id}, nrc={nrc}) -> {len(results)} resultados")
             return results
         except Exception as e:
             log.error(f"Error al obtener evaluaciones por filtros: {e}")

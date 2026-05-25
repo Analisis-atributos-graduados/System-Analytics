@@ -12,13 +12,17 @@ class ApiService {
 
         const token = await AuthService.getToken();
         const authHeaders = token ? { 'Authorization': `Bearer ${token}` } : {};
+        
+        const activeRole = localStorage.getItem('activeRole');
+        const roleHeaders = activeRole ? { 'x-active-role': activeRole } : {};
 
         const config = {
             ...options,
             headers: {
                 ...this.headers,
                 ...options.headers,
-                ...authHeaders
+                ...authHeaders,
+                ...roleHeaders
             }
         };
 
@@ -71,6 +75,16 @@ class ApiService {
     put(endpoint, data) {
         return this.request(endpoint, {
             method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(data)
+        });
+    }
+
+    patch(endpoint, data) {
+        return this.request(endpoint, {
+            method: 'PATCH',
             headers: {
                 'Content-Type': 'application/json'
             },

@@ -17,6 +17,14 @@ class UserService {
     async delete(userId) {
         return await ApiService.delete(`/users/${userId}`);
     }
+
+    async getProfesores() {
+        return await ApiService.get('/users/profesores');
+    }
+
+    async updateUserRoles(email, nombre, roles) {
+        return await ApiService.post('/users/update-roles', { email, nombre, roles });
+    }
 }
 
 export default new UserService();

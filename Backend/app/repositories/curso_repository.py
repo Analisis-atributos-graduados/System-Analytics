@@ -15,8 +15,6 @@ class CursoRepository(BaseRepository):
     def get_by_nombre(self, nombre: str) -> Optional[Curso]:
         return self.db.query(Curso).filter(Curso.nombre == nombre).first()
 
-    def get_habilitados(self) -> List[Curso]:
-        return self.db.query(Curso).filter(Curso.habilitado == True).all()
-
     def get_all(self) -> List[Curso]:
         return self.db.query(Curso).all()
+

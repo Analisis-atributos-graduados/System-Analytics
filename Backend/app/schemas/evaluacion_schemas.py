@@ -42,9 +42,20 @@ class ResultadoAnalisisSchema(BaseModel):
     relacion_contextual: float | None = None
     coherencia_logica: float | None = None
     nota_final: float
+    criterios_evaluados: dict | None = None
+    feedback_general: str | None = None
+    hallazgos: str | None = None
+    fortalezas: str | None = None
+    oportunidades: str | None = None
 
     class Config:
         from_attributes = True
+
+
+class EvaluacionFeedbackProfesorUpdateSchema(BaseModel):
+    hallazgos: Optional[str] = None
+    fortalezas: Optional[str] = None
+    oportunidades: Optional[str] = None
 
 
 class ArchivoProcesadoSchema(BaseModel):

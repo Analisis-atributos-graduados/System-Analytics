@@ -41,6 +41,20 @@ class RubricaService {
         }
     }
 
+    async update(rubricaId, rubricaData) {
+        try {
+            this.validateRubrica(rubricaData);
+
+            const endpoint = getEndpoint('RUBRICA_DETAIL', rubricaId);
+            const response = await ApiService.put(endpoint, rubricaData);
+            console.log('Rúbrica actualizada:', response.nombre_rubrica);
+            return response;
+        } catch (error) {
+            console.error(`Error al actualizar rúbrica ${rubricaId}:`, error);
+            throw error;
+        }
+    }
+
     async delete(rubricaId) {
         try {
             const endpoint = getEndpoint('RUBRICA_DETAIL', rubricaId);

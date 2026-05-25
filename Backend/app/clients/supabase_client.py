@@ -24,7 +24,6 @@ class SupabaseClient:
         log.info("SupabaseClient inicializado")
 
     def get_cursos(self) -> List[Dict]:
-        """Obtiene la lista de todos los cursos de Supabase."""
         if not self.url:
             return []
         try:
@@ -40,7 +39,6 @@ class SupabaseClient:
             return []
 
     def get_curso_ags(self) -> List[Dict]:
-        """Obtiene las relaciones de curso_ag de Supabase."""
         if not self.url:
             return []
         try:
@@ -54,3 +52,47 @@ class SupabaseClient:
         except Exception as e:
             log.error(f"SupabaseClient: Error al consultar relaciones curso_ag de Supabase: {e}")
             return []
+
+    def delete_all_curso_ags(self) -> bool:
+        if not self.url:
+            return False
+        try:
+            url = f"{self.url.rstrip('/')}/rest/v1/curso_ag?id_curso_ag=gt.0"
+            log.info("SupabaseClient: Eliminando relaciones curso_ag en Supabase...")
+            response = requests.delete(url, headers=self.headers, timeout=10)
+            response.raise_for_status()
+            log.info("SupabaseClient: Todas las relaciones curso_ag eliminadas exitosamente.")
+            return True
+        except Exception as e:
+            log.error(f"SupabaseClient: Error al eliminar relaciones curso_ag: {e}")
+            return False
+
+    def insert_curso_ags(self, mappings: List[Dict]) -> bool:
+        if not self.url or not mappings:
+            return False
+        try:
+            url = f"{self.url.rstrip('/')}/rest/v1/curso_ag"
+            log.info(f"SupabaseClient: Insertando {len(mappings)} relaciones curso_ag en Supabase...")
+            headers = {**self.headers, "Content-Type": "application/json"}
+            response = requests.post(url, json=mappings, headers=headers, timeout=10)
+            response.raise_for_status()
+            log.info("SupabaseClient: Relaciones curso_ag insertadas exitosamente.")
+            return True
+        except Exception as e:
+            log.error(f"SupabaseClient: Error al insertar relaciones curso_ag: {e}")
+            return False
+
+    def approve_all_curso_ags(self) -> bool:
+        if not self.url:
+            return False
+        try:
+            url = f"{self.url.rstrip('/')}/rest/v1/curso_ag?id_curso_ag=gt.0"
+            log.info("SupabaseClient: Aprobando todas las relaciones curso_ag en Supabase...")
+            headers = {**self.headers, "Content-Type": "application/json"}
+            response = requests.patch(url, json={"aprobado": True}, headers=headers, timeout=10)
+            response.raise_for_status()
+            log.info("SupabaseClient: Todas las relaciones curso_ag aprobadas exitosamente.")
+            return True
+        except Exception as e:
+            log.error(f"SupabaseClient: Error al aprobar relaciones curso_ag: {e}")
+            return False

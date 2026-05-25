@@ -35,7 +35,7 @@ def test_get_quality_dashboard_stats(client, db_session):
     calidad_user = Usuario(
         nombre="Calidad User",
         email="calidad@upao.edu.pe",
-        rol="AREA_CALIDAD",
+        rol="DOCENTE_CIAC",
         firebase_uid="calidad_uid"
     )
     db_session.add(calidad_user)

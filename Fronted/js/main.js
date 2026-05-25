@@ -41,10 +41,12 @@ export default async function initializeApp() {
         console.log('Inicializando router...');
         const router = new Router();
 
-        let initialRoute = 'configuration';
+        let initialRoute = 'analysis';
 
-        if (currentUser.rol === 'AREA_CALIDAD') {
-            initialRoute = 'analysis';
+        if (currentUser.rol === 'PROFESOR' || currentUser.rol === 'COMITE_ACADEMICO') {
+            initialRoute = 'configuration';
+        } else if (currentUser.rol === 'ADMINISTRADOR') {
+            initialRoute = 'settings';
         }
 
         router.navigate(initialRoute);

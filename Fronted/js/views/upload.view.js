@@ -259,7 +259,7 @@ export class UploadView {
         console.log('Event listeners adjuntados');
     }
 
-    selectDocumentType(type) {
+    async selectDocumentType(type) {
         console.log('Cambiando tipo de documento a:', type);
         this.documentType = type;
 
@@ -268,6 +268,42 @@ export class UploadView {
             container.innerHTML = this.render();
             this.attachEventListeners();
             console.log('Vista re-renderizada con tipo:', type);
+
+            if (type === 'examen' && !this.studentList.trim()) {
+                const nrc = this.courseData.courseCode;
+                if (nrc) {
+                    this.showLoading();
+                    const loadingText = document.querySelector('#loadingOverlay h3');
+                    const loadingSub = document.querySelector('#loadingOverlay p');
+                    if (loadingText) loadingText.innerHTML = 'Cargando Estudiantes';
+                    if (loadingSub) loadingSub.innerHTML = `Obteniendo alumnos inscritos en el NRC ${nrc}...`;
+
+                    try {
+                        const ApiService = (await import('../services/api.service.js')).default;
+                        const alumnos = await ApiService.get(`/cursos/nrc/${nrc}/alumnos`);
+                        if (alumnos && alumnos.length > 0) {
+                            this.studentList = alumnos.join('\n');
+                            
+                            const studentListInput = document.getElementById('studentListInput');
+                            if (studentListInput) {
+                                studentListInput.value = this.studentList;
+                            }
+                            this.updateStartButton();
+                        } else {
+                            showErrorNotification('No se encontraron alumnos registrados en este NRC.');
+                        }
+                    } catch (error) {
+                        console.error('Error cargando alumnos del NRC:', error);
+                        showErrorNotification('No se pudo cargar la lista de alumnos del NRC.');
+                    } finally {
+                        this.hideLoading();
+                        if (loadingText) loadingText.innerHTML = 'Procesando Evaluación';
+                        if (loadingSub) loadingSub.innerHTML = 'Por favor espera, estamos analizando tus documentos con IA...';
+                    }
+                } else {
+                    showErrorNotification('No se detectó un código de curso (NRC) configurado.');
+                }
+            }
         }
     }
 

@@ -9,6 +9,14 @@ export class CursoService {
         return await ApiService.get('/cursos?habilitados_only=true');
     }
 
+    static async getMyCourses() {
+        return await ApiService.get('/cursos/mis-cursos');
+    }
+
+    static async getCourseNrcs(cursoId) {
+        return await ApiService.get(`/cursos/${cursoId}/nrcs`);
+    }
+
     static async create(cursoData) {
         return await ApiService.post('/cursos', cursoData);
     }

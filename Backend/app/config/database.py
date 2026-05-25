@@ -29,6 +29,13 @@ engine = create_engine(
     connect_args=connect_args
 )
 
+if "sqlite" in DATABASE_URL:
+    @event.listens_for(engine, "connect")
+    def connect(dbapi_connection, connection_record):
+        cursor = dbapi_connection.cursor()
+        cursor.execute("ATTACH DATABASE ':memory:' AS universidad;")
+        cursor.close()
+
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 

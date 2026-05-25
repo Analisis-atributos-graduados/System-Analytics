@@ -139,6 +139,7 @@ async def get_token_from_header(authorization: Optional[str] = Header(None)) -> 
 
 async def get_current_user(
         token: str = Depends(get_token_from_header),
+        x_active_role: Optional[str] = Header(None),
         db: Session = Depends(get_db)
 ) -> Usuario:
 
@@ -159,6 +160,12 @@ async def get_current_user(
             detail="Usuario inactivo"
         )
 
+    allowed_roles = usuario.roles
+    if x_active_role and x_active_role in allowed_roles:
+        usuario.active_role = x_active_role
+    else:
+        usuario.active_role = allowed_roles[0] if allowed_roles else "PROFESOR"
+
     return usuario
 
 
@@ -167,7 +174,8 @@ def require_role(*allowed_roles):
     async def role_checker(
             current_user: Usuario = Depends(get_current_user)
     ):
-        if current_user.rol not in allowed_roles:
+        active_role = getattr(current_user, 'active_role', current_user.rol)
+        if active_role not in allowed_roles:
             raise HTTPException(
                 status_code=403,
                 detail=f"No tienes permisos. Se requiere rol: {', '.join(allowed_roles)}"

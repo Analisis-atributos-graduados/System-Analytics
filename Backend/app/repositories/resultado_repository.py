@@ -32,11 +32,31 @@ class ResultadoRepository(BaseRepository):
                     "comentario": datos.get('feedback', '')
                 }
 
+            from app.models.evaluacion import Evaluacion
+            evaluacion = self.db.query(Evaluacion).filter(Evaluacion.id == evaluacion_id).first()
+            resultado_evaluacion_id = None
+            if evaluacion:
+                existing_re = (
+                    self.db.query(ResultadoAnalisis.resultado_evaluacion_id)
+                    .join(Evaluacion, Evaluacion.id == ResultadoAnalisis.evaluacion_id)
+                    .filter(
+                        Evaluacion.curso_id == evaluacion.curso_id,
+                        Evaluacion.semestre == evaluacion.semestre,
+                        Evaluacion.tema == evaluacion.tema,
+                        Evaluacion.profesor_id == evaluacion.profesor_id,
+                        ResultadoAnalisis.resultado_evaluacion_id != None
+                    )
+                    .first()
+                )
+                if existing_re:
+                    resultado_evaluacion_id = existing_re[0]
+
             resultado = ResultadoAnalisis(
                 evaluacion_id=evaluacion_id,
                 criterios_evaluados=criterios_evaluados,
                 nota_final=nota_final,
-                feedback_general=""
+                feedback_general="",
+                resultado_evaluacion_id=resultado_evaluacion_id
             )
 
             self.db.add(resultado)

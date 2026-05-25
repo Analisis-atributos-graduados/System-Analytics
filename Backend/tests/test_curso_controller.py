@@ -5,9 +5,9 @@ from app.models import Curso, Usuario
 @pytest.fixture
 def admin_user(db_session):
     user = Usuario(
-        nombre="Admin Calidad",
+        nombre="Docente CIAC",
         email="calidad@upao.edu.pe",
-        rol="AREA_CALIDAD",
+        rol="DOCENTE_CIAC",
         firebase_uid="test_user_id"
     )
     db_session.add(user)

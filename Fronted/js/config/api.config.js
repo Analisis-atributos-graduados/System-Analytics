@@ -18,8 +18,11 @@ export const API_CONFIG = {
         DOWNLOAD_TRANSCRIPTIONS: '/evaluaciones/download-transcriptions',
 
         FILTROS_SEMESTRES: '/filtros/semestres',
+        FILTROS_FACULTADES: '/filtros/facultades',
+        FILTROS_ESCUELAS: '/filtros/escuelas',
         FILTROS_CURSOS: '/filtros/cursos',
         FILTROS_TEMAS: '/filtros/temas',
+        FILTROS_NRCS: '/filtros/nrcs',
 
         GENERATE_UPLOAD_URL: '/generate-upload-url',
         UPLOAD_FILE_PROXY: '/upload-file-proxy'

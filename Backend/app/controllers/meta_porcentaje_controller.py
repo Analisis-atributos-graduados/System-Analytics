@@ -20,7 +20,7 @@ def get_meta(db: Session = Depends(get_db)):
 def update_meta(
     meta: MetaPorcentajeUpdate,
     db: Session = Depends(get_db),
-    current_user = Depends(require_role("AREA_CALIDAD"))
+    current_user = Depends(require_role("DOCENTE_CIAC"))
 ):
 
     service = MetaPorcentajeService(db)

@@ -149,6 +149,16 @@ class DocumentService {
             throw error;
         }
     }
+
+    async updateFeedbackProfesor(evaluacionId, payload) {
+        try {
+            const endpoint = `${getEndpoint('EVALUACIONES')}/${evaluacionId}/feedback-profesor`;
+            return await ApiService.patch(endpoint, payload);
+        } catch (error) {
+            console.error(`Error updating professor feedback on evaluation ${evaluacionId}:`, error);
+            throw error;
+        }
+    }
 }
 
 export default new DocumentService();

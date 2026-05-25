@@ -14,7 +14,6 @@ class CursoService:
         self.curso_repo = CursoRepository(db)
 
     def get_all_cursos(self) -> List[dict]:
-        """Obtiene la lista de todos los cursos directamente desde Supabase sin usar la base de datos local."""
         from app.clients.supabase_client import SupabaseClient
         
         try:
@@ -54,7 +53,6 @@ class CursoService:
             return []
 
     def get_cursos_habilitados(self) -> List[dict]:
-        """Obtiene la lista de cursos habilitados directamente desde Supabase."""
         todos = self.get_all_cursos()
         return [c for c in todos if c.get("habilitado") is True]
 
@@ -70,8 +68,7 @@ class CursoService:
             raise ValueError(f"Ya existe un curso con el nombre '{data.nombre}'")
 
         curso = Curso(
-            nombre=data.nombre,
-            habilitado=data.habilitado
+            nombre=data.nombre
         )
         return self.curso_repo.create(curso)
 
@@ -84,6 +81,8 @@ class CursoService:
                 raise ValueError(f"Ya existe otro curso con el nombre '{data.nombre}'")
 
         update_data = data.dict(exclude_unset=True)
+        if "habilitado" in update_data:
+            del update_data["habilitado"]
         updated_curso = self.curso_repo.update(curso_id, **update_data)
         
         if not updated_curso:
@@ -99,47 +98,120 @@ class CursoService:
             raise ValueError(f"No se pudo eliminar el curso {curso_id}")
 
     def toggle_habilitado(self, curso_id: int) -> Curso:
-        curso = self.get_curso(curso_id)
-        new_status = not curso.habilitado
-        
-        updated_curso = self.curso_repo.update(curso_id, habilitado=new_status)
-        if not updated_curso:
-            raise ValueError(f"Error al cambiar estado del curso {curso_id}")
-            
-        return updated_curso
+        raise NotImplementedError("El estado habilitado de un curso se maneja a través de su asignación de atributos en Supabase.")
 
-    def bulk_assign_attributes(self, assignments: List[dict]) -> None:
+    def bulk_assign_attributes(self, assignments: List[dict], aprobado: bool = False) -> None:
+        import logging
+        from app.clients.supabase_client import SupabaseClient
 
-        from app.models.curso_atributo import CursoAtributo
+        log = logging.getLogger(__name__)
 
-        self.curso_repo.db.query(CursoAtributo).delete()
-
-        new_records = []
+        supabase = SupabaseClient()
+        new_mappings = []
         assigned_course_ids = set()
-        
+
         for assign in assignments:
             attr_code = assign['atributo']
+            try:
+                id_ag = int(attr_code.split('-')[1])
+            except Exception:
+                continue
+
             for curso_id in assign['cursos']:
                 assigned_course_ids.add(curso_id)
-                new_records.append(CursoAtributo(
-                    curso_id=curso_id,
-                    atributo_codigo=attr_code
-                ))
-        
-        if new_records:
-            self.curso_repo.db.add_all(new_records)
+                new_mappings.append({
+                    "id_curso": curso_id,
+                    "id_ag": id_ag,
+                    "aprobado": aprobado
+                })
 
-        if assigned_course_ids:
-            self.curso_repo.db.query(Curso).filter(Curso.id.in_(assigned_course_ids)).update(
-                {Curso.habilitado: True}, synchronize_session=False
-            )
+        supabase.delete_all_curso_ags()
+        if new_mappings:
+            supabase.insert_curso_ags(new_mappings)
+        log.info(f"Supabase: {len(new_mappings)} relaciones curso-AG guardadas.")
 
-            self.curso_repo.db.query(Curso).filter(Curso.id.notin_(assigned_course_ids)).update(
-                {Curso.habilitado: False}, synchronize_session=False
-            )
-        else:
-            self.curso_repo.db.query(Curso).update(
-                {Curso.habilitado: False}, synchronize_session=False
-            )
+        pass
+
+
+    def get_cursos_by_profesor_email(self, email: str) -> List[dict]:
+
+        from app.models.profesor import Profesor
+        from app.models.nrc import Nrc
+        from sqlalchemy import distinct
         
-        self.curso_repo.db.commit()
+        try:
+            profesor = self.curso_repo.db.query(Profesor).filter(Profesor.correo == email).first()
+            if not profesor:
+                log.warning(f"CursoService.get_cursos_by_profesor_email: Profesor con correo {email} no encontrado")
+                return []
+                
+            curso_ids_query = self.curso_repo.db.query(distinct(Nrc.id_curso)).filter(Nrc.id_profesor == profesor.id).all()
+            curso_ids = [row[0] for row in curso_ids_query if row[0] is not None]
+            
+            if not curso_ids:
+                return []
+                
+            cursos_db = self.curso_repo.db.query(Curso).filter(Curso.id.in_(curso_ids)).all()
+            
+            from app.clients.supabase_client import SupabaseClient
+            try:
+                supabase = SupabaseClient()
+                supabase_relaciones = supabase.get_curso_ags()
+            except Exception as e:
+                log.error(f"CursoService.get_cursos_by_profesor_email: Error al obtener curso_ag de Supabase: {e}")
+                supabase_relaciones = []
+
+            relaciones_por_curso = {}
+            for rel in supabase_relaciones:
+                id_curso = rel.get('id_curso')
+                id_ag = rel.get('id_ag')
+                if id_curso and id_ag:
+                    if id_curso not in relaciones_por_curso:
+                        relaciones_por_curso[id_curso] = []
+                    relaciones_por_curso[id_curso].append(f"AG-{str(id_ag).zfill(2)}")
+
+            result = []
+            for c in cursos_db:
+                atributos_codigos = relaciones_por_curso.get(c.id, [])
+                result.append({
+                    "id": c.id,
+                    "nombre": c.nombre,
+                    "habilitado": True,
+                    "atributos": [{"atributo_codigo": code} for code in atributos_codigos]
+                })
+            return result
+        except Exception as e:
+            log.error(f"CursoService.get_cursos_by_profesor_email: Error al obtener cursos: {e}")
+            return []
+
+    def get_nrcs_by_curso_and_profesor(self, curso_id: int, email: str) -> List[int]:
+
+        from app.models.profesor import Profesor
+        from app.models.nrc import Nrc
+        
+        try:
+            profesor = self.curso_repo.db.query(Profesor).filter(Profesor.correo == email).first()
+            if not profesor:
+                log.warning(f"CursoService.get_nrcs_by_curso_and_profesor: Profesor con correo {email} no encontrado")
+                return []
+                
+            nrcs_db = self.curso_repo.db.query(Nrc.id).filter(
+                Nrc.id_curso == curso_id,
+                Nrc.id_profesor == profesor.id
+            ).all()
+            
+            return [row[0] for row in nrcs_db if row[0] is not None]
+        except Exception as e:
+            log.error(f"CursoService.get_nrcs_by_curso_and_profesor: Error al obtener NRCs: {e}")
+            return []
+
+    def get_nrcs_by_curso(self, curso_id: int) -> List[int]:
+
+        from app.models.nrc import Nrc
+        try:
+            nrcs_db = self.curso_repo.db.query(Nrc.id).filter(Nrc.id_curso == curso_id).all()
+            return [row[0] for row in nrcs_db if row[0] is not None]
+        except Exception as e:
+            log.error(f"CursoService.get_nrcs_by_curso: Error al obtener NRCs: {e}")
+            return []
+

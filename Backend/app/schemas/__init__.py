@@ -5,7 +5,8 @@ from .evaluacion_schemas import (
     EvaluacionDetailSchema,
     ResultadoAnalisisSchema,
     ArchivoProcesadoSchema,
-    QualityDashboardStats
+    QualityDashboardStats,
+    EvaluacionFeedbackProfesorUpdateSchema
 )
 from .task_schemas import FileTaskPayload, EvaluationTaskPayload
 from .common_schemas import GenerateUploadURLRequest
@@ -17,10 +18,10 @@ from .rubrica_schemas import (
     CriterioCreateSchema,
     CriterioDetailSchema,
     NivelSchema,
-    NivelDetailSchema
+    NivelDetailSchema,
+    RubricaRevisionSchema
 )
 
-# ✅ CREAR ALIAS PARA COMPATIBILIDAD CON CONTROLLER
 RubricaCreate = RubricaCreateRequest
 RubricaResponse = RubricaDetailSchema
 RubricaListResponse = RubricaListSchema
@@ -29,7 +30,6 @@ CriterioResponse = CriterioDetailSchema
 
 __all__ = [
 
-    # Evaluaciones
     'ExamBatchRequest',
     'PDFFileInfo',
     'FileTaskPayload',
@@ -40,14 +40,13 @@ __all__ = [
     'ResultadoAnalisisSchema',
     'ArchivoProcesadoSchema',
     'QualityDashboardStats',
+    'EvaluacionFeedbackProfesorUpdateSchema',
 
-    # Usuarios
     'UsuarioCreate',
     'UsuarioResponse',
     'UsuarioCreateByAdmin',
     'UsuarioUpdate',
 
-    # Rúbricas (nombres originales)
     'RubricaCreateRequest',
     'RubricaDetailSchema',
     'RubricaListSchema',
@@ -56,10 +55,10 @@ __all__ = [
     'NivelSchema',
     'NivelDetailSchema',
 
-    # Rúbricas (alias para compatibilidad)
     'RubricaCreate',
     'RubricaResponse',
     'RubricaListResponse',
     'CriterioCreate',
-    'CriterioResponse'
+    'CriterioResponse',
+    'RubricaRevisionSchema'
 ]
