@@ -33,7 +33,7 @@ class GeminiClient:
         try:
             project_id = os.environ.get("GOOGLE_CLOUD_PROJECT")
             if not project_id:
-                project_id = "evalia-475805"
+                project_id = "semilleros-493300"
 
             secret_id = "GEMINI_API_KEY"
             version_id = "latest"

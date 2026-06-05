@@ -19,7 +19,7 @@ def get_mis_cursos(
     current_user: Usuario = Depends(get_current_user)
 ):
     service = CursoService(db)
-    if current_user.rol == "PROFESOR":
+    if getattr(current_user, 'active_role', current_user.rol) == "PROFESOR":
         return service.get_cursos_by_profesor_email(current_user.email)
     else:
         return service.get_all_cursos()
@@ -31,7 +31,7 @@ def get_nrcs_por_curso(
     current_user: Usuario = Depends(get_current_user)
 ):
     service = CursoService(db)
-    if current_user.rol == "PROFESOR":
+    if getattr(current_user, 'active_role', current_user.rol) == "PROFESOR":
         return service.get_nrcs_by_curso_and_profesor(curso_id, current_user.email)
     else:
         return service.get_nrcs_by_curso(curso_id)
@@ -177,7 +177,7 @@ def assign_attributes(
     curso_service = CursoService(db)
     meta_service = MetaPorcentajeService(db)
 
-    aprobado = (current_user.rol == "DOCENTE_CIAC")
+    aprobado = (getattr(current_user, 'active_role', current_user.rol) == "DOCENTE_CIAC")
     warnings = []
 
     try:

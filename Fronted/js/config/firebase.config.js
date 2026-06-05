@@ -5,12 +5,12 @@ import {
 } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
 
 export const FIREBASE_CONFIG = {
-    apiKey: "AIzaSyCnQemmlV3iG-NKwyG-32jCRQxKUgUT4TU",
-    authDomain: "evalia-475805.firebaseapp.com",
-    projectId: "evalia-475805",
-    storageBucket: "evalia-475805.firebasestorage.app",
-    messagingSenderId: "511391059179",
-    appId: "1:511391059179:web:b2e17b2cce5ad27ce4c2ae"
+    apiKey: "AIzaSyCdNacVMEquF_e9rv4zbs-IDHW8Vs_S9is",
+    authDomain: "semilleros-493300.firebaseapp.com",
+    projectId: "semilleros-493300",
+    storageBucket: "semilleros-493300.firebasestorage.app",
+    messagingSenderId: "121734839794",
+    appId: "1:121734839794:web:2fd3e1171cb6c4af7cbf6b"
 };
 
 export let auth = null;

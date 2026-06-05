@@ -351,7 +351,7 @@ export class AnalysisView {
                     <div class="filter-group">
                         <label for="filterCurso">Curso</label>
                         <select id="filterCurso" class="form-control" ${!this.filters.semestre ? 'disabled' : ''}>
-                            <option value="">Todos los cursos</option>
+                            <option value="">${this.filters.semestre && this.availableFilters.cursos.length === 0 ? 'No tienes cursos asignados' : 'Todos los cursos'}</option>
                             ${this.availableFilters.cursos.map(c => `
                                 <option value="${c.codigo}" ${this.filters.curso === c.codigo ? 'selected' : ''}>
                                     ${c.nombre}
@@ -408,7 +408,7 @@ export class AnalysisView {
                         <label for="filterCurso">Curso</label>
                         <select id="filterCurso" class="form-control" 
                                 ${!this.filters.semestre || (isQualityArea && !this.filters.atributo) ? 'disabled' : ''}>
-                            <option value="">Seleccionar curso</option>
+                            <option value="">${this.filters.semestre && this.availableFilters.cursos.length === 0 ? 'No tienes cursos asignados' : 'Seleccionar curso'}</option>
                             ${this.availableFilters.cursos.map(c => `
                                 <option value="${c.codigo}" ${this.filters.curso === c.codigo ? 'selected' : ''}>
                                     ${c.nombre}
@@ -534,6 +534,60 @@ export class AnalysisView {
                     ${this.renderPerformanceDistribution(stats.criterios)}
                     ${this.renderCriteriaTable(stats.criterios)}
                     ${this.renderAchievementIndicator(stats.porcentaje_logro)}
+                </div>
+
+                <!-- Resultados por Profesor -->
+                ${this.renderFeedbacksProfesores(stats.feedbacks_profesores)}
+            </div>
+        `;
+    }
+
+    renderFeedbacksProfesores(feedbacks) {
+        if (!feedbacks || feedbacks.length === 0) {
+            return `
+                <div class="main-card" style="margin-top: 2rem; margin-bottom: 2rem;">
+                    <div class="card-header">
+                        <h4>📝 Resultados por Profesor</h4>
+                    </div>
+                    <div class="card-body">
+                        <p class="text-muted" style="text-align: center; margin: 1rem 0;">No hay resultados de evaluación registrados por los profesores para este curso.</p>
+                    </div>
+                </div>
+            `;
+        }
+
+        return `
+            <div class="main-card" style="margin-top: 2rem; margin-bottom: 2rem;">
+                <div class="card-header">
+                    <h4>📝 Resultados</h4>
+                </div>
+                <div class="card-body" style="padding: 1.5rem;">
+                    <div class="feedback-profesores-list" style="display: flex; flex-direction: column; gap: 2rem;">
+                        ${feedbacks.map(f => `
+                            <div class="profesor-feedback-card" style="background: rgba(255, 255, 255, 0.02); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 8px; padding: 1.5rem;">
+                                <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255, 255, 255, 0.08); padding-bottom: 0.75rem; margin-bottom: 1rem;">
+                                    <h4 style="margin: 0; color: #a78bfa; font-size: 1.2rem;">👨‍🏫 Profesor: ${f.profesor}</h4>
+                                    <span style="background: rgba(167, 139, 250, 0.1); color: #a78bfa; padding: 0.25rem 0.75rem; border-radius: 20px; font-size: 0.85rem; font-weight: 500;">
+                                        Tema: ${f.tema}
+                                    </span>
+                                </div>
+                                <div style="display: flex; flex-direction: column; gap: 1rem;">
+                                    <div>
+                                        <h5 style="margin: 0 0 0.25rem 0; color: var(--text-color); font-weight: 600; font-size: 0.95rem;">Hallazgos:</h5>
+                                        <p style="white-space: pre-wrap; margin: 0; background: rgba(0, 0, 0, 0.15); padding: 0.75rem; border-radius: 6px; border: 1px solid rgba(255,255,255,0.04); font-size: 0.9rem; color: var(--text-color);">${f.hallazgos || 'Ninguno registrado'}</p>
+                                    </div>
+                                    <div>
+                                        <h5 style="margin: 0 0 0.25rem 0; color: var(--text-color); font-weight: 600; font-size: 0.95rem;">Fortalezas logradas por los estudiantes:</h5>
+                                        <p style="white-space: pre-wrap; margin: 0; background: rgba(0, 0, 0, 0.15); padding: 0.75rem; border-radius: 6px; border: 1px solid rgba(255,255,255,0.04); font-size: 0.9rem; color: var(--text-color);">${f.fortalezas || 'Ninguna registrada'}</p>
+                                    </div>
+                                    <div>
+                                        <h5 style="margin: 0 0 0.25rem 0; color: var(--text-color); font-weight: 600; font-size: 0.95rem;">Oportunidades de mejora:</h5>
+                                        <p style="white-space: pre-wrap; margin: 0; background: rgba(0, 0, 0, 0.15); padding: 0.75rem; border-radius: 6px; border: 1px solid rgba(255,255,255,0.04); font-size: 0.9rem; color: var(--text-color);">${f.oportunidades || 'Ninguna registrada'}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
                 </div>
             </div>
         `;

@@ -236,6 +236,27 @@ export class ConfigurationView {
 
         if (!courses) courses = [];
 
+        let courseWarningHTML = '';
+        let defaultCourseOption = '<option value="">-- Selecciona un curso --</option>';
+
+        if (courses.length === 0) {
+            defaultCourseOption = '<option value="">No tienes cursos asignados</option>';
+            courseWarningHTML = `
+                <div id="no-courses-warning" style="margin-top: 8px; color: var(--danger-color); font-size: 13.5px; font-weight: 500; display: flex; align-items: center; gap: 6px;">
+                    ⚠️ No tienes cursos asignados en el sistema.
+                </div>
+            `;
+
+            setTimeout(() => {
+                const btnNext = document.getElementById('btnNext');
+                if (btnNext) {
+                    btnNext.disabled = true;
+                    btnNext.style.opacity = '0.5';
+                    btnNext.style.cursor = 'not-allowed';
+                }
+            }, 0);
+        }
+
         const options = courses.map(c => `
             <option value="${c.id}" 
                 ${this.configData.curso_id == c.id ? 'selected' : ''}>
@@ -247,7 +268,7 @@ export class ConfigurationView {
         const hasRubric = this.existingRubrics.some(r => r.nrc_id === currentNrc);
 
         let rubricWarningHTML = '';
-        if (currentNrc && !hasRubric) {
+        if (courses.length > 0 && currentNrc && !hasRubric) {
             rubricWarningHTML = `
                 <div id="nrc-rubric-warning" style="margin-top: 8px; color: var(--danger-color); font-size: 13.5px; font-weight: 500; display: flex; align-items: center; gap: 6px;">
                     ⚠️ No existe una rúbrica aprobada para este NRC. Solicítala al Comité Académico.
@@ -277,9 +298,10 @@ export class ConfigurationView {
             <div class="form-group">
                 <label for="courseName">Nombre del curso *</label>
                 <select id="courseName" required class="form-control">
-                    <option value="">-- Selecciona un curso --</option>
+                    ${defaultCourseOption}
                     ${options}
                 </select>
+                ${courseWarningHTML}
             </div>
 
             <div class="form-group">
@@ -1942,7 +1964,6 @@ export class ConfigurationView {
             }
 
         } else {
-            // Selectors and main display
             const courseSelect = document.getElementById('comiteCourseSelect');
             if (courseSelect) {
                 courseSelect.addEventListener('change', async (e) => {

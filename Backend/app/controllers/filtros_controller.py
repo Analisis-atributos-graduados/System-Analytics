@@ -22,7 +22,7 @@ async def get_semestres(
     try:
         evaluacion_repo = EvaluacionRepository(db)
 
-        rol = str(current_user.rol) if hasattr(current_user.rol, 'value') else current_user.rol
+        rol = getattr(current_user, 'active_role', current_user.rol)
 
         if rol == "PROFESOR":
             evaluaciones = evaluacion_repo.get_by_profesor(current_user.id)
@@ -49,7 +49,7 @@ async def get_facultades(
         db: Session = Depends(get_db)
 ):
     try:
-        rol = str(current_user.rol) if hasattr(current_user.rol, 'value') else current_user.rol
+        rol = getattr(current_user, 'active_role', current_user.rol)
         if rol not in ["DIRAC", "ADMINISTRADOR"]:
             raise HTTPException(status_code=403, detail="Rol no autorizado")
         facultades = db.query(Facultad).order_by(Facultad.nombre.asc()).all()
@@ -66,7 +66,7 @@ async def get_escuelas(
         db: Session = Depends(get_db)
 ):
     try:
-        rol = str(current_user.rol) if hasattr(current_user.rol, 'value') else current_user.rol
+        rol = getattr(current_user, 'active_role', current_user.rol)
         if rol not in ["DIRAC", "ADMINISTRADOR"]:
             raise HTTPException(status_code=403, detail="Rol no autorizado")
         query = db.query(Escuela)
@@ -88,7 +88,7 @@ async def get_cursos(
 ):
 
     try:
-        rol = str(current_user.rol) if hasattr(current_user.rol, 'value') else current_user.rol
+        rol = getattr(current_user, 'active_role', current_user.rol)
 
         subquery = db.query(distinct(Evaluacion.curso_id)).filter(Evaluacion.semestre == semestre)
         
@@ -156,7 +156,7 @@ async def get_temas(
 ):
 
     try:
-        rol = str(current_user.rol) if hasattr(current_user.rol, 'value') else current_user.rol
+        rol = getattr(current_user, 'active_role', current_user.rol)
 
         if curso.isdigit():
             curso_int = int(curso)
@@ -194,7 +194,7 @@ async def get_nrcs(
         db: Session = Depends(get_db)
 ):
     try:
-        rol = str(current_user.rol) if hasattr(current_user.rol, 'value') else current_user.rol
+        rol = getattr(current_user, 'active_role', current_user.rol)
 
         from app.models.curso import Curso
         cursos_db = db.query(Curso).filter(Curso.nombre == curso).all()

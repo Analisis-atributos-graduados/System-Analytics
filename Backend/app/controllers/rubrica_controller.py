@@ -108,12 +108,12 @@ async def list_rubricas(
             if not rubrica:
                 return []
 
-            if current_user.rol == "PROFESOR":
+            if getattr(current_user, 'active_role', current_user.rol) == "PROFESOR":
                 if rubrica.estado_ciac != 'aprobado' or rubrica.estado_director != 'aprobado':
                     return []
             return [rubrica]
 
-        if current_user.rol in ["COMITE_ACADEMICO", "DOCENTE_CIAC", "DIRECTOR_ESCUELA"]:
+        if getattr(current_user, 'active_role', current_user.rol) in ["COMITE_ACADEMICO", "DOCENTE_CIAC", "DIRECTOR_ESCUELA"]:
             rubricas = rubrica_repo.get_all_with_criterios()
         else:
             rubricas = rubrica_repo.get_all_active_with_criterios()
@@ -138,7 +138,7 @@ async def get_rubrica(
         if not rubrica:
             raise HTTPException(status_code=404, detail="Rúbrica no encontrada")
 
-        if current_user.rol == "PROFESOR":
+        if getattr(current_user, 'active_role', current_user.rol) == "PROFESOR":
             if rubrica.estado_ciac != 'aprobado' or rubrica.estado_director != 'aprobado':
                 raise HTTPException(status_code=403, detail="La rúbrica no está aprobada para su uso")
 

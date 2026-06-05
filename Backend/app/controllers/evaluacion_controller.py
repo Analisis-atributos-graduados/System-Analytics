@@ -36,7 +36,7 @@ async def get_dashboard_stats(
     try:
         repo = EvaluacionRepository(db)
 
-        profesor_id = current_user.id if current_user.rol == "PROFESOR" else None
+        profesor_id = current_user.id if getattr(current_user, 'active_role', current_user.rol) == "PROFESOR" else None
 
         evaluaciones = repo.get_by_filters(
             semestre=semestre,
@@ -308,23 +308,39 @@ async def get_quality_dashboard_stats(
             "noAceptable": buckets["noAceptable"]
         }
 
+        feedbacks_profesores = []
+        seen_res_ids = set()
         feedback_global = None
+
         for ev in evaluaciones:
             if ev.resultado_analisis and ev.resultado_analisis.resultado_evaluacion:
                 res_ev = ev.resultado_analisis.resultado_evaluacion
-                if res_ev.hallazgos or res_ev.fortalezas or res_ev.oportunidades:
+                
+                if not feedback_global and (res_ev.hallazgos or res_ev.fortalezas or res_ev.oportunidades):
                     feedback_global = {
                         "hallazgos": res_ev.hallazgos,
                         "fortalezas": res_ev.fortalezas,
                         "oportunidades": res_ev.oportunidades
                     }
-                    break
+                
+                if res_ev.id not in seen_res_ids:
+                    if res_ev.hallazgos or res_ev.fortalezas or res_ev.oportunidades:
+                        seen_res_ids.add(res_ev.id)
+                        prof_name = ev.profesor.nombre if ev.profesor else "Profesor Desconocido"
+                        feedbacks_profesores.append({
+                            "profesor": prof_name,
+                            "tema": ev.tema or "Sin Tema",
+                            "hallazgos": res_ev.hallazgos or "",
+                            "fortalezas": res_ev.fortalezas or "",
+                            "oportunidades": res_ev.oportunidades or ""
+                        })
 
         return {
             "total_alumnos": total_alumnos,
             "porcentaje_logro": round(porcentaje_logro, 1),
             "criterios": [criterio_stats],
-            "feedback_global": feedback_global
+            "feedback_global": feedback_global,
+            "feedbacks_profesores": feedbacks_profesores
         }
 
     except Exception as e:
@@ -347,7 +363,7 @@ async def download_transcriptions(
         from reportlab.lib.utils import simpleSplit
 
         repo = EvaluacionRepository(db)
-        profesor_id = current_user.id if current_user.rol == "PROFESOR" else None
+        profesor_id = current_user.id if getattr(current_user, 'active_role', current_user.rol) == "PROFESOR" else None
         
         evaluaciones = repo.get_by_filters(
             semestre=semestre,
@@ -448,8 +464,7 @@ async def list_evaluaciones(
         repo = EvaluacionRepository(db)
         query = db.query(Evaluacion)
 
-        rol = str(current_user.rol.value) if hasattr(current_user.rol, 'value') else str(current_user.rol)
-
+        rol = getattr(current_user, 'active_role', current_user.rol)
         if rol == "PROFESOR":
             query = query.filter(Evaluacion.profesor_id == current_user.id)
 
@@ -572,7 +587,7 @@ async def update_evaluacion_feedback_profesor(
         if not evaluacion:
             raise HTTPException(status_code=404, detail="Evaluación no encontrada")
 
-        if current_user.rol == "PROFESOR" and evaluacion.profesor_id != current_user.id:
+        if getattr(current_user, 'active_role', current_user.rol) == "PROFESOR" and evaluacion.profesor_id != current_user.id:
             raise HTTPException(status_code=403, detail="No tienes permiso para actualizar esta evaluación")
 
         evaluaciones_grupo = db.query(Evaluacion).filter(

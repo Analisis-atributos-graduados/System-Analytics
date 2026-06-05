@@ -1,5 +1,5 @@
 export const API_CONFIG = {
-    BASE_URL: 'https://analitica-backend-511391059179.us-central1.run.app',
+    BASE_URL: 'https://backend-evalia-sa-121734839794.us-central1.run.app',
     //BASE_URL: 'http://127.0.0.1:8000',
 
     ENDPOINTS: {
