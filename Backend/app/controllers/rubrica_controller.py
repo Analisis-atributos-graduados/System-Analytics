@@ -30,13 +30,6 @@ async def create_rubrica(
                     detail=f"Ya existe una rúbrica para el NRC {rubrica_data.nrc_id}."
                 )
 
-        suma_pesos = sum(c.peso for c in rubrica_data.criterios)
-        if abs(suma_pesos - 1.0) > 0.01:
-            raise HTTPException(
-                status_code=400,
-                detail=f"La suma de los pesos debe ser 1.0 (actual: {suma_pesos:.2f})"
-            )
-
         criterios_dict = [c.dict() for c in rubrica_data.criterios]
         rubrica = rubrica_repo.create_rubrica_con_criterios(
             nombre_rubrica=rubrica_data.nombre_rubrica,
@@ -68,13 +61,6 @@ async def update_rubrica(
         rubrica = rubrica_repo.get_with_criterios(rubrica_id)
         if not rubrica:
             raise HTTPException(status_code=404, detail="Rúbrica no encontrada")
-
-        suma_pesos = sum(c.peso for c in rubrica_data.criterios)
-        if abs(suma_pesos - 1.0) > 0.01:
-            raise HTTPException(
-                status_code=400,
-                detail=f"La suma de los pesos debe ser 1.0 (actual: {suma_pesos:.2f})"
-            )
 
         criterios_dict = [c.dict() for c in rubrica_data.criterios]
         updated_rubrica = rubrica_repo.update_rubrica_con_criterios(

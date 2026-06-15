@@ -40,13 +40,14 @@ class ScoringService:
             if not niveles:
                 return None
 
-            max_posible = max([n.puntaje_max for n in niveles]) if niveles else 20.0
+            max_posible = max([n.puntaje for n in niveles]) if niveles else 20.0
             score_escalado = score * max_posible
 
-            niveles_ordenados = sorted(niveles, key=lambda x: x.puntaje_min, reverse=True)
+            niveles_ordenados = sorted(niveles, key=lambda x: x.puntaje, reverse=True)
 
-            for nivel in niveles_ordenados:
-                if score_escalado >= nivel.puntaje_min:
+            for i, nivel in enumerate(niveles_ordenados):
+                limit = niveles_ordenados[i+1].puntaje if i + 1 < len(niveles_ordenados) else 0.0
+                if score_escalado > limit:
                     return nivel
 
             return niveles_ordenados[-1]

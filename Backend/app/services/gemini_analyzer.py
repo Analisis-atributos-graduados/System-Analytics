@@ -6,11 +6,9 @@ import io
 from typing import Dict, List, Optional
 from PIL import Image
 
-# Librerías de Google
 import google.generativeai as genai
 from google.cloud import secretmanager
 
-# Tus modelos
 from app.models.rubrica import Rubrica
 
 log = logging.getLogger(__name__)
@@ -38,7 +36,7 @@ class GeminiAnalyzer:
     def _get_api_key_from_secret(self) -> Optional[str]:
 
         try:
-            project_id = "511391059179"
+            project_id = os.environ.get("GOOGLE_CLOUD_PROJECT", "semilleros-493300")
             secret_id = "GEMINI_API_KEY"
             version_id = "latest"
             
@@ -109,11 +107,12 @@ class GeminiAnalyzer:
         """
         
         for criterio in rubrica.criterios:
-            prompt += f"\n- Criterio: {criterio.nombre_criterio} (Peso: {criterio.peso}%)\n"
+            prompt += f"\n- Criterio ID: {criterio.id}\n"
+            prompt += f"  Nombre: {criterio.nombre_criterio}\n"
             prompt += f"  Descripción: {criterio.descripcion_criterio}\n"
             prompt += "  Niveles:\n"
             for nivel in criterio.niveles:
-                prompt += f"    * {nivel.nombre_nivel} (Puntaje Máx: {nivel.puntaje_max}): {', '.join(nivel.descriptores)}\n"
+                prompt += f"    * {nivel.nombre_nivel} (Puntaje: {nivel.puntaje}): {', '.join(nivel.descriptores)}\n"
 
         prompt += """
         \n**Formato de Salida Requerido (JSON):**
@@ -122,6 +121,7 @@ class GeminiAnalyzer:
         {
             "resultados": [
                 {
+                    "criterio_id": 123,
                     "criterio": "Nombre exacto del criterio",
                     "nivel_asignado": "Nombre exacto del nivel",
                     "puntaje_obtenido": 15.5,

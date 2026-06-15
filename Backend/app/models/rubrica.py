@@ -28,7 +28,6 @@ class Criterio(Base):
     rubrica_id = Column(Integer, ForeignKey("rubricas.id"), nullable=False)
     nombre_criterio = Column(String, nullable=False)
     descripcion_criterio = Column(Text)
-    peso = Column(Float, nullable=False)
     orden = Column(Integer, default=0)
 
     rubrica = relationship("Rubrica", back_populates="criterios")
@@ -42,8 +41,7 @@ class Nivel(Base):
     id = Column(Integer, primary_key=True, index=True)
     criterio_id = Column(Integer, ForeignKey("criterios.id"), nullable=False)
     nombre_nivel = Column(String, nullable=False)
-    puntaje_min = Column(Float, nullable=False)
-    puntaje_max = Column(Float, nullable=False)
+    puntaje = Column(Float, nullable=False)
     descriptores = Column(JSON)
     orden = Column(Integer, default=0)
 

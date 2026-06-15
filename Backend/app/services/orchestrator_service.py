@@ -56,11 +56,14 @@ class OrchestratorService:
             if not rubrica:
                 raise ValueError(f"Rúbrica {rubrica_id} no encontrada")
 
-            if rubrica.profesor_id != profesor_id:
-                raise ValueError(f"La rúbrica {rubrica_id} no pertenece al profesor {profesor_id}")
+            if rubrica.estado_ciac != 'aprobado' or rubrica.estado_director != 'aprobado':
+                raise ValueError(f"La rúbrica {rubrica_id} no está aprobada para su uso")
 
-            if not rubrica.activo:
-                raise ValueError(f"La rúbrica {rubrica_id} está inactiva")
+            if rubrica.nrc_id:
+                from app.models.nrc import Nrc
+                nrc_record = self.rubrica_repo.db.query(Nrc).filter(Nrc.id == rubrica.nrc_id).first()
+                if nrc_record and nrc_record.id_curso != curso_id:
+                    raise ValueError(f"La rúbrica {rubrica_id} (NRC {rubrica.nrc_id}) no pertenece al curso {curso_id}")
 
             curso = self.curso_repo.get_by_id(curso_id)
             if not curso:

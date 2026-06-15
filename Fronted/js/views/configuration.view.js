@@ -11,6 +11,7 @@ export class ConfigurationView {
         this.router = router;
         this.currentStep = 0;
         this.existingRubrics = [];
+        this.courseNrcs = [];
 
         const user = AuthService.getCurrentUser();
         if (user && user.rol === 'PROFESOR') {
@@ -54,32 +55,35 @@ export class ConfigurationView {
                     id: Date.now(),
                     nombre_criterio: '',
                     descripcion_criterio: '',
-                    peso: 0.15,
                     orden: 1,
                     niveles: [
                         {
                             id: Date.now() + '_1',
                             nombre_nivel: 'Excelente',
-                            puntaje_min: 3,
-                            puntaje_max: 3,
+                            puntaje: undefined,
                             descriptores: [''],
                             orden: 1
                         },
                         {
                             id: Date.now() + '_2',
-                            nombre_nivel: 'Regular',
-                            puntaje_min: 1,
-                            puntaje_max: 2,
+                            nombre_nivel: 'Bueno',
+                            puntaje: undefined,
                             descriptores: [''],
                             orden: 2
                         },
                         {
                             id: Date.now() + '_3',
-                            nombre_nivel: 'Insuficiente',
-                            puntaje_min: 0,
-                            puntaje_max: 0,
+                            nombre_nivel: 'Requiere mejora',
+                            puntaje: undefined,
                             descriptores: [''],
                             orden: 3
+                        },
+                        {
+                            id: Date.now() + '_4',
+                            nombre_nivel: 'No aceptable',
+                            puntaje: undefined,
+                            descriptores: [''],
+                            orden: 4
                         }
                     ]
                 }
@@ -101,6 +105,18 @@ export class ConfigurationView {
                 this.comiteCursos = await CursoService.getAll();
                 this.reRender();
             } else {
+                if (this.configData.curso_id) {
+                    try {
+                        const { CursoService } = await import('../services/curso.service.js');
+                        this.courseNrcs = await CursoService.getCourseNrcs(this.configData.curso_id) || [];
+                    } catch (nrcErr) {
+                        console.error('Error al cargar NRCs en _loadExistingRubrics:', nrcErr);
+                        this.courseNrcs = [];
+                    }
+                } else {
+                    this.courseNrcs = [];
+                }
+
                 if (this.currentStep === 0) {
                     this.updateRubricStatusForCurrentNrc();
                 } else if (this.currentStep === 2) {
@@ -121,7 +137,11 @@ export class ConfigurationView {
         if (!courseCodeInput) return;
 
         const nrcId = parseInt(courseCodeInput.value);
-        const hasRubric = Array.isArray(this.existingRubrics) && this.existingRubrics.some(r => r.nrc_id === nrcId);
+        const hasRubric = Array.isArray(this.existingRubrics) && this.existingRubrics.some(r => {
+            const matchesNrc = r.nrc_id === nrcId;
+            const matchesCourse = this.courseNrcs && this.courseNrcs.map(n => parseInt(n)).includes(parseInt(r.nrc_id));
+            return matchesNrc || matchesCourse;
+        });
 
         let warningDiv = document.getElementById('nrc-rubric-warning');
         const btnNext = document.getElementById('btnNext');
@@ -215,6 +235,7 @@ export class ConfigurationView {
             if (this.configData.curso_id) {
                 try {
                     const nrcs = await CursoService.getCourseNrcs(this.configData.curso_id);
+                    this.courseNrcs = nrcs || [];
                     if (nrcs && nrcs.length > 0) {
                         nrcOptions = '<option value="">-- Selecciona un NRC --</option>' + nrcs.map(nrc => `
                             <option value="${nrc}" ${this.configData.courseCode == nrc ? 'selected' : ''}>
@@ -265,7 +286,11 @@ export class ConfigurationView {
         `).join('');
 
         const currentNrc = parseInt(this.configData.courseCode);
-        const hasRubric = this.existingRubrics.some(r => r.nrc_id === currentNrc);
+        const hasRubric = this.existingRubrics.some(r => {
+            const matchesNrc = r.nrc_id === currentNrc;
+            const matchesCourse = this.courseNrcs && this.courseNrcs.map(n => parseInt(n)).includes(parseInt(r.nrc_id));
+            return matchesNrc || matchesCourse;
+        });
 
         let rubricWarningHTML = '';
         if (courses.length > 0 && currentNrc && !hasRubric) {
@@ -351,14 +376,32 @@ export class ConfigurationView {
         const isProfessor = user && user.rol === 'PROFESOR';
 
         if (isProfessor) {
-            this.configData.rubrica_id = this.configData.rubrica_id || (this.existingRubrics.length > 0 ? this.existingRubrics[0].id : null);
+            const currentNrc = parseInt(this.configData.courseCode);
+            const filteredRubrics = this.existingRubrics.filter(r => {
+                const matchesNrc = r.nrc_id === currentNrc;
+                const matchesCourse = this.courseNrcs && this.courseNrcs.map(n => parseInt(n)).includes(parseInt(r.nrc_id));
+                return matchesNrc || matchesCourse;
+            });
 
-            if (this.existingRubrics.length === 0) {
+            if (filteredRubrics.length > 0) {
+                const isValid = filteredRubrics.some(r => r.id === this.configData.rubrica_id);
+                if (!isValid) {
+                    this.configData.rubrica_id = filteredRubrics[0].id;
+                    this.configData.rubrica = filteredRubrics[0];
+                    this.saveConfig();
+                }
+            } else {
+                this.configData.rubrica_id = null;
+                this.configData.rubrica = this.getEmptyRubrica();
+                this.saveConfig();
+            }
+
+            if (filteredRubrics.length === 0) {
                 setTimeout(() => {
                     const btnFinish = document.getElementById('btnFinish');
                     if (btnFinish) {
                         btnFinish.disabled = true;
-                        btnFinish.title = 'No hay rúbricas disponibles. Contacta al Comité Académico.';
+                        btnFinish.title = 'No hay rúbricas disponibles para este NRC. Contacta al Comité Académico.';
                         btnFinish.style.opacity = '0.5';
                         btnFinish.style.cursor = 'not-allowed';
                     }
@@ -370,8 +413,8 @@ export class ConfigurationView {
                     </div>
                     <div style="padding: 24px; background: rgba(241, 196, 15, 0.1); border: 1px solid rgba(241, 196, 15, 0.4); border-radius: var(--radius-md); text-align: center;">
                         <span style="font-size: 40px; display: block; margin-bottom: 12px;">⚠️</span>
-                        <p style="font-weight: 600; font-size: 15px; color: var(--text-color); margin: 0 0 8px 0;">No hay rúbricas disponibles</p>
-                        <p style="font-size: 13.5px; color: var(--secondary-text); margin: 0;">El Comité Académico aún no ha creado ni aprobado ninguna rúbrica para el sistema. No puedes continuar hasta que exista al menos una rúbrica aprobada.</p>
+                        <p style="font-weight: 600; font-size: 15px; color: var(--text-color); margin: 0 0 8px 0;">No hay rúbricas disponibles para el NRC ${this.configData.courseCode || ''}</p>
+                        <p style="font-size: 13.5px; color: var(--secondary-text); margin: 0;">El Comité Académico aún no ha creado ni aprobado ninguna rúbrica para este NRC. No puedes continuar hasta que exista una rúbrica aprobada para este NRC.</p>
                     </div>
                 `;
             }
@@ -379,7 +422,7 @@ export class ConfigurationView {
             return `
                 <div class="rubric-selector">
                     <h4>Seleccionar Rúbrica para la Evaluación</h4>
-                    <p class="text-muted">Como profesor, puedes seleccionar y utilizar cualquiera de las rúbricas oficiales diseñadas por el Comité Académico.</p>
+                    <p class="text-muted">Como profesor, puedes seleccionar y utilizar la rúbrica aprobada para tu curso/NRC.</p>
                 </div>
                 <input type="radio" name="rubricOption" value="existing" checked style="display: none;">
                 
@@ -427,10 +470,17 @@ export class ConfigurationView {
     }
 
     renderExistingRubricSelector() {
-        if (this.existingRubrics.length === 0) {
+        const currentNrc = parseInt(this.configData.courseCode);
+        const filteredRubrics = this.existingRubrics.filter(r => {
+            const matchesNrc = r.nrc_id === currentNrc;
+            const matchesCourse = this.courseNrcs && this.courseNrcs.map(n => parseInt(n)).includes(parseInt(r.nrc_id));
+            return matchesNrc || matchesCourse;
+        });
+
+        if (filteredRubrics.length === 0) {
             return `
-                <div class="alert alert-warning" style="padding: 1rem; background-color: #fff3cd; border: 1px solid #ffeeba; border-radius: 6px; color: #856404;">
-                    ⚠️ No hay rúbricas registradas en el sistema. Por favor, solicita al Comité Académico que cree una.
+                <div class="alert alert-warning" style="padding: 1rem; background-color: rgba(231, 76, 60, 0.1); border: 1px solid rgba(231, 76, 60, 0.2); border-radius: 6px; color: var(--danger-color);">
+                    ⚠️ No hay rúbricas aprobadas registradas para el NRC ${this.configData.courseCode || ''} o su curso. Por favor, solicita al Comité Académico que cree una.
                 </div>
             `;
         }
@@ -440,9 +490,9 @@ export class ConfigurationView {
                 <label for="selectRubric">Selecciona una rúbrica</label>
                 <select id="selectRubric" class="form-control">
                     <option value="">-- Selecciona una rúbrica --</option>
-                    ${this.existingRubrics.map(r => `
+                    ${filteredRubrics.map(r => `
                         <option value="${r.id}" ${this.configData.rubrica_id === r.id ? 'selected' : ''}>
-                            ${r.nombre_rubrica} (${r.criterios?.length || 0} criterios)
+                            ${r.nombre_rubrica} (NRC: ${r.nrc_id || 'N/A'}, ${r.criterios?.length || 0} criterios)
                         </option>
                     `).join('')}
                 </select>
@@ -457,37 +507,39 @@ export class ConfigurationView {
         if (!rubrica || !rubrica.criterios) return '';
 
         return `
-            <div class="rubric-preview">
-                <h5>Vista previa: ${rubrica.nombre_rubrica}</h5>
-                ${rubrica.descripcion ? `<p class="text-muted">${rubrica.descripcion}</p>` : ''}
-                
-                ${rubrica.criterios.map((criterio, idx) => `
-                    <div class="criterio-preview-card">
-                        <div class="criterio-preview-header">
-                            <span class="criterio-numero">${idx + 1}</span>
-                            <strong>${criterio.nombre_criterio}</strong>
-                            <span class="criterio-peso-badge">${(criterio.peso * 100).toFixed(0)}%</span>
-                        </div>
-                        ${criterio.descripcion_criterio ? `
-                            <p class="criterio-descripcion-small">${criterio.descripcion_criterio}</p>
-                        ` : ''}
-                        
-                        ${criterio.niveles && criterio.niveles.length > 0 ? `
-                            <div class="niveles-preview">
-                                ${criterio.niveles.map(nivel => `
-                                    <div class="nivel-preview-item">
-                                        <strong>${nivel.nombre_nivel}</strong>
-                                        <span class="nivel-puntaje">
-                                            ${nivel.puntaje_min === nivel.puntaje_max
-                ? `${nivel.puntaje_min} pts`
-                : `${nivel.puntaje_min}-${nivel.puntaje_max} pts`}
-                                        </span>
-                                    </div>
-                                `).join('')}
+            <div class="main-card" style="background: var(--card-bg); border: 1px solid var(--card-border); border-radius: var(--radius-lg); padding: 24px; box-shadow: var(--shadow-sm); margin-top: 20px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--card-border); padding-bottom: 15px; margin-bottom: 20px;">
+                    <h3 style="margin: 0; font-size: 18px; font-weight: 600; color: var(--text-color);">👁️ Rúbrica Configurada</h3>
+                </div>
+                <div class="rubric-preview" style="border: none; padding: 0;">
+                    <h4 style="margin: 0 0 6px 0; color: var(--primary-color); font-size: 18px; font-weight: 700;">${rubrica.nombre_rubrica}</h4>
+                    ${rubrica.descripcion ? `<p class="text-muted" style="margin-bottom: 20px; font-size: 14px; line-height: 1.5;">${rubrica.descripcion}</p>` : ''}
+                    <div class="criterios-preview-list" style="display: flex; flex-direction: column; gap: 20px;">
+                        ${rubrica.criterios.map((criterio, idx) => `
+                            <div class="criterio-preview-card" style="border: 1px solid var(--card-border); border-radius: var(--radius-md); padding: 16px; background-color: var(--input-bg);">
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; border-bottom: 1px solid var(--card-border); padding-bottom: 8px;">
+                                    <h5 style="margin: 0; font-size: 15px; font-weight: 600; color: var(--text-color);">${idx + 1}. ${criterio.nombre_criterio}</h5>
+                                    <span style="font-weight: 700; color: var(--primary-color); font-size: 14px;">Puntos: ${this.getCriterioPoints(criterio)} pts</span>
+                                </div>
+                                <p style="margin-bottom: 12px; font-size: 13.5px; color: var(--secondary-text); line-height: 1.4;">${criterio.descripcion_criterio || 'Sin descripción'}</p>
+                                
+                                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px;">
+                                    ${criterio.niveles?.map(nivel => `
+                                        <div style="border: 1px solid var(--card-border); border-radius: var(--radius-sm); padding: 12px; background-color: var(--card-bg);">
+                                            <div style="display: flex; justify-content: space-between; font-weight: 600; font-size: 13px; border-bottom: 1px dashed var(--card-border); padding-bottom: 4px; margin-bottom: 8px; color: var(--text-color);">
+                                                <span>${nivel.nombre_nivel}</span>
+                                                <span style="color: var(--primary-color);">${nivel.puntaje !== undefined && nivel.puntaje !== null ? nivel.puntaje : (nivel.puntaje_max !== undefined ? nivel.puntaje_max : '')} pts</span>
+                                            </div>
+                                            <div style="font-size: 12px; color: var(--secondary-text); line-height: 1.4;">
+                                                ${nivel.descriptores?.map(d => `<p style="margin: 0 0 4px 0;">• ${d}</p>`).join('') || 'Sin descriptores'}
+                                            </div>
+                                        </div>
+                                    `).join('') || ''}
+                                </div>
                             </div>
-                        ` : ''}
+                        `).join('')}
                     </div>
-                `).join('')}
+                </div>
             </div>
         `;
     }
@@ -496,16 +548,16 @@ export class ConfigurationView {
         const rubrica = this.configData.rubrica;
 
         return `
-            <div class="form-group">
-                <label for="rubricName">Nombre de la rúbrica *</label>
+            <div style="margin-bottom: 24px;">
+                <label for="rubricName" style="display: block; font-size: 14px; font-weight: 600; color: var(--text-color); margin-bottom: 8px;">Nombre de la Rúbrica *</label>
                 <input type="text" id="rubricName" value="${rubrica.nombre_rubrica || ''}" 
-                       placeholder="Ej: Rúbrica Proyecto Final 2025-1" required>
-            </div>
-
-            <div class="form-group">
-                <label for="rubricDesc">Descripción</label>
+                       placeholder="Nombre de la Rúbrica (ej: Presentación de Proyecto Final)" required
+                       style="font-family: 'Outfit', sans-serif; font-size: 18px; font-weight: 700; color: var(--primary-color); background: var(--input-bg); border: 1px solid var(--input-border); padding: 8px 12px; border-radius: var(--radius-sm); width: 100%; margin-bottom: 16px;">
+                
+                <label for="rubricDesc" style="display: block; font-size: 14px; font-weight: 600; color: var(--text-color); margin-bottom: 8px;">Descripción de la Rúbrica *</label>
                 <textarea id="rubricDesc" rows="2" 
-                          placeholder="Describe el propósito de esta rúbrica...">${rubrica.descripcion || ''}</textarea>
+                          placeholder="Descripción de la rúbrica (ej: Desarrollo de proyecto de asignatura)"
+                          style="font-size: 14px; color: var(--text-color); background: var(--input-bg); border: 1px solid var(--input-border); padding: 8px 12px; border-radius: var(--radius-sm); width: 100%; resize: vertical; min-height: 60px;">${rubrica.descripcion || ''}</textarea>
             </div>
 
             <div class="criterios-section">
@@ -521,11 +573,11 @@ export class ConfigurationView {
                 </div>
 
                 <div class="peso-total">
-                    <strong>Peso total:</strong> 
-                    <span id="pesoTotal">${this.calculateTotalPeso()}%</span>
-                    <span class="status-icon" id="pesoStatus">${this.calculateTotalPeso() === 100 ? '✅' : '⚠️'}</span>
+                    <strong>Puntos totales:</strong> 
+                    <span id="puntosTotal">${this.calculateTotalPoints()} / 20 pts</span>
+                    <span class="status-icon" id="puntosStatus">${this.calculateTotalPoints() === 20 ? '✅' : '⚠️'}</span>
                 </div>
-                <small class="text-muted">El peso total debe sumar 100%</small>
+                <small class="text-muted">La suma de los puntos máximos de los criterios debe ser exactamente 20</small>
             </div>
 
             <div class="form-group">
@@ -543,63 +595,80 @@ export class ConfigurationView {
                 {
                     id: Date.now() + '_1',
                     nombre_nivel: 'Excelente',
-                    puntaje_min: 3,
-                    puntaje_max: 3,
+                    puntaje: undefined,
                     descriptores: [''],
                     orden: 1
+                },
+                {
+                    id: Date.now() + '_2',
+                    nombre_nivel: 'Bueno',
+                    puntaje: undefined,
+                    descriptores: [''],
+                    orden: 2
+                },
+                {
+                    id: Date.now() + '_3',
+                    nombre_nivel: 'Requiere mejora',
+                    puntaje: undefined,
+                    descriptores: [''],
+                    orden: 3
+                },
+                {
+                    id: Date.now() + '_4',
+                    nombre_nivel: 'No aceptable',
+                    puntaje: undefined,
+                    descriptores: [''],
+                    orden: 4
                 }
             ];
         }
 
+        const criterionPoints = this.getCriterioPoints(criterio);
+
         return `
-            <div class="criterio-item" data-criterio-id="${criterio.id}">
-                <div class="criterio-header">
-                    <span class="criterio-number">${index + 1}</span>
-                    <input type="text" class="criterio-nombre" data-criterio-index="${index}"
-                        value="${criterio.nombre_criterio || ''}" 
-                        placeholder="Nombre del criterio" required>
-                    <button type="button" class="btn-icon btn-delete" data-action="delete-criterio" data-index="${index}">
-                        🗑️
-                    </button>
+            <div class="criterio-item" data-criterio-id="${criterio.id}" style="background-color: var(--card-bg); border: 1px solid var(--card-border); border-radius: var(--radius-md); padding: 20px; margin-bottom: 24px; position: relative;">
+                
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; gap: 12px;">
+                    <div style="display: flex; align-items: center; gap: 8px; flex: 1;">
+                        <span style="font-size: 16px; font-weight: 700; color: var(--text-color);">${index + 1}.</span>
+                        <input type="text" class="criterio-nombre" data-criterio-index="${index}"
+                            value="${criterio.nombre_criterio || ''}" 
+                            placeholder="Nombre del criterio (ej: Aplicación de herramientas...)" required
+                            style="font-size: 16px; font-weight: 700; color: var(--text-color); background: var(--input-bg); border: 1px solid var(--input-border); border-radius: var(--radius-sm); padding: 8px 12px; flex: 1;">
+                    </div>
+                    
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <button type="button" class="btn-icon btn-delete" data-action="delete-criterio" data-index="${index}" style="background-color: var(--danger-color); border: none; border-radius: 4px; padding: 6px 8px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: opacity 0.2s;" onmouseover="this.style.opacity=0.9" onmouseout="this.style.opacity=1">
+                            <svg viewBox="0 0 24 24" width="16" height="16" stroke="white" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="3 6 5 6 21 6"></polyline>
+                                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                                <line x1="10" y1="11" x2="10" y2="17"></line>
+                                <line x1="14" y1="11" x2="14" y2="17"></line>
+                            </svg>
+                        </button>
+                    </div>
                 </div>
 
-                <div class="criterio-body">
-                    <div class="form-group">
-                        <label>Descripción del criterio</label>
-                        <textarea class="criterio-descripcion" data-criterio-index="${index}" rows="2" 
-                                placeholder="¿Qué evalúa este criterio?">${criterio.descripcion_criterio || ''}</textarea>
+                <div style="margin-bottom: 20px;">
+                    <textarea class="criterio-descripcion" data-criterio-index="${index}" rows="2" 
+                            placeholder="Descripción del criterio (ej: Utiliza herramientas y métodos avanzados...)"
+                            style="font-size: 13.5px; color: var(--text-color); background: var(--input-bg); border: 1px solid var(--input-border); border-radius: var(--radius-sm); padding: 8px 12px; resize: vertical; min-height: 40px; width: 100%; box-sizing: border-box;">${criterio.descripcion_criterio || ''}</textarea>
+                </div>
+
+                <!-- NIVELES -->
+                <div class="niveles-section" style="border: none; background: transparent; padding: 0; margin-top: 16px;">
+                    <div class="niveles-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                        <span style="font-size: 14px; font-weight: 600; color: var(--text-color);">Niveles de Desempeño</span>
+                        <button type="button" class="btn btn-sm btn-secondary" 
+                                data-action="add-nivel" data-criterio-index="${index}" style="font-size: 12px; padding: 4px 12px;">
+                            ➕ Agregar nivel
+                        </button>
                     </div>
 
-                    <div class="form-group peso-group">
-                        <label>Peso (%)</label>
-                        <div class="peso-input-group">
-                            <input type="number" class="criterio-peso" data-criterio-index="${index}"
-                                value="${(criterio.peso * 100).toFixed(0)}" 
-                                min="1" max="100" step="1" required>
-                            <span class="input-suffix">%</span>
-                        </div>
-                        <input type="range" class="peso-slider" data-criterio-index="${index}"
-                            value="${(criterio.peso * 100).toFixed(0)}" 
-                            min="0" max="100" step="5">
-                    </div>
-
-                    <!-- NIVELES -->
-                    <div class="niveles-section">
-                        <div class="niveles-header">
-                            <label>Niveles de desempeño</label>
-                            <!-- Botón oculto/deshabilitado porque solo se permite 1 descriptor por ahora, 
-                                 pero mantenemos la estructura si se requiere en el futuro o para agregar niveles -->
-                            <button type="button" class="btn btn-sm btn-secondary" 
-                                    data-action="add-nivel" data-criterio-index="${index}">
-                                ➕ Agregar nivel
-                            </button>
-                        </div>
-
-                        <div class="niveles-list">
-                            ${criterio.niveles.map((nivel, nIndex) =>
+                    <div class="niveles-list" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px;">
+                        ${criterio.niveles.map((nivel, nIndex) =>
             this.renderNivelItem(nivel, index, nIndex)
         ).join('')}
-                        </div>
                     </div>
                 </div>
             </div>
@@ -608,53 +677,51 @@ export class ConfigurationView {
 
 
     renderNivelItem(nivel, criterioIndex, nivelIndex) {
-
         if (!nivel.descriptores || nivel.descriptores.length === 0) {
             nivel.descriptores = [''];
         }
 
         return `
-            <div class="nivel-item" data-nivel-id="${nivel.id}">
-                <div class="nivel-header">
+            <div class="nivel-item" data-nivel-id="${nivel.id}" style="background-color: var(--input-bg); border: 1px solid var(--card-border); border-radius: var(--radius-sm); padding: 14px; position: relative;">
+                
+                <div class="nivel-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; gap: 8px; border-bottom: 1px dashed var(--card-border); padding-bottom: 6px;">
                     <input type="text" class="nivel-nombre" 
                         data-criterio-index="${criterioIndex}" data-nivel-index="${nivelIndex}"
                         value="${nivel.nombre_nivel || ''}" 
-                        placeholder="Ej: Excelente, Bueno, Regular..." required>
+                        placeholder="Nivel (ej: Excelente)" required
+                        style="font-size: 13px; font-weight: 700; color: var(--text-color); background: var(--card-bg); border: 1px solid var(--input-border); border-radius: var(--radius-sm); padding: 4px 8px; flex: 1; min-width: 150px;">
                     
-                    <div class="nivel-puntaje-inputs">
-                        <input type="number" class="nivel-puntaje-min" 
+                    <div style="display: flex; align-items: center; gap: 4px;">
+                        <input type="number" class="nivel-puntaje" 
                             data-criterio-index="${criterioIndex}" data-nivel-index="${nivelIndex}"
-                            value="${nivel.puntaje_min}" min="0" max="20" step="0.5" 
-                            placeholder="Min" required>
-                        <span>-</span>
-                        <input type="number" class="nivel-puntaje-max" 
-                            data-criterio-index="${criterioIndex}" data-nivel-index="${nivelIndex}"
-                            value="${nivel.puntaje_max}" min="0" max="20" step="0.5" 
-                            placeholder="Max" required>
-                        <span class="text-muted">pts</span>
+                            value="${nivel.puntaje !== undefined && nivel.puntaje !== null ? nivel.puntaje : ''}" 
+                            min="0" max="20" step="0.5" 
+                            placeholder="Pts" required
+                            style="width: 55px; text-align: center; font-size: 13px; font-weight: 700; color: var(--primary-color); background: var(--card-bg); border: 1px solid var(--input-border); border-radius: 4px; padding: 4px;">
+                        <span style="font-size: 12px; color: var(--primary-color); font-weight: 600; margin-left: 2px;">pts</span>
                     </div>
 
                     <button type="button" class="btn-icon btn-delete" 
                             data-action="delete-nivel" 
                             data-criterio-index="${criterioIndex}" 
-                            data-nivel-index="${nivelIndex}">
-                        🗑️
+                            data-nivel-index="${nivelIndex}"
+                            style="background-color: var(--danger-color); border: none; border-radius: 4px; padding: 6px 8px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: opacity 0.2s;" onmouseover="this.style.opacity=0.9" onmouseout="this.style.opacity=1">
+                        <svg viewBox="0 0 24 24" width="14" height="14" stroke="white" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="3 6 5 6 21 6"></polyline>
+                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                            <line x1="10" y1="11" x2="10" y2="17"></line>
+                            <line x1="14" y1="11" x2="14" y2="17"></line>
+                        </svg>
                     </button>
                 </div>
 
-                <div class="nivel-body">
-                    <label>Descriptor (qué debe lograr el estudiante)</label>
-                    <div class="descriptores-list">
-                        <div class="descriptor-item">
-                            <span class="descriptor-bullet">•</span>
-                            <textarea class="descriptor-input auto-expand" 
-                                data-criterio-index="${criterioIndex}" 
-                                data-nivel-index="${nivelIndex}"
-                                data-descriptor-index="0"
-                                placeholder="Describe el nivel de desempeño..."
-                                rows="2">${nivel.descriptores[0] || ''}</textarea>
-                        </div>
-                    </div>
+                <div class="nivel-body" style="padding-left: 0; margin-top: 8px;">
+                    <textarea class="descriptor-input auto-expand" 
+                        data-criterio-index="${criterioIndex}" 
+                        data-nivel-index="${nivelIndex}"
+                        data-descriptor-index="0"
+                        placeholder="Descriptor del nivel de desempeño..."
+                        style="font-size: 12px; color: var(--text-color); background: var(--card-bg); border: 1px solid var(--input-border); border-radius: var(--radius-sm); padding: 8px; width: 100%; box-sizing: border-box; resize: vertical; min-height: 100px; line-height: 1.4;">${nivel.descriptores[0] || ''}</textarea>
                 </div>
             </div>
         `;
@@ -689,6 +756,133 @@ export class ConfigurationView {
 
         const total = rubrica.criterios.reduce((sum, c) => sum + (c.peso || 0), 0);
         return Math.round(total * 100);
+    }
+
+    getCriterioPoints(criterio) {
+        if (criterio.niveles && criterio.niveles.length > 0) {
+            const nivelExcelente = criterio.niveles[0];
+            const p = nivelExcelente.puntaje !== undefined && nivelExcelente.puntaje !== null ? nivelExcelente.puntaje : nivelExcelente.puntaje_max;
+            if (p !== undefined && p !== null) {
+                return p;
+            }
+        }
+        return undefined;
+    }
+
+    calculateTotalPoints() {
+        const rubrica = this.configData.rubrica;
+        if (!rubrica || !rubrica.criterios) return 0;
+        return rubrica.criterios.reduce((sum, c) => {
+            const pts = this.getCriterioPoints(c);
+            return sum + (pts !== undefined ? pts : 0);
+        }, 0);
+    }
+
+    updatePuntosTotal() {
+        const total = this.calculateTotalPoints();
+        const puntosTotalEl = document.getElementById('puntosTotal');
+        const puntosStatusEl = document.getElementById('puntosStatus');
+
+        if (puntosTotalEl) puntosTotalEl.textContent = `${total} / 20 pts`;
+        if (puntosStatusEl) puntosStatusEl.textContent = total === 20 ? '✅' : '⚠️';
+    }
+
+    validateRubricaForm(rubrica) {
+        if (!rubrica.nombre_rubrica || !ValidatorUtils.isValidDescription(rubrica.nombre_rubrica)) {
+            showErrorNotification(new Error('El nombre de la rúbrica es inválido: solo letras y puntuación básica, sin números ni símbolos'));
+            return false;
+        }
+
+        if (!rubrica.descripcion || !ValidatorUtils.isValidDescription(rubrica.descripcion)) {
+            showErrorNotification(new Error('La descripción de la rúbrica es obligatoria y debe contener solo letras y puntuación básica'));
+            return false;
+        }
+
+        if (!rubrica.criterios || rubrica.criterios.length === 0) {
+            showErrorNotification(new Error('Debe haber al menos un criterio'));
+            return false;
+        }
+
+        for (let i = 0; i < rubrica.criterios.length; i++) {
+            const criterio = rubrica.criterios[i];
+
+            if (!ValidatorUtils.isValidDescription(criterio.nombre_criterio)) {
+                showErrorNotification(new Error(`Nombre del criterio ${i + 1} inválido: solo letras y puntuación básica, sin números ni símbolos`));
+                return false;
+            }
+
+            if (!criterio.descripcion_criterio || !ValidatorUtils.isValidDescription(criterio.descripcion_criterio)) {
+                showErrorNotification(new Error(`La descripción del criterio "${criterio.nombre_criterio}" es obligatoria y debe contener solo letras y puntuación básica`));
+                return false;
+            }
+
+            if (!criterio.niveles || criterio.niveles.length === 0) {
+                showErrorNotification(new Error(`El criterio "${criterio.nombre_criterio}" debe tener al menos un nivel`));
+                return false;
+            }
+
+            const criterioMaxPoints = this.getCriterioPoints(criterio);
+            if (criterioMaxPoints === undefined || criterioMaxPoints === null || isNaN(criterioMaxPoints) || criterioMaxPoints <= 0) {
+                showErrorNotification(new Error(`El criterio "${criterio.nombre_criterio}" debe tener un puntaje máximo definido en su primer nivel (${criterio.niveles[0]?.nombre_nivel || 'Excelente'})`));
+                return false;
+            }
+
+            let prevNivelMax = Infinity;
+
+            for (let j = 0; j < criterio.niveles.length; j++) {
+                const nivel = criterio.niveles[j];
+
+                if (!ValidatorUtils.isValidDescription(nivel.nombre_nivel)) {
+                    showErrorNotification(new Error(`Nombre del nivel ${j + 1} en "${criterio.nombre_criterio}" inválido: solo letras y puntuación básica, sin números ni símbolos`));
+                    return false;
+                }
+
+                const puntaje = nivel.puntaje !== undefined && nivel.puntaje !== null ? nivel.puntaje : nivel.puntaje_max;
+
+                if (puntaje === undefined || puntaje === null || isNaN(puntaje)) {
+                    showErrorNotification(new Error(`El puntaje del nivel "${nivel.nombre_nivel}" en "${criterio.nombre_criterio}" es obligatorio`));
+                    return false;
+                }
+
+                if (puntaje < 0) {
+                    showErrorNotification(new Error(`El puntaje del nivel "${nivel.nombre_nivel}" en "${criterio.nombre_criterio}" no puede ser negativo`));
+                    return false;
+                }
+
+                if (puntaje >= prevNivelMax) {
+                    showErrorNotification(new Error(`El puntaje del nivel "${nivel.nombre_nivel}" (${puntaje} pts) debe ser menor que el del nivel anterior (${prevNivelMax} pts) en "${criterio.nombre_criterio}"`));
+                    return false;
+                }
+                prevNivelMax = puntaje;
+
+                nivel.descriptores = nivel.descriptores.filter(d => d.trim() !== '');
+
+                if (nivel.descriptores.length === 0) {
+                    showErrorNotification(new Error(`El nivel "${nivel.nombre_nivel}" en "${criterio.nombre_criterio}" debe tener al menos un descriptor`));
+                    return false;
+                }
+
+                for (const desc of nivel.descriptores) {
+                    if (!ValidatorUtils.isValidDescription(desc)) {
+                        showErrorNotification(new Error(`Descriptor inválido en nivel "${nivel.nombre_nivel}" de "${criterio.nombre_criterio}": debe contener solo letras y puntuación básica, sin números ni símbolos`));
+                        return false;
+                    }
+                }
+
+                if (j === criterio.niveles.length - 1 && puntaje !== 0) {
+                    showErrorNotification(new Error(`El nivel de menor desempeño ("${nivel.nombre_nivel}") en el criterio "${criterio.nombre_criterio}" debe tener un puntaje de 0`));
+                    return false;
+                }
+            }
+        }
+
+        const totalPoints = this.calculateTotalPoints();
+        if (totalPoints !== 20) {
+            showErrorNotification(new Error(`La suma de los puntos máximos de los criterios debe ser exactamente 20 (actual: ${totalPoints} pts)`));
+            return false;
+        }
+
+        return true;
     }
 
     attachEventListeners() {
@@ -736,6 +930,7 @@ export class ConfigurationView {
                             try {
                                 const CursoService = (await import('../services/curso.service.js')).CursoService;
                                 const nrcs = await CursoService.getCourseNrcs(cursoId);
+                                this.courseNrcs = nrcs || [];
                                 if (nrcs && nrcs.length > 0) {
                                     courseCodeInput.innerHTML = '<option value="">-- Selecciona un NRC --</option>' + nrcs.map(nrc => `
                                         <option value="${nrc}">${nrc}</option>
@@ -775,7 +970,11 @@ export class ConfigurationView {
                     this.configData.courseCode = e.target.value;
                     this.saveConfig();
 
-                    const hasRubric = this.existingRubrics.some(r => r.nrc_id === nrcId);
+                    const hasRubric = this.existingRubrics.some(r => {
+                        const matchesNrc = r.nrc_id === nrcId;
+                        const matchesCourse = this.courseNrcs && this.courseNrcs.map(n => parseInt(n)).includes(parseInt(r.nrc_id));
+                        return matchesNrc || matchesCourse;
+                    });
 
                     let warningDiv = document.getElementById('nrc-rubric-warning');
                     const btnNext = document.getElementById('btnNext');
@@ -785,7 +984,7 @@ export class ConfigurationView {
                             warningDiv = document.createElement('div');
                             warningDiv.id = 'nrc-rubric-warning';
                             warningDiv.style.cssText = 'margin-top: 8px; color: var(--danger-color); font-size: 13.5px; font-weight: 500; display: flex; align-items: center; gap: 6px;';
-                            warningDiv.innerHTML = '⚠️ No existe una rúbrica aprobada para este NRC. Solicítala al Comité Académico.';
+                            warningDiv.innerHTML = '⚠️ No existe una rúbrica aprobada para este NRC o su curso. Solicítala al Comité Académico.';
                             courseCodeInput.parentNode.appendChild(warningDiv);
                         }
                         if (btnNext) {
@@ -863,14 +1062,17 @@ export class ConfigurationView {
 
         const selectRubric = document.getElementById('selectRubric');
         if (selectRubric) {
-            selectRubric.addEventListener('change', async (e) => {
+            selectRubric.addEventListener('change', (e) => {
                 const rubricaId = parseInt(e.target.value);
                 if (rubricaId) {
                     this.configData.rubrica_id = rubricaId;
-                    this.reRender();
+                    this.configData.rubrica = this.existingRubrics.find(r => r.id === rubricaId);
                 } else {
                     this.configData.rubrica_id = null;
+                    this.configData.rubrica = this.getEmptyRubrica();
                 }
+                this.saveConfig();
+                this.reRender();
             });
         }
 
@@ -942,31 +1144,7 @@ export class ConfigurationView {
                     this.saveConfig();
                 }
 
-                if (target.classList.contains('criterio-peso') || target.classList.contains('peso-slider')) {
-                    const index = parseInt(target.dataset.criterioIndex);
-                    let val = parseFloat(target.value);
 
-                    if (val < 1) val = 1;
-                    if (val > 100) val = 100;
-
-                    if (parseFloat(target.value) !== val) {
-                        target.value = val;
-                    }
-
-                    const peso = val / 100;
-                    this.configData.rubrica.criterios[index].peso = peso;
-
-                    const criterioBody = target.closest('.criterio-body');
-                    if (criterioBody) {
-                        const inputPeso = criterioBody.querySelector('.criterio-peso');
-                        const sliderPeso = criterioBody.querySelector('.peso-slider');
-                        if (inputPeso && inputPeso !== target) inputPeso.value = val;
-                        if (sliderPeso && sliderPeso !== target) sliderPeso.value = val;
-                    }
-
-                    this.updatePesoTotal();
-                    this.saveConfig();
-                }
 
                 if (target.classList.contains('nivel-nombre')) {
                     const cIndex = parseInt(target.dataset.criterioIndex);
@@ -980,27 +1158,23 @@ export class ConfigurationView {
                     this.saveConfig();
                 }
 
-                if (target.classList.contains('nivel-puntaje-min')) {
+                if (target.classList.contains('nivel-puntaje')) {
                     const cIndex = parseInt(target.dataset.criterioIndex);
                     const nIndex = parseInt(target.dataset.nivelIndex);
-                    let val = parseFloat(target.value) || 0;
-                    if (val < 0) val = 0;
-                    if (val > 20) val = 20;
-                    if (parseFloat(target.value) !== val) target.value = val;
+                    let val = parseFloat(target.value);
+                    if (isNaN(val)) {
+                        val = undefined;
+                    } else {
+                        if (val < 0) val = 0;
+                        if (val > 20) val = 20;
+                    }
+                    if (target.value !== '' && parseFloat(target.value) !== val) {
+                        target.value = val !== undefined ? val : '';
+                    }
+                    const criterio = this.configData.rubrica.criterios[cIndex];
+                    criterio.niveles[nIndex].puntaje = val;
 
-                    this.configData.rubrica.criterios[cIndex].niveles[nIndex].puntaje_min = val;
-                    this.saveConfig();
-                }
-
-                if (target.classList.contains('nivel-puntaje-max')) {
-                    const cIndex = parseInt(target.dataset.criterioIndex);
-                    const nIndex = parseInt(target.dataset.nivelIndex);
-                    let val = parseFloat(target.value) || 0;
-                    if (val < 0) val = 0;
-                    if (val > 20) val = 20;
-                    if (parseFloat(target.value) !== val) target.value = val;
-
-                    this.configData.rubrica.criterios[cIndex].niveles[nIndex].puntaje_max = val;
+                    this.updatePuntosTotal();
                     this.saveConfig();
                 }
 
@@ -1076,16 +1250,35 @@ export class ConfigurationView {
             id: Date.now() + Math.random(),
             nombre_criterio: '',
             descripcion_criterio: '',
-            peso: 0.1,
             orden: this.configData.rubrica.criterios.length + 1,
             niveles: [
                 {
                     id: Date.now() + Math.random() + '_1',
                     nombre_nivel: 'Excelente',
-                    puntaje_min: 3,
-                    puntaje_max: 3,
+                    puntaje: undefined,
                     descriptores: [''],
                     orden: 1
+                },
+                {
+                    id: Date.now() + Math.random() + '_2',
+                    nombre_nivel: 'Bueno',
+                    puntaje: undefined,
+                    descriptores: [''],
+                    orden: 2
+                },
+                {
+                    id: Date.now() + Math.random() + '_3',
+                    nombre_nivel: 'Requiere mejora',
+                    puntaje: undefined,
+                    descriptores: [''],
+                    orden: 3
+                },
+                {
+                    id: Date.now() + Math.random() + '_4',
+                    nombre_nivel: 'No aceptable',
+                    puntaje: undefined,
+                    descriptores: [''],
+                    orden: 4
                 }
             ]
         };
@@ -1121,8 +1314,7 @@ export class ConfigurationView {
         const newNivel = {
             id: Date.now() + Math.random(),
             nombre_nivel: '',
-            puntaje_min: 0,
-            puntaje_max: 0,
+            puntaje: 0,
             descriptores: [''],
             orden: niveles.length + 1
         };
@@ -1171,15 +1363,6 @@ export class ConfigurationView {
         }
     }
 
-
-    updatePesoTotal() {
-        const total = this.calculateTotalPeso();
-        const pesoTotalEl = document.getElementById('pesoTotal');
-        const pesoStatusEl = document.getElementById('pesoStatus');
-
-        if (pesoTotalEl) pesoTotalEl.textContent = `${total}%`;
-        if (pesoStatusEl) pesoStatusEl.textContent = total === 100 ? '✅' : '⚠️';
-    }
 
     async reRender() {
         console.log('Re-renderizando vista...');
@@ -1260,9 +1443,13 @@ export class ConfigurationView {
             const user = AuthService.getCurrentUser();
             if (user && user.rol === 'PROFESOR') {
                 const nrcVal = parseInt(courseCode?.value);
-                const hasRubric = Array.isArray(this.existingRubrics) && this.existingRubrics.some(r => r.nrc_id === nrcVal);
+                const hasRubric = Array.isArray(this.existingRubrics) && this.existingRubrics.some(r => {
+                    const matchesNrc = r.nrc_id === nrcVal;
+                    const matchesCourse = this.courseNrcs && this.courseNrcs.map(n => parseInt(n)).includes(parseInt(r.nrc_id));
+                    return matchesNrc || matchesCourse;
+                });
                 if (!hasRubric) {
-                    showErrorNotification(new Error('No existe una rúbrica aprobada para este NRC. Solicítala al Comité Académico.'));
+                    showErrorNotification(new Error('No existe una rúbrica aprobada para este NRC o su curso. Solicítala al Comité Académico.'));
                     courseCode?.focus();
                     return false;
                 }
@@ -1311,66 +1498,7 @@ export class ConfigurationView {
             } else {
                 const rubrica = this.configData.rubrica;
 
-                if (!ValidatorUtils.isValidDescription(rubrica.nombre_rubrica)) {
-                    showErrorNotification(new Error('El nombre de la rúbrica es inválido: solo letras y puntuación básica, sin números ni símbolos'));
-                    return;
-                }
-
-                if (!rubrica.descripcion || !ValidatorUtils.isValidDescription(rubrica.descripcion)) {
-                    showErrorNotification(new Error('La descripción de la rúbrica es obligatoria y debe contener solo letras y puntuación básica'));
-                    return;
-                }
-
-                if (!rubrica.criterios || rubrica.criterios.length === 0) {
-                    showErrorNotification(new Error('Debe haber al menos un criterio'));
-                    return;
-                }
-
-                for (let i = 0; i < rubrica.criterios.length; i++) {
-                    const criterio = rubrica.criterios[i];
-
-                    if (!ValidatorUtils.isValidDescription(criterio.nombre_criterio)) {
-                        showErrorNotification(new Error(`Nombre del criterio ${i + 1} inválido: solo letras y puntuación básica, sin números ni símbolos`));
-                        return;
-                    }
-
-                    if (!criterio.descripcion_criterio || !ValidatorUtils.isValidDescription(criterio.descripcion_criterio)) {
-                        showErrorNotification(new Error(`La descripción del criterio "${criterio.nombre_criterio}" es obligatoria y debe contener solo letras y puntuación básica`));
-                        return;
-                    }
-
-                    if (!criterio.niveles || criterio.niveles.length === 0) {
-                        showErrorNotification(new Error(`El criterio "${criterio.nombre_criterio}" debe tener al menos un nivel`));
-                        return;
-                    }
-
-                    for (let j = 0; j < criterio.niveles.length; j++) {
-                        const nivel = criterio.niveles[j];
-
-                        if (!ValidatorUtils.isValidDescription(nivel.nombre_nivel)) {
-                            showErrorNotification(new Error(`Nombre del nivel ${j + 1} en "${criterio.nombre_criterio}" inválido: solo letras y puntuación básica, sin números ni símbolos`));
-                            return;
-                        }
-
-                        nivel.descriptores = nivel.descriptores.filter(d => d.trim() !== '');
-
-                        if (nivel.descriptores.length === 0) {
-                            showErrorNotification(new Error(`El nivel "${nivel.nombre_nivel}" en "${criterio.nombre_criterio}" debe tener al menos un descriptor`));
-                            return;
-                        }
-
-                        for (const desc of nivel.descriptores) {
-                            if (!ValidatorUtils.isValidDescription(desc)) {
-                                showErrorNotification(new Error(`Descriptor inválido en nivel "${nivel.nombre_nivel}": debe contener solo letras y puntuación básica, sin números ni símbolos`));
-                                return;
-                            }
-                        }
-                    }
-                }
-
-                const total = this.calculateTotalPeso();
-                if (total !== 100) {
-                    showErrorNotification(new Error(`El peso total debe ser exactamente 100% (actual: ${total}%)`));
+                if (!this.validateRubricaForm(rubrica)) {
                     return;
                 }
 
@@ -1682,7 +1810,7 @@ export class ConfigurationView {
                         <div class="criterio-preview-card" style="border: 1px solid var(--card-border); border-radius: var(--radius-md); padding: 16px; background-color: var(--input-bg);">
                             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; border-bottom: 1px solid var(--card-border); padding-bottom: 8px;">
                                 <h5 style="margin: 0; font-size: 15px; font-weight: 600; color: var(--text-color);">${idx + 1}. ${criterio.nombre_criterio}</h5>
-                                <span style="font-weight: 700; color: var(--primary-color); font-size: 14px;">Peso: ${(criterio.peso * 100).toFixed(0)}%</span>
+                                <span style="font-weight: 700; color: var(--primary-color); font-size: 14px;">Puntos: ${this.getCriterioPoints(criterio)} pts</span>
                             </div>
                             <p style="margin-bottom: 12px; font-size: 13.5px; color: var(--secondary-text); line-height: 1.4;">${criterio.descripcion_criterio || 'Sin descripción'}</p>
                             
@@ -1691,7 +1819,7 @@ export class ConfigurationView {
                                     <div style="border: 1px solid var(--card-border); border-radius: var(--radius-sm); padding: 12px; background-color: var(--card-bg);">
                                         <div style="display: flex; justify-content: space-between; font-weight: 600; font-size: 13px; border-bottom: 1px dashed var(--card-border); padding-bottom: 4px; margin-bottom: 8px; color: var(--text-color);">
                                             <span>${nivel.nombre_nivel}</span>
-                                            <span style="color: var(--primary-color);">${nivel.puntaje_min} - ${nivel.puntaje_max} pts</span>
+                                            <span style="color: var(--primary-color);">${nivel.puntaje !== undefined && nivel.puntaje !== null ? nivel.puntaje : (nivel.puntaje_max !== undefined ? nivel.puntaje_max : '')} pts</span>
                                         </div>
                                         <div style="font-size: 12px; color: var(--secondary-text); line-height: 1.4;">
                                             ${nivel.descriptores?.map(d => `<p style="margin: 0 0 4px 0;">• ${d}</p>`).join('') || 'Sin descriptores'}
@@ -1709,66 +1837,7 @@ export class ConfigurationView {
     async saveComiteRubric() {
         const rubrica = this.configData.rubrica;
 
-        if (!ValidatorUtils.isValidDescription(rubrica.nombre_rubrica)) {
-            showErrorNotification(new Error('El nombre de la rúbrica es inválido: solo letras y puntuación básica, sin números ni símbolos'));
-            return;
-        }
-
-        if (!rubrica.descripcion || !ValidatorUtils.isValidDescription(rubrica.descripcion)) {
-            showErrorNotification(new Error('La descripción de la rúbrica es obligatoria y debe contener solo letras y puntuación básica'));
-            return;
-        }
-
-        if (!rubrica.criterios || rubrica.criterios.length === 0) {
-            showErrorNotification(new Error('Debe haber al menos un criterio'));
-            return;
-        }
-
-        for (let i = 0; i < rubrica.criterios.length; i++) {
-            const criterio = rubrica.criterios[i];
-
-            if (!ValidatorUtils.isValidDescription(criterio.nombre_criterio)) {
-                showErrorNotification(new Error(`Nombre del criterio ${i + 1} inválido: solo letras y puntuación básica, sin números ni símbolos`));
-                return;
-            }
-
-            if (!criterio.descripcion_criterio || !ValidatorUtils.isValidDescription(criterio.descripcion_criterio)) {
-                showErrorNotification(new Error(`La descripción del criterio "${criterio.nombre_criterio}" es obligatoria y debe contener solo letras y puntuación básica`));
-                return;
-            }
-
-            if (!criterio.niveles || criterio.niveles.length === 0) {
-                showErrorNotification(new Error(`El criterio "${criterio.nombre_criterio}" debe tener al menos un nivel`));
-                return;
-            }
-
-            for (let j = 0; j < criterio.niveles.length; j++) {
-                const nivel = criterio.niveles[j];
-
-                if (!ValidatorUtils.isValidDescription(nivel.nombre_nivel)) {
-                    showErrorNotification(new Error(`Nombre del nivel ${j + 1} en "${criterio.nombre_criterio}" inválido: solo letras y puntuación básica, sin números ni símbolos`));
-                    return;
-                }
-
-                nivel.descriptores = nivel.descriptores.filter(d => d.trim() !== '');
-
-                if (nivel.descriptores.length === 0) {
-                    showErrorNotification(new Error(`El nivel "${nivel.nombre_nivel}" en "${criterio.nombre_criterio}" debe tener al menos un descriptor`));
-                    return;
-                }
-
-                for (const desc of nivel.descriptores) {
-                    if (!ValidatorUtils.isValidDescription(desc)) {
-                        showErrorNotification(new Error(`Descriptor inválido en nivel "${nivel.nombre_nivel}": debe contener solo letras y puntuación básica, sin números ni símbolos`));
-                        return;
-                    }
-                }
-            }
-        }
-
-        const total = this.calculateTotalPeso();
-        if (total !== 100) {
-            showErrorNotification(new Error(`El peso total debe ser exactamente 100% (actual: ${total}%)`));
+        if (!this.validateRubricaForm(rubrica)) {
             return;
         }
 
@@ -1834,6 +1903,30 @@ export class ConfigurationView {
 
     attachComiteEventListeners() {
         if (this.comiteCreating || this.comiteEditing) {
+            const rubricName = document.getElementById('rubricName');
+            if (rubricName) {
+                rubricName.addEventListener('input', (e) => {
+                    const sanitized = ValidatorUtils.sanitizeText(e.target.value, true);
+                    if (e.target.value !== sanitized) {
+                        e.target.value = sanitized;
+                    }
+                    this.configData.rubrica.nombre_rubrica = sanitized;
+                    this.saveConfig();
+                });
+            }
+
+            const rubricDesc = document.getElementById('rubricDesc');
+            if (rubricDesc) {
+                rubricDesc.addEventListener('input', (e) => {
+                    const sanitized = ValidatorUtils.sanitizeText(e.target.value, true);
+                    if (e.target.value !== sanitized) {
+                        e.target.value = sanitized;
+                    }
+                    this.configData.rubrica.descripcion = sanitized;
+                    this.saveConfig();
+                });
+            }
+
             const addCriterio = document.getElementById('addCriterio');
             if (addCriterio) {
                 addCriterio.addEventListener('click', () => this.addCriterio());
@@ -1858,24 +1951,6 @@ export class ConfigurationView {
                         if (target.value !== sanitized) target.value = sanitized;
                         this.configData.rubrica.criterios[index].descripcion_criterio = sanitized;
                     }
-                    if (target.classList.contains('criterio-peso') || target.classList.contains('peso-slider')) {
-                        const index = parseInt(target.dataset.criterioIndex);
-                        let val = parseFloat(target.value);
-                        if (val < 1) val = 1;
-                        if (val > 100) val = 100;
-                        if (parseFloat(target.value) !== val) target.value = val;
-                        const peso = val / 100;
-                        this.configData.rubrica.criterios[index].peso = peso;
-
-                        const criterioBody = target.closest('.criterio-body');
-                        if (criterioBody) {
-                            const inputPeso = criterioBody.querySelector('.criterio-peso');
-                            const sliderPeso = criterioBody.querySelector('.peso-slider');
-                            if (inputPeso && inputPeso !== target) inputPeso.value = val;
-                            if (sliderPeso && sliderPeso !== target) sliderPeso.value = val;
-                        }
-                        this.updatePesoTotal();
-                    }
                     if (target.classList.contains('nivel-nombre')) {
                         const cIndex = parseInt(target.dataset.criterioIndex);
                         const nIndex = parseInt(target.dataset.nivelIndex);
@@ -1883,23 +1958,24 @@ export class ConfigurationView {
                         if (target.value !== sanitized) target.value = sanitized;
                         this.configData.rubrica.criterios[cIndex].niveles[nIndex].nombre_nivel = sanitized;
                     }
-                    if (target.classList.contains('nivel-puntaje-min')) {
+                    if (target.classList.contains('nivel-puntaje')) {
                         const cIndex = parseInt(target.dataset.criterioIndex);
                         const nIndex = parseInt(target.dataset.nivelIndex);
-                        let val = parseFloat(target.value) || 0;
-                        if (val < 0) val = 0;
-                        if (val > 20) val = 20;
-                        if (parseFloat(target.value) !== val) target.value = val;
-                        this.configData.rubrica.criterios[cIndex].niveles[nIndex].puntaje_min = val;
-                    }
-                    if (target.classList.contains('nivel-puntaje-max')) {
-                        const cIndex = parseInt(target.dataset.criterioIndex);
-                        const nIndex = parseInt(target.dataset.nivelIndex);
-                        let val = parseFloat(target.value) || 0;
-                        if (val < 0) val = 0;
-                        if (val > 20) val = 20;
-                        if (parseFloat(target.value) !== val) target.value = val;
-                        this.configData.rubrica.criterios[cIndex].niveles[nIndex].puntaje_max = val;
+                        let val = parseFloat(target.value);
+                        if (isNaN(val)) {
+                            val = undefined;
+                        } else {
+                            if (val < 0) val = 0;
+                            if (val > 20) val = 20;
+                        }
+                        if (target.value !== '' && parseFloat(target.value) !== val) {
+                            target.value = val !== undefined ? val : '';
+                        }
+                        const criterio = this.configData.rubrica.criterios[cIndex];
+                        criterio.niveles[nIndex].puntaje = val;
+
+                        this.updatePuntosTotal();
+                        this.saveConfig();
                     }
                     if (target.classList.contains('descriptor-input')) {
                         const cIndex = parseInt(target.dataset.criterioIndex);

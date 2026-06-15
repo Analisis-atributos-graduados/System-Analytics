@@ -54,17 +54,32 @@ class ExtractionService:
 
             imagenes_base64 = self.image_extractor.extract_images(file_bytes, file_extension)
 
-            analisis_visual = None
+            import base64
+            imagenes_gcs = []
+            if imagenes_base64:
+                log.info(f"Subiendo {len(imagenes_base64)} imágenes extraídas a GCS")
+                clean_base = os.path.splitext(os.path.basename(gcs_filename))[0]
+                for idx, img_b64 in enumerate(imagenes_base64):
+                    try:
+                        img_bytes = base64.b64decode(img_b64)
+                        destination_name = f"evaluacion_{evaluacion_id}_img_{clean_base}_{idx}.png"
+                        self.gcs_client.upload_blob(img_bytes, destination_name, content_type="image/png")
+                        imagenes_gcs.append(destination_name)
+                    except Exception as img_err:
+                        log.warning(f"Error al subir imagen {idx} de {gcs_filename} a GCS: {img_err}")
+                        continue
+
+            analisis_visual = {"imagenes_gcs": imagenes_gcs}
 
             archivo = self.archivo_repo.create_archivo(
                 evaluacion_id=evaluacion_id,
                 nombre_archivo_original=original_filename,
                 texto_extraido=texto_extraido,
-                analisis_visual=json.dumps(analisis_visual) if analisis_visual else ""
+                analisis_visual=json.dumps(analisis_visual)
             )
 
             log.info(
-                f"Archivo procesado: ID={archivo.id}, Texto={len(texto_extraido) if texto_extraido else 0} chars")
+                f"Archivo procesado: ID={archivo.id}, Texto={len(texto_extraido) if texto_extraido else 0} chars, Imágenes={len(imagenes_gcs)}")
 
             return {
                 'archivo_id': archivo.id,

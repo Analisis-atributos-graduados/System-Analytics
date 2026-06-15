@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from typing import List, Optional
 
 
@@ -25,7 +25,7 @@ class ExamBatchRequest(BaseModel):
                 "pdf_files": [
                     {"gcs_filename": "abc-123.pdf", "original_filename": "examen1.pdf"}
                 ],
-                "student_list": "Juan Pérez\\nMaría García",
+                "student_list": "Juan Pérez\nMaría García",
                 "rubrica_id": 1,
                 "curso_id": 1,
                 "codigo_curso": "3012-A",
@@ -75,7 +75,7 @@ class CursoSimpleSchema(BaseModel):
         from_attributes = True
 
 
-class EvaluacionSchema(BaseModel):
+class EvaluacionBaseSchema(BaseModel):
     id: int
     nombre_alumno: str
     curso: CursoSimpleSchema
@@ -83,25 +83,26 @@ class EvaluacionSchema(BaseModel):
     instructor: str
     semestre: str
     tema: str
+
+    @field_validator('codigo_curso', mode='before')
+    @classmethod
+    def convert_codigo_curso(cls, v):
+        if v is not None:
+            return str(v)
+        return v
 
     class Config:
         from_attributes = True
 
 
-class EvaluacionDetailSchema(BaseModel):
-    id: int
-    nombre_alumno: str
-    curso: CursoSimpleSchema
-    codigo_curso: str
-    instructor: str
-    semestre: str
-    tema: str
+class EvaluacionSchema(EvaluacionBaseSchema):
+    pass
+
+
+class EvaluacionDetailSchema(EvaluacionBaseSchema):
     descripcion_tema: str | None = None
     archivos_procesados: List[ArchivoProcesadoSchema] = []
     resultado_analisis: ResultadoAnalisisSchema | None = None
-
-    class Config:
-        from_attributes = True
 
 
 class QualityDashboardStats(BaseModel):

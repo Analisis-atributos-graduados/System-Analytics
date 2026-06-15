@@ -259,9 +259,9 @@ body {
 }
 
 .container {
-    max-width: 1400px;
+    max-width: 100%;
     margin: 0 auto;
-    padding: 40px;
+    padding: 20px 50px;
 }
 
 .page-title {
@@ -290,7 +290,7 @@ body {
     background: var(--card-bg);
     border: 1px solid var(--card-border);
     border-radius: var(--radius-xl);
-    padding: 40px;
+    padding: 20px;
     margin-bottom: 20px;
 }
 

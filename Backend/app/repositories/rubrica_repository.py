@@ -71,7 +71,6 @@ class RubricaRepository(BaseRepository):
                     criterio = existing_criterios[i]
                     criterio.nombre_criterio = criterio_data.get("nombre_criterio", "")
                     criterio.descripcion_criterio = criterio_data.get("descripcion_criterio", "")
-                    criterio.peso = criterio_data.get("peso", 0)
                     criterio.orden = criterio_data.get("orden", i + 1)
 
                     existing_niveles = sorted(criterio.niveles, key=lambda n: n.orden)
@@ -81,16 +80,14 @@ class RubricaRepository(BaseRepository):
                         if j < len(existing_niveles):
                             nivel = existing_niveles[j]
                             nivel.nombre_nivel = nivel_data.get("nombre_nivel", "")
-                            nivel.puntaje_min = nivel_data.get("puntaje_min", 0)
-                            nivel.puntaje_max = nivel_data.get("puntaje_max", 0)
+                            nivel.puntaje = nivel_data.get("puntaje", 0)
                             nivel.descriptores = nivel_data.get("descriptores", [])
                             nivel.orden = nivel_data.get("orden", j + 1)
                         else:
                             nuevo_nivel = Nivel(
                                 criterio_id=criterio.id,
                                 nombre_nivel=nivel_data.get("nombre_nivel", ""),
-                                puntaje_min=nivel_data.get("puntaje_min", 0),
-                                puntaje_max=nivel_data.get("puntaje_max", 0),
+                                puntaje=nivel_data.get("puntaje", 0),
                                 descriptores=nivel_data.get("descriptores", []),
                                 orden=nivel_data.get("orden", j + 1)
                             )
@@ -104,7 +101,6 @@ class RubricaRepository(BaseRepository):
                         rubrica_id=rubrica.id,
                         nombre_criterio=criterio_data.get("nombre_criterio", ""),
                         descripcion_criterio=criterio_data.get("descripcion_criterio", ""),
-                        peso=criterio_data.get("peso", 0),
                         orden=criterio_data.get("orden", i + 1)
                     )
                     self.db.add(nuevo_criterio)
@@ -114,8 +110,7 @@ class RubricaRepository(BaseRepository):
                         nuevo_nivel = Nivel(
                             criterio_id=nuevo_criterio.id,
                             nombre_nivel=nivel_data.get("nombre_nivel", ""),
-                            puntaje_min=nivel_data.get("puntaje_min", 0),
-                            puntaje_max=nivel_data.get("puntaje_max", 0),
+                            puntaje=nivel_data.get("puntaje", 0),
                             descriptores=nivel_data.get("descriptores", []),
                             orden=nivel_data.get("orden", 0)
                         )
@@ -151,6 +146,20 @@ class RubricaRepository(BaseRepository):
             log.error(f"Error al obtener rúbrica {rubrica_id} con criterios: {e}")
             raise
 
+    def get_by_nrc_with_criterios(self, nrc_id: int) -> Optional[Rubrica]:
+        try:
+            return (
+                self.db.query(Rubrica)
+                .options(
+                    joinedload(Rubrica.criterios).joinedload(Criterio.niveles)
+                )
+                .filter(Rubrica.nrc_id == nrc_id)
+                .first()
+            )
+        except Exception as e:
+            log.error(f"Error al obtener rúbrica por nrc_id {nrc_id} con criterios: {e}")
+            raise
+
     def create_rubrica_con_criterios(
             self,
             nombre_rubrica: str,
@@ -176,7 +185,6 @@ class RubricaRepository(BaseRepository):
                     rubrica_id=rubrica.id,
                     nombre_criterio=criterio_data.get("nombre_criterio", ""),
                     descripcion_criterio=criterio_data.get("descripcion_criterio", ""),
-                    peso=criterio_data.get("peso", 0),
                     orden=criterio_data.get("orden", 0)
                 )
                 self.db.add(criterio)
@@ -186,8 +194,7 @@ class RubricaRepository(BaseRepository):
                     nivel = Nivel(
                         criterio_id=criterio.id,
                         nombre_nivel=nivel_data.get("nombre_nivel", ""),
-                        puntaje_min=nivel_data.get("puntaje_min", 0),
-                        puntaje_max=nivel_data.get("puntaje_max", 0),
+                        puntaje=nivel_data.get("puntaje", 0),
                         descriptores=nivel_data.get("descriptores", []),
                         orden=nivel_data.get("orden", 0)
                     )

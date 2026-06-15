@@ -1,6 +1,7 @@
 import DocumentService from '../services/document.service.js';
 import FiltrosService from '../services/filtros.service.js';
 import AuthService from '../services/auth.service.js';
+import ApiService from '../services/api.service.js';
 import { showErrorNotification, showSuccessNotification } from '../utils/api.utils.js';
 
 export class AnalysisView {
@@ -521,11 +522,21 @@ export class AnalysisView {
         const subtitle = subDetails.length > 0 ? subDetails.join(' | ') : 'Vista agregada de rendimiento académico';
 
         return `
-            <div class="quality-dashboard">
+            <div class="quality-dashboard" id="printable-dashboard">
                 <!-- Header informativo -->
-                <div class="dashboard-header">
-                    <h3 class="section-title">📊 Dashboard de Calidad - ${dashboardTitle}</h3>
-                    <p class="section-subtitle">${subtitle} (${this.filters.atributo || 'AG-07'})</p>
+                <div class="dashboard-header" style="display: flex; justify-content: space-between; align-items: center; gap: 1rem; margin-bottom: 2rem;">
+                    <div>
+                        <h3 class="section-title" style="margin: 0;">📊 Dashboard de Calidad - ${dashboardTitle}</h3>
+                        <p class="section-subtitle" style="margin: 0.5rem 0 0 0;">${subtitle} (${this.filters.atributo || 'AG-07'})</p>
+                    </div>
+                    <div style="display: flex; gap: 10px; flex-shrink: 0;">
+                        <button class="btn btn-primary btn-sm" id="btnExportPDF" style="display: flex; align-items: center; gap: 8px;" data-html2canvas-ignore="true">
+                            📄 Exportar PDF
+                        </button>
+                        <button class="btn btn-success btn-sm" id="btnExportExcel" style="display: flex; align-items: center; gap: 8px;" data-html2canvas-ignore="true">
+                            📊 Exportar Excel
+                        </button>
+                    </div>
                 </div>
 
                 <!-- Grid de métricas -->
@@ -745,129 +756,139 @@ export class AnalysisView {
                     ⬅ Volver a temas
                 </button>
                 <h3>${this.filters.tema}</h3>
-                ${isHandwritten ? `
-                    <button class="btn btn-success btn-sm" id="btnDownloadTranscriptions">
-                        📥 Descargar Transcripciones (ZIP)
+                <div style="display: flex; gap: 10px;">
+                    <button class="btn btn-primary btn-sm" id="btnExportPDF" style="display: flex; align-items: center; gap: 8px;" data-html2canvas-ignore="true">
+                        📄 Exportar PDF
                     </button>
-                ` : ''}
-            </div>
-
-            <!-- Estadísticas Generales -->
-            <div class="stats-grid">
-                <div class="stat-card">
-                    <div class="stat-icon blue">👥</div>
-                    <div class="stat-data">
-                        <span>Total Estudiantes</span>
-                        <h3>${stats.general.total}</h3>
-                    </div>
-                </div>
-                <div class="stat-card green">
-                    <div class="stat-icon">📊</div>
-                    <div class="stat-data">
-                        <span>Promedio General</span>
-                        <h3>${stats.general.promedio}</h3>
-                    </div>
-                </div>
-                <div class="stat-card orange">
-                    <div class="stat-icon">⚠️</div>
-                    <div class="stat-data">
-                        <span>Desaprobados</span>
-                        <h3>${stats.general.desaprobados}</h3>
-                    </div>
-                </div>
-                <div class="stat-card purple">
-                    <div class="stat-icon">✅</div>
-                    <div class="stat-data">
-                        <span>Aprobados</span>
-                        <h3>${stats.general.aprobados}</h3>
-                    </div>
+                    <button class="btn btn-success btn-sm" id="btnExportExcel" style="display: flex; align-items: center; gap: 8px;" data-html2canvas-ignore="true">
+                        📊 Exportar Excel
+                    </button>
+                    ${isHandwritten ? `
+                        <button class="btn btn-success btn-sm" id="btnDownloadTranscriptions">
+                            📥 Descargar Transcripciones (ZIP)
+                        </button>
+                    ` : ''}
                 </div>
             </div>
 
-            <div class="charts-row">
-                <!-- Distribución de Notas -->
-                <div class="chart-card">
-                    <h4>Distribución de Notas</h4>
-                    <div class="bar-chart">
-                        ${Object.entries(stats.distribucion).map(([range, count]) => `
-                            <div class="bar-row">
-                                <span class="bar-label">${range}</span>
-                                <div class="bar-container">
-                                    <div class="bar-fill ${this.getBarColor(range)}" 
-                                         style="width: ${(count / stats.general.total * 100) || 0}%"></div>
+            <div id="printable-dashboard">
+                <!-- Estadísticas Generales -->
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon blue">👥</div>
+                        <div class="stat-data">
+                            <span>Total Estudiantes</span>
+                            <h3>${stats.general.total}</h3>
+                        </div>
+                    </div>
+                    <div class="stat-card green">
+                        <div class="stat-icon">📊</div>
+                        <div class="stat-data">
+                            <span>Promedio General</span>
+                            <h3>${stats.general.promedio}</h3>
+                        </div>
+                    </div>
+                    <div class="stat-card orange">
+                        <div class="stat-icon">⚠️</div>
+                        <div class="stat-data">
+                            <span>Desaprobados</span>
+                            <h3>${stats.general.desaprobados}</h3>
+                        </div>
+                    </div>
+                    <div class="stat-card purple">
+                        <div class="stat-icon">✅</div>
+                        <div class="stat-data">
+                            <span>Aprobados</span>
+                            <h3>${stats.general.aprobados}</h3>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="charts-row">
+                    <!-- Distribución de Notas -->
+                    <div class="chart-card">
+                        <h4>Distribución de Notas</h4>
+                        <div class="bar-chart">
+                            ${Object.entries(stats.distribucion).map(([range, count]) => `
+                                <div class="bar-row">
+                                    <span class="bar-label">${range}</span>
+                                    <div class="bar-container">
+                                        <div class="bar-fill ${this.getBarColor(range)}" 
+                                             style="width: ${(count / stats.general.total * 100) || 0}%"></div>
+                                    </div>
+                                    <span class="bar-value">${count}</span>
                                 </div>
-                                <span class="bar-value">${count}</span>
-                            </div>
-                        `).join('')}
+                            `).join('')}
+                        </div>
                     </div>
-                </div>
 
-                <!-- Promedio por Criterio -->
-                <div class="chart-card">
-                    <h4>Promedio por Criterio</h4>
-                    <div class="bar-chart">
-                        ${stats.criterios.map(c => `
-                            <div class="bar-row">
-                                <span class="bar-label">${c.nombre}</span>
-                                <div class="bar-container">
-                                    <div class="bar-fill purple-gradient" 
-                                         style="width: ${c.porcentaje}%"></div>
+                    <!-- Promedio por Criterio -->
+                    <div class="chart-card">
+                        <h4>Promedio por Criterio</h4>
+                        <div class="bar-chart">
+                            ${stats.criterios.map(c => `
+                                <div class="bar-row">
+                                    <span class="bar-label">${c.nombre}</span>
+                                    <div class="bar-container">
+                                        <div class="bar-fill purple-gradient" 
+                                             style="width: ${c.porcentaje}%"></div>
+                                    </div>
+                                    <span class="bar-value">${c.porcentaje}%</span>
                                 </div>
-                                <span class="bar-value">${c.porcentaje}%</span>
-                            </div>
-                        `).join('')}
+                            `).join('')}
+                        </div>
                     </div>
                 </div>
-            </div>
 
-            <!-- Lista de Estudiantes (Acordeón) -->
-            <div class="main-card">
-                <div class="card-header">
-                    <h4>Lista de Estudiantes (${stats.estudiantes.length})</h4>
-                </div>
-                <div class="card-body">
-                    <div class="student-accordion">
-                        ${stats.estudiantes.map(e => `
-                            <div class="student-item" data-id="${e.id}">
-                                <div class="student-header" onclick="this.parentElement.classList.toggle('active')">
-                                    <div class="student-info">
-                                        <div class="student-avatar">${e.nombre.charAt(0)}</div>
-                                        <div>
-                                            <strong>${e.nombre}</strong>
-                                            <small>Evaluado: ${e.fecha ? new Date(e.fecha).toLocaleDateString() : 'N/A'}</small>
+                <!-- Lista de Estudiantes (Acordeón) -->
+                <div class="main-card">
+                    <div class="card-header">
+                        <h4>Lista de Estudiantes (${stats.estudiantes.length})</h4>
+                    </div>
+                    <div class="card-body">
+                        <div class="student-accordion">
+                            ${stats.estudiantes.map(e => `
+                                <div class="student-item" data-id="${e.id}">
+                                    <div class="student-header" onclick="this.parentElement.classList.toggle('active')">
+                                        <div class="student-info">
+                                            <div class="student-avatar">${e.nombre.charAt(0)}</div>
+                                            <div>
+                                                <strong>${e.nombre}</strong>
+                                                <small>Evaluado: ${e.fecha ? new Date(e.fecha).toLocaleDateString() : 'N/A'}</small>
+                                            </div>
+                                        </div>
+                                        <div class="student-grade">
+                                            <span class="nota-large ${e.nota >= 10.5 ? 'text-green' : 'text-red'}">
+                                                ${e.nota}
+                                            </span>
+                                            <span class="toggle-icon">▼</span>
                                         </div>
                                     </div>
-                                    <div class="student-grade">
-                                        <span class="nota-large ${e.nota >= 10.5 ? 'text-green' : 'text-red'}">
-                                            ${e.nota}
-                                        </span>
-                                        <span class="toggle-icon">▼</span>
+                                    <div class="student-details">
+                                        <div class="criteria-grid">
+                                            ${e.criterios.map(c => `
+                                                <div class="criterion-detail-card">
+                                                    <div class="criterion-header">
+                                                        <span class="criterion-name">${c.nombre}</span>
+                                                        <span class="criterion-score ${c.porcentaje >= 50 ? 'high' : 'low'}">
+                                                            ${c.porcentaje}%
+                                                        </span>
+                                                    </div>
+                                                    <div class="criterion-feedback">
+                                                        <p>${c.feedback}</p>
+                                                    </div>
+                                                </div>
+                                            `).join('')}
+                                        </div>
                                     </div>
                                 </div>
-                                <div class="student-details">
-                                    <div class="criteria-grid">
-                                        ${e.criterios.map(c => `
-                                            <div class="criterion-detail-card">
-                                                <div class="criterion-header">
-                                                    <span class="criterion-name">${c.nombre}</span>
-                                                    <span class="criterion-score ${c.porcentaje >= 50 ? 'high' : 'low'}">
-                                                        ${c.porcentaje}%
-                                                    </span>
-                                                </div>
-                                                <div class="criterion-feedback">
-                                                    <p>${c.feedback}</p>
-                                                </div>
-                                            </div>
-                                        `).join('')}
-                                    </div>
-                                </div>
-                            </div>
-                        `).join('')}
+                            `).join('')}
+                        </div>
                     </div>
                 </div>
-            </div>
 
-            ${this.renderGlobalFeedbackSection(stats)}
+                ${this.renderGlobalFeedbackSection(stats)}
+            </div>
         `;
     }
 
@@ -1168,6 +1189,16 @@ export class AnalysisView {
                 }
             });
         }
+
+        const btnExportPDF = document.getElementById('btnExportPDF');
+        if (btnExportPDF) {
+            btnExportPDF.addEventListener('click', () => this.exportDashboardToPDF());
+        }
+
+        const btnExportExcel = document.getElementById('btnExportExcel');
+        if (btnExportExcel) {
+            btnExportExcel.addEventListener('click', () => this.exportDashboardToExcel());
+        }
     }
 
     async viewThemeDashboard(tema) {
@@ -1231,6 +1262,159 @@ export class AnalysisView {
             showErrorNotification('Error al descargar transcripciones');
         }
     }
+
+    async exportDashboardToPDF() {
+        const btn = document.getElementById('btnExportPDF');
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = '⏳ Generando Reporte...';
+        }
+
+        try {
+            const user = AuthService.getCurrentUser();
+            const isQualityArea = user && ['DOCENTE_CIAC', 'DIRECTOR_ESCUELA', 'DIRAC'].includes(user.rol);
+            const isDirac = user && user.rol === 'DIRAC';
+
+            let endpoint = '';
+            const queryParams = new URLSearchParams();
+
+            if (isQualityArea) {
+                endpoint = '/evaluaciones/export-quality-pdf-report';
+                queryParams.append('semestre', this.filters.semestre || '');
+                queryParams.append('curso', this.filters.curso || '');
+                queryParams.append('atributo', this.filters.atributo || '');
+                if (isDirac) {
+                    if (this.filters.facultad_id) queryParams.append('facultad_id', this.filters.facultad_id);
+                    if (this.filters.escuela_id) queryParams.append('escuela_id', this.filters.escuela_id);
+                    if (this.filters.nrc) queryParams.append('nrc', this.filters.nrc);
+                }
+            } else {
+                endpoint = '/evaluaciones/export-professor-pdf-report';
+                queryParams.append('semestre', this.filters.semestre || '');
+                queryParams.append('curso', this.filters.curso || '');
+                queryParams.append('tema', this.filters.tema || '');
+            }
+
+            const token = await AuthService.getToken();
+            const activeRole = localStorage.getItem('activeRole');
+            
+            const headers = {
+                'Accept': 'application/pdf'
+            };
+            if (token) headers['Authorization'] = `Bearer ${token}`;
+            if (activeRole) headers['x-active-role'] = activeRole;
+
+            const url = `${ApiService.baseURL}${endpoint}?${queryParams.toString()}`;
+            const response = await fetch(url, { headers });
+
+            if (!response.ok) {
+                const errText = await response.text();
+                throw new Error(errText || 'Error al generar el PDF en el servidor.');
+            }
+
+            const blob = await response.blob();
+            const downloadUrl = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = downloadUrl;
+            
+            const cleanCursoName = (this.filters.curso || 'Consolidado').replace(/\s+/g, '_');
+            const cleanTemaName = (this.filters.tema || this.filters.atributo || 'Calidad').replace(/\s+/g, '_');
+            const filename = `Reporte_${cleanCursoName}_${cleanTemaName}.pdf`;
+            
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(downloadUrl);
+            
+            showSuccessNotification('✅ Reporte PDF descargado correctamente.');
+        } catch (error) {
+            console.error('Error al exportar PDF:', error);
+            showErrorNotification('Ocurrió un error al exportar a PDF: ' + error.message);
+        } finally {
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = '📄 Exportar PDF';
+            }
+        }
+    }
+
+    async exportDashboardToExcel() {
+        const btn = document.getElementById('btnExportExcel');
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = '⏳ Generando Excel...';
+        }
+
+        try {
+            const user = AuthService.getCurrentUser();
+            const isQualityArea = user && ['DOCENTE_CIAC', 'DIRECTOR_ESCUELA', 'DIRAC'].includes(user.rol);
+            const isDirac = user && user.rol === 'DIRAC';
+
+            let endpoint = '';
+            const queryParams = new URLSearchParams();
+
+            if (isQualityArea) {
+                endpoint = '/evaluaciones/export-quality-excel-report';
+                queryParams.append('semestre', this.filters.semestre || '');
+                queryParams.append('curso', this.filters.curso || '');
+                queryParams.append('atributo', this.filters.atributo || '');
+                if (isDirac) {
+                    if (this.filters.facultad_id) queryParams.append('facultad_id', this.filters.facultad_id);
+                    if (this.filters.escuela_id) queryParams.append('escuela_id', this.filters.escuela_id);
+                    if (this.filters.nrc) queryParams.append('nrc', this.filters.nrc);
+                }
+            } else {
+                endpoint = '/evaluaciones/export-professor-excel-report';
+                queryParams.append('semestre', this.filters.semestre || '');
+                queryParams.append('curso', this.filters.curso || '');
+                queryParams.append('tema', this.filters.tema || '');
+            }
+
+            const token = await AuthService.getToken();
+            const activeRole = localStorage.getItem('activeRole');
+            
+            const headers = {
+                'Accept': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+            };
+            if (token) headers['Authorization'] = `Bearer ${token}`;
+            if (activeRole) headers['x-active-role'] = activeRole;
+
+            const url = `${ApiService.baseURL}${endpoint}?${queryParams.toString()}`;
+            const response = await fetch(url, { headers });
+
+            if (!response.ok) {
+                const errText = await response.text();
+                throw new Error(errText || 'Error al generar el Excel en el servidor.');
+            }
+
+            const blob = await response.blob();
+            const downloadUrl = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = downloadUrl;
+            
+            const cleanCursoName = (this.filters.curso || 'Consolidado').replace(/\s+/g, '_');
+            const cleanTemaName = (this.filters.tema || this.filters.atributo || 'Calidad').replace(/\s+/g, '_');
+            const filename = `Reporte_${cleanCursoName}_${cleanTemaName}.xlsx`;
+            
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(downloadUrl);
+            
+            showSuccessNotification('✅ Reporte Excel descargado correctamente.');
+        } catch (error) {
+            console.error('Error al exportar Excel:', error);
+            showErrorNotification('Ocurrió un error al exportar a Excel: ' + error.message);
+        } finally {
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = '📊 Exportar Excel';
+            }
+        }
+    }
+
     startPolling(evaluacionId) {
         let attempts = 0;
         const maxAttempts = 60;

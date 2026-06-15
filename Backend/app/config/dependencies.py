@@ -17,6 +17,7 @@ from app.middleware import FirebaseAuth
 from app.clients import GCSClient, TaskClient, GeminiClient, RapidAPIClient
 from app.extractors import TextExtractor, ImageExtractor, StudentNameMatcher
 from app.services.gemini_analyzer import GeminiAnalyzer
+from app.services.report_service import ReportService
 from app.services import (
     OrchestratorService,
     ExtractionService,
@@ -47,7 +48,7 @@ def get_text_extractor() -> TextExtractor:
 
 @lru_cache()
 def get_image_extractor() -> ImageExtractor:
-    return ImageExtractor()
+    return ImageExtractor(max_images=100)
 
 @lru_cache()
 def get_student_matcher() -> StudentNameMatcher:
@@ -56,6 +57,10 @@ def get_student_matcher() -> StudentNameMatcher:
 @lru_cache()
 def get_gemini_analyzer() -> GeminiAnalyzer:
     return GeminiAnalyzer()
+
+@lru_cache()
+def get_report_service() -> ReportService:
+    return ReportService()
 
 def get_task_service(
     task_client: TaskClient = Depends(get_task_client)
@@ -84,7 +89,9 @@ def get_extraction_service(
 
 def get_analysis_service(
     db: Session = Depends(get_db),
-    gemini_analyzer: GeminiAnalyzer = Depends(get_gemini_analyzer)
+    gemini_analyzer: GeminiAnalyzer = Depends(get_gemini_analyzer),
+    gcs_client: GCSClient = Depends(get_gcs_client),
+    image_extractor: ImageExtractor = Depends(get_image_extractor)
 ) -> AnalysisService:
     archivo_repo = ArchivoRepository(db)
     resultado_repo = ResultadoRepository(db)
@@ -96,7 +103,9 @@ def get_analysis_service(
         archivo_repo=archivo_repo,
         rubrica_repo=rubrica_repo,
         resultado_repo=resultado_repo,
-        gemini_analyzer=gemini_analyzer
+        gemini_analyzer=gemini_analyzer,
+        gcs_client=gcs_client,
+        image_extractor=image_extractor
     )
 
 def get_orchestrator_service(

@@ -17,7 +17,7 @@ from app.schemas import (
 )
 from app.repositories import EvaluacionRepository
 from app.services import OrchestratorService
-from app.config.dependencies import get_orchestrator_service, get_current_user, require_role
+from app.config.dependencies import get_orchestrator_service, get_current_user, require_role, get_report_service
 
 log = logging.getLogger(__name__)
 
@@ -113,7 +113,7 @@ async def get_dashboard_stats(
                     
                     max_score = 0
                     if crit_obj.niveles:
-                        max_score = max([n.puntaje_max for n in crit_obj.niveles])
+                        max_score = max([n.puntaje for n in crit_obj.niveles])
                     
                     percentage = (promedio_crit / max_score * 100) if max_score > 0 else 0
 
@@ -130,7 +130,7 @@ async def get_dashboard_stats(
                 if name in crit_name_map:
                     crit_obj = crit_name_map[name]
                     if crit_obj.niveles:
-                        max_score = max([n.puntaje_max for n in crit_obj.niveles])
+                        max_score = max([n.puntaje for n in crit_obj.niveles])
                 elif promedio_crit > 4:
                     max_score = 20.0
 
@@ -163,12 +163,12 @@ async def get_dashboard_stats(
                         crit_obj = crit_map[str(key)]
                         nombre_crit = crit_obj.nombre_criterio
                         if crit_obj.niveles:
-                            max_score = max([n.puntaje_max for n in crit_obj.niveles])
+                            max_score = max([n.puntaje for n in crit_obj.niveles])
 
                     elif nombre_crit in crit_name_map:
                         crit_obj = crit_name_map[nombre_crit]
                         if crit_obj.niveles:
-                            max_score = max([n.puntaje_max for n in crit_obj.niveles])
+                            max_score = max([n.puntaje for n in crit_obj.niveles])
                     
                     puntaje = data.get("puntaje", 0)
                     percentage = (puntaje / max_score * 100) if max_score > 0 else 0
@@ -345,6 +345,240 @@ async def get_quality_dashboard_stats(
 
     except Exception as e:
         log.error(f"Error en quality dashboard stats: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/export-professor-pdf-report")
+async def export_professor_pdf_report(
+    semestre: str = Query(...),
+    curso: Optional[str] = Query(None),
+    tema: str = Query(...),
+    current_user: Usuario = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    report_service = Depends(get_report_service)
+):
+    try:
+        stats = await get_dashboard_stats(
+            semestre=semestre,
+            curso=curso,
+            tema=tema,
+            current_user=current_user,
+            db=db
+        )
+        
+        course_name = curso or "N/A"
+        repo = EvaluacionRepository(db)
+        profesor_id = current_user.id if getattr(current_user, 'active_role', current_user.rol) == "PROFESOR" else None
+        evaluaciones = repo.get_by_filters(
+            semestre=semestre,
+            curso=curso,
+            tema=tema,
+            profesor_id=profesor_id
+        )
+        if evaluaciones and evaluaciones[0].curso:
+            course_name = evaluaciones[0].curso.nombre
+
+        metadata = {
+            "curso": course_name,
+            "semestre": semestre,
+            "profesor": current_user.nombre,
+            "tema": tema
+        }
+
+        pdf_buffer = report_service.generate_professor_report_pdf(stats, metadata)
+        
+        filename = f"Reporte_Estadistico_{course_name.replace(' ', '_')}_{tema.replace(' ', '_')}.pdf"
+        return Response(
+            content=pdf_buffer.getvalue(),
+            media_type="application/pdf",
+            headers={
+                "Content-Disposition": f"attachment; filename={filename}"
+            }
+        )
+    except Exception as e:
+        log.error(f"Error exportando reporte de profesor a PDF: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/export-quality-pdf-report")
+async def export_quality_pdf_report(
+    semestre: str = Query(...),
+    curso: Optional[str] = Query(None),
+    nrc: Optional[str] = Query(None),
+    atributo: Optional[str] = Query(None),
+    facultad_id: Optional[int] = Query(None),
+    escuela_id: Optional[int] = Query(None),
+    current_user: Usuario = Depends(require_role("DOCENTE_CIAC", "DIRECTOR_ESCUELA", "DIRAC")),
+    db: Session = Depends(get_db),
+    report_service = Depends(get_report_service)
+):
+    try:
+        stats = await get_quality_dashboard_stats(
+            semestre=semestre,
+            curso=curso,
+            nrc=nrc,
+            atributo=atributo,
+            facultad_id=facultad_id,
+            escuela_id=escuela_id,
+            current_user=current_user,
+            db=db
+        )
+
+        course_name = curso if curso else "Todos los cursos"
+        
+        facultad_name = None
+        if facultad_id:
+            from app.models.facultad import Facultad
+            fac = db.query(Facultad).filter(Facultad.id == facultad_id).first()
+            if fac:
+                facultad_name = fac.nombre
+                
+        escuela_name = None
+        if escuela_id:
+            from app.models.escuela import Escuela
+            esc = db.query(Escuela).filter(Escuela.id == escuela_id).first()
+            if esc:
+                escuela_name = esc.nombre
+
+        metadata = {
+            "curso": course_name,
+            "semestre": semestre,
+            "atributo": atributo or "AG-07",
+            "facultad": facultad_name,
+            "escuela": escuela_name,
+            "nrc": nrc
+        }
+
+        pdf_buffer = report_service.generate_quality_report_pdf(stats, metadata)
+        
+        attr_str = atributo or "AG-07"
+        filename = f"Reporte_Calidad_{course_name.replace(' ', '_')}_{attr_str}.pdf"
+        return Response(
+            content=pdf_buffer.getvalue(),
+            media_type="application/pdf",
+            headers={
+                "Content-Disposition": f"attachment; filename={filename}"
+            }
+        )
+    except Exception as e:
+        log.error(f"Error exportando reporte de calidad a PDF: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/export-professor-excel-report")
+async def export_professor_excel_report(
+    semestre: str = Query(...),
+    curso: Optional[str] = Query(None),
+    tema: str = Query(...),
+    current_user: Usuario = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    report_service = Depends(get_report_service)
+):
+    try:
+        stats = await get_dashboard_stats(
+            semestre=semestre,
+            curso=curso,
+            tema=tema,
+            current_user=current_user,
+            db=db
+        )
+        
+        course_name = curso or "N/A"
+        repo = EvaluacionRepository(db)
+        profesor_id = current_user.id if getattr(current_user, 'active_role', current_user.rol) == "PROFESOR" else None
+        evaluaciones = repo.get_by_filters(
+            semestre=semestre,
+            curso=curso,
+            tema=tema,
+            profesor_id=profesor_id
+        )
+        if evaluaciones and evaluaciones[0].curso:
+            course_name = evaluaciones[0].curso.nombre
+
+        metadata = {
+            "curso": course_name,
+            "semestre": semestre,
+            "profesor": current_user.nombre,
+            "tema": tema
+        }
+
+        excel_buffer = report_service.generate_professor_report_excel(stats, metadata)
+        
+        filename = f"Reporte_Estadistico_{course_name.replace(' ', '_')}_{tema.replace(' ', '_')}.xlsx"
+        return Response(
+            content=excel_buffer.getvalue(),
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={
+                "Content-Disposition": f"attachment; filename={filename}"
+            }
+        )
+    except Exception as e:
+        log.error(f"Error exportando reporte de profesor a Excel: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/export-quality-excel-report")
+async def export_quality_excel_report(
+    semestre: str = Query(...),
+    curso: Optional[str] = Query(None),
+    nrc: Optional[str] = Query(None),
+    atributo: Optional[str] = Query(None),
+    facultad_id: Optional[int] = Query(None),
+    escuela_id: Optional[int] = Query(None),
+    current_user: Usuario = Depends(require_role("DOCENTE_CIAC", "DIRECTOR_ESCUELA", "DIRAC")),
+    db: Session = Depends(get_db),
+    report_service = Depends(get_report_service)
+):
+    try:
+        stats = await get_quality_dashboard_stats(
+            semestre=semestre,
+            curso=curso,
+            nrc=nrc,
+            atributo=atributo,
+            facultad_id=facultad_id,
+            escuela_id=escuela_id,
+            current_user=current_user,
+            db=db
+        )
+
+        course_name = curso if curso else "Todos los cursos"
+        
+        facultad_name = None
+        if facultad_id:
+            from app.models.facultad import Facultad
+            fac = db.query(Facultad).filter(Facultad.id == facultad_id).first()
+            if fac:
+                facultad_name = fac.nombre
+                
+        escuela_name = None
+        if escuela_id:
+            from app.models.escuela import Escuela
+            esc = db.query(Escuela).filter(Escuela.id == escuela_id).first()
+            if esc:
+                escuela_name = esc.nombre
+
+        metadata = {
+            "curso": course_name,
+            "semestre": semestre,
+            "atributo": atributo or "AG-07",
+            "facultad": facultad_name,
+            "escuela": escuela_name,
+            "nrc": nrc
+        }
+
+        excel_buffer = report_service.generate_quality_report_excel(stats, metadata)
+        
+        attr_str = atributo or "AG-07"
+        filename = f"Reporte_Calidad_{course_name.replace(' ', '_')}_{attr_str}.xlsx"
+        return Response(
+            content=excel_buffer.getvalue(),
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={
+                "Content-Disposition": f"attachment; filename={filename}"
+            }
+        )
+    except Exception as e:
+        log.error(f"Error exportando reporte de calidad a Excel: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

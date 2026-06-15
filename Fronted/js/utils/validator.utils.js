@@ -6,7 +6,7 @@ export class ValidatorUtils {
 
         PASSWORD: /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&_.,-])[A-Za-z\d@$!%*?&_.,-]{8,}$/,
 
-        DESCRIPTION: /^[a-zA-ZáéíóúÁÉÍÓÚñÑ.,;:¿?¡!()\-]+(?: [a-zA-ZáéíóúÁÉÍÓÚñÑ.,;:¿?¡!()\-]+)*$/,
+        DESCRIPTION: /^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ.,;:¿?¡!()\-\s]+$/,
 
         COURSE_CODE: /^\d{4,5}$/,
 
@@ -62,7 +62,7 @@ export class ValidatorUtils {
     static sanitizeText(text, preserveTrailing = false) {
         if (!text) return '';
 
-        let sanitized = text.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑ\s.,;:¿?¡!()\-]/g, '');
+        let sanitized = text.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s.,;:¿?¡!()\-]/g, '');
 
         sanitized = sanitized.replace(/\s{2,}/g, ' ');
 

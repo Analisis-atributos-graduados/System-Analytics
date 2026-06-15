@@ -76,36 +76,27 @@ class RubricaService {
             throw new Error('Debe haber al menos un criterio');
         }
 
-        const sumaPesos = rubricaData.criterios.reduce((sum, c) => sum + c.peso, 0);
-        if (Math.abs(sumaPesos - 1.0) > 0.01) {
-            throw new Error(`La suma de los pesos debe ser 1.0 (actual: ${sumaPesos.toFixed(2)})`);
-        }
-
+        let totalPuntos = 0.0;
         rubricaData.criterios.forEach((criterio, index) => {
             if (!criterio.nombre_criterio) {
                 throw new Error(`El criterio ${index + 1} necesita un nombre`);
             }
-            if (criterio.peso < 0 || criterio.peso > 1) {
-                throw new Error(`El peso del criterio "${criterio.nombre_criterio}" debe estar entre 0 y 1`);
+            if (!criterio.niveles || criterio.niveles.length === 0) {
+                throw new Error(`El criterio "${criterio.nombre_criterio}" debe tener al menos un nivel`);
             }
+            const scores = criterio.niveles.map(n => {
+                const p = parseFloat(n.puntaje);
+                return isNaN(p) ? 0 : p;
+            });
+            const maxScore = Math.max(...scores, 0);
+            totalPuntos += maxScore;
         });
 
-        return true;
-    }
+        if (Math.abs(totalPuntos - 20.0) > 0.01) {
+            throw new Error(`La suma de los puntos máximos de los criterios debe ser exactamente 20 (actual: ${totalPuntos.toFixed(2)} pts)`);
+        }
 
-    convertPuntosAPesos(rubricaAntigua) {
-        const totalPuntos = rubricaAntigua.total_puntos || 20;
-        
-        return {
-            nombre_rubrica: rubricaAntigua.nombre_rubrica,
-            descripcion: rubricaAntigua.descripcion || '',
-            criterios: rubricaAntigua.criterios.map((criterio, index) => ({
-                nombre_criterio: criterio.nombre,
-                descripcion_criterio: criterio.descripcion || '',
-                peso: criterio.puntaje / totalPuntos,
-                orden: index + 1
-            }))
-        };
+        return true;
     }
 }
 

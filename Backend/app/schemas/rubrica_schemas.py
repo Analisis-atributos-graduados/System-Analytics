@@ -4,8 +4,7 @@ from typing import List, Optional
 class NivelSchema(BaseModel):
 
     nombre_nivel: str = Field(..., description="Nombre del nivel, ej: 'Excelente', 'Bueno', 'Regular', 'Insuficiente'")
-    puntaje_min: float = Field(..., ge=0, description="Puntaje mínimo del rango")
-    puntaje_max: float = Field(..., ge=0, description="Puntaje máximo del rango")
+    puntaje: float = Field(..., ge=0, description="Puntaje de este nivel")
     descriptores: List[str] = Field(default_factory=list, description="Lista de descriptores que definen este nivel")
     orden: int = Field(default=0, description="Orden de presentación del nivel")
 
@@ -13,8 +12,7 @@ class NivelSchema(BaseModel):
         json_schema_extra = {
             "example": {
                 "nombre_nivel": "Excelente",
-                "puntaje_min": 3,
-                "puntaje_max": 3,
+                "puntaje": 5,
                 "descriptores": [
                     "Justifica las necesidades y/o problemática",
                     "Describe las causas más probables",
@@ -38,7 +36,6 @@ class CriterioCreateSchema(BaseModel):
 
     nombre_criterio: str = Field(..., description="Nombre del criterio a evaluar")
     descripcion_criterio: str = Field(default="", description="Descripción detallada del criterio")
-    peso: float = Field(..., ge=0, le=1, description="Peso del criterio en la nota final (0-1)")
     orden: int = Field(default=0, description="Orden de presentación")
     niveles: List[NivelSchema] = Field(..., min_length=1, description="Debe tener al menos un nivel de desempeño")
 
@@ -55,7 +52,6 @@ class CriterioDetailSchema(BaseModel):
     rubrica_id: int
     nombre_criterio: str
     descripcion_criterio: Optional[str]
-    peso: float
     orden: int
     niveles: List[NivelDetailSchema]
 
@@ -75,9 +71,14 @@ class RubricaCreateRequest(BaseModel):
         if not v or len(v) == 0:
             raise ValueError('Debe definir al menos un criterio')
 
-        suma_pesos = sum(c.peso for c in v)
-        if abs(suma_pesos - 1.0) > 0.01:
-            raise ValueError(f'La suma de los pesos debe ser 1.0 (actual: {suma_pesos:.2f})')
+        total_puntos = 0.0
+        for c in v:
+            if not c.niveles:
+                raise ValueError(f'El criterio "{c.nombre_criterio}" debe tener al menos un nivel')
+            total_puntos += max(nivel.puntaje for nivel in c.niveles)
+
+        if abs(total_puntos - 20.0) > 0.01:
+            raise ValueError(f'La suma de los puntajes máximos de los criterios debe ser exactamente 20.0 (actual: {total_puntos:.2f})')
 
         return v
 
